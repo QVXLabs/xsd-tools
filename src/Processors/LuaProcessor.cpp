@@ -2,8 +2,8 @@
  * LuaProcessor.cpp
  *
  *  Created on: Jun 29, 2011
- *      Author: Ardavon Falls
- *   Copyright: (c)2012 Ardavon Falls
+ *      Author: QVXLabs LLC
+ *   Copyright: (c)2012 QVXLabs LLC
  *
  *  This file is part of xsd-tools.
  *

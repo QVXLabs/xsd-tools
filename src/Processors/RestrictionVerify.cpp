@@ -2,8 +2,8 @@
  * ElementExtracter.cpp
  *
  *  Created on: 3/4/14
- *      Author: Ardavon Falls
- *   Copyright: (c)2012 Ardavon Falls
+ *      Author: QVXLabs LLC
+ *   Copyright: (c)2012 QVXLabs LLC
  *
  *  This file is part of xsd-tools.
  *

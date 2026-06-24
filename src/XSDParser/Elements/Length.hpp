@@ -2,8 +2,8 @@
  * Length.hpp
  *
  *  Created on: Feb 21, 2014
- *      Author: Ardavon Falls
- *   Copyright: (c)2014 Ardavon Falls
+ *      Author: QVXLabs LLC
+ *   Copyright: (c)2014 QVXLabs LLC
  *
  *  This file is part of xsd-tools.
  *

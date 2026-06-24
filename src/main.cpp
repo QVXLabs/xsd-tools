@@ -2,8 +2,8 @@
  * main.cpp
  *
  *  Created on: May 18, 2011
- *      Author: Ardavon Falls
- *   Copyright: (c)2011 Ardavon Falls
+ *      Author: QVXLabs LLC
+ *   Copyright: (c)2011 QVXLabs LLC
  *
  *  This file is part of xsd-tools.
  *
@@ -42,7 +42,7 @@ int main(int argc, const char* argv[]) {
 		}
 	}
 	if (argc < 3) {
-		cout << "xsdb " << XSDTOOLS_VERSION << " (c) Ardavon Falls" << endl;
+		cout << "xsdb " << XSDTOOLS_VERSION << " (c) QVXLabs LLC" << endl;
 		cout << "Syntax xsdb <template> <input xsd file> <unique template paramters>" << endl;
 		cout << "To retrieve list of template paramters invoke with option \"-h info\"" << endl;
 		cout << "For example:" << endl;

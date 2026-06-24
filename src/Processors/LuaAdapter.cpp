@@ -2,8 +2,8 @@
  * LuaAdapter.cpp
  *
  *  Created on: 01/22/12
- *      Author: Ardavon Falls
- *   Copyright: (c)2012 Ardavon Falls
+ *      Author: QVXLabs LLC
+ *   Copyright: (c)2012 QVXLabs LLC
  *
  *  This file is part of xsd-tools.
  *
