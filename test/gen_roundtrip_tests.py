@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Copyright: (c)2012 Ardavon Falls
+# Copyright: (c)2012 QVXLabs LLC
 #
 # This file is part of xsd-tools.
 #
