@@ -33,9 +33,9 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 # ---------------------------------------------------------------------------
-# Build configurations. SCons picked debug/release against one tree; CMake
-# single-config generators bake one type per build dir. Prefer a multi-config
-# generator (Ninja Multi-Config / VS / Xcode) so one configure yields both.
+# Build configurations. Single-config generators bake one type per build dir;
+# prefer a multi-config generator (Ninja Multi-Config / VS / Xcode) so one
+# configure yields both Debug and Release.
 # ---------------------------------------------------------------------------
 get_property(_isMultiConfig GLOBAL PROPERTY GENERATOR_IS_MULTI_CONFIG)
 if(_isMultiConfig)
@@ -57,7 +57,7 @@ list(PREPEND CMAKE_PREFIX_PATH "${CMAKE_BINARY_DIR}" "${CMAKE_CURRENT_BINARY_DIR
 
 # ---------------------------------------------------------------------------
 # Warning / optimization flags, per-config so multi-config trees get them
-# right. Translated from the old SConstruct.
+# right.
 # ---------------------------------------------------------------------------
 # Strict warnings/opt flags apply ONLY to our own targets (link xsd_flags),
 # never to vendored third-party/ code. CMake's per-config defaults already

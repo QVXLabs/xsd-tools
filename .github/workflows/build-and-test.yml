@@ -21,8 +21,9 @@ jobs:
         include:
           - { os: ubuntu-latest,    arch: x86_64, experimental: false }
           - { os: ubuntu-24.04-arm, arch: arm64,  experimental: true  }
-          - { os: macos-13,         arch: x86_64, experimental: true  }
-          - { os: macos-14,         arch: arm64,  experimental: true  }
+          - { os: macos-15,         arch: arm64,  experimental: true  }
+          # Intel macOS: no free hosted runner remains; -large is billed.
+          - { os: macos-15-large,   arch: x86_64, experimental: false }
     defaults:
       run:
         shell: bash
