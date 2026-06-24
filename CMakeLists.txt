@@ -26,11 +26,15 @@ option(XSD_WERROR "Treat warnings as errors (GCC/Clang only)" ON)
 include(CTest)  # defines BUILD_TESTING (default ON)
 
 # ---------------------------------------------------------------------------
-# C++ standard (the sources are C++11; safeEnv.lua/luac require Lua 5.1)
+# Language standards (C++ sources are C++11; the bundled lua + the generated
+# C output build as C11). Pin both so the build is captured, not host-default.
 # ---------------------------------------------------------------------------
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
+# C extensions stay ON (gnu11): the bundled lua needs POSIX (dlopen/popen).
+set(CMAKE_C_STANDARD 11)
+set(CMAKE_C_STANDARD_REQUIRED ON)
 
 # ---------------------------------------------------------------------------
 # Build configurations. Single-config generators bake one type per build dir;

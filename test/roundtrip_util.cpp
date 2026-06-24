@@ -113,6 +113,7 @@ namespace {
 		/* compile: <base>-bin.c + xml_<base>.c + libb64 + expat */
 		std::ostringstream cc;
 		cc << C_COMPILER
+		   << " -std=c11"  /* match the project's pinned C standard */
 		   << includeFlag(dir)
 		   << includeFlag(LIBB64_INCLUDE_DIR)
 		   << includeFlag(EXPAT_INCLUDE_DIR)
