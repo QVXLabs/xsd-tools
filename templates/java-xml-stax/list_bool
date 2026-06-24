@@ -1,0 +1,17 @@
+[@lua --define StAX list(bool) type
+	javatype_listBool = {
+		jtype = "java.util.List<String>",
+		field = javatype_listString.field,
+		default = javatype_listString.default,
+		marshal = javatype_listString.marshal,
+		unmarshal = javatype_listString.unmarshal,
+		test = {
+			assign = function()
+				local tbl = { 'true', 'false' }
+				return table.concat({
+					tbl[math.random(1, #tbl)], tbl[math.random(1, #tbl)],
+					tbl[math.random(1, #tbl)] }, " ")
+			end,
+		},
+	}
+]

@@ -1,0 +1,20 @@
+[@lua --define StAX list(int) type (stored as List<String>)
+	javatype_listInt = {
+		jtype = "java.util.List<String>",
+		field = javatype_listString.field,
+		default = javatype_listString.default,
+		marshal = javatype_listString.marshal,
+		unmarshal = javatype_listString.unmarshal,
+		test = {
+			assign = function()
+				return table.concat({
+					string.format("%.0f",
+						math.floor(math.random() * 2147483647.0)),
+					string.format("%.0f",
+						math.floor(math.random() * 2147483647.0)),
+					string.format("%.0f",
+						math.floor(math.random() * 2147483647.0)) }, " ")
+			end,
+		},
+	}
+]

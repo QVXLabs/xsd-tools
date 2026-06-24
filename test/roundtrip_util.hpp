@@ -38,6 +38,10 @@ namespace xsdtest {
 	/* java-json.org: emit binding + driver into a Maven project, mvn package
 	 * and run. Caller GTEST_SKIPs when mvn/JDK are unavailable. */
 	::testing::AssertionResult javaRoundtrip(const std::string& xsdPath);
+
+	/* java-xml-stax: emit StAX binding + driver into a Maven project (no
+	 * external deps), mvn package and run. GTEST_SKIPs without mvn/JDK. */
+	::testing::AssertionResult javaXmlRoundtrip(const std::string& xsdPath);
 }
 
 #endif /* XSDB_ROUNDTRIP_UTIL_HPP */
