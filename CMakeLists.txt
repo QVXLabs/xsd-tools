@@ -123,6 +123,8 @@ else()
     URL_HASH SHA256=2640fc56a795f29d28ef15e13c34a47e223960b0240e8cb0a82d9b0738695333
     PATCH_COMMAND patch -p1 -i
       "${CMAKE_CURRENT_SOURCE_DIR}/cmake/patches/luanum-5.1.5.patch"
+      COMMAND patch -p1 -i
+      "${CMAKE_CURRENT_SOURCE_DIR}/cmake/patches/lundump-signedchar-5.1.5.patch"
       COMMAND ${CMAKE_COMMAND} -E copy_if_different
       "${CMAKE_CURRENT_SOURCE_DIR}/cmake/lua-CMakeLists.txt"
       "<SOURCE_DIR>/CMakeLists.txt")
