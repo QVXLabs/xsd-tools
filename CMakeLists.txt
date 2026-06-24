@@ -52,8 +52,8 @@ endif()
 # Let Conan's cmake_find_package modules (if present) satisfy find_package().
 # `conan install` drops Find*.cmake / *-config files into the build tree.
 # ---------------------------------------------------------------------------
-list(PREPEND CMAKE_MODULE_PATH "${CMAKE_BINARY_DIR}" "${CMAKE_CURRENT_BINARY_DIR}")
-list(PREPEND CMAKE_PREFIX_PATH "${CMAKE_BINARY_DIR}" "${CMAKE_CURRENT_BINARY_DIR}")
+list(PREPEND CMAKE_MODULE_PATH "${CMAKE_BINARY_DIR}")
+list(PREPEND CMAKE_PREFIX_PATH "${CMAKE_BINARY_DIR}")
 
 # ---------------------------------------------------------------------------
 # Warning / optimization flags, per-config so multi-config trees get them

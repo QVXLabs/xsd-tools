@@ -43,6 +43,13 @@ namespace {
 		return res;
 	}
 
+	/* A -I flag for `dir`, or empty if `dir` is. An empty dir would emit a
+	 * bare `-I` (the quotes collapse in the shell), which then swallows the
+	 * next argument as its value — e.g. the driver .c, leaving no main(). */
+	std::string includeFlag(const std::string& dir) {
+		return dir.empty() ? std::string() : " -I'" + dir + "'";
+	}
+
 	void writeFile(const std::string& path, const std::string& content) {
 		std::ofstream ofs(path.c_str(), std::ios::binary);
 		ofs.write(content.data(),
@@ -106,9 +113,9 @@ namespace {
 		/* compile: <base>-bin.c + xml_<base>.c + libb64 + expat */
 		std::ostringstream cc;
 		cc << C_COMPILER
-		   << " -I'" << dir << "'"
-		   << " -I'" << LIBB64_INCLUDE_DIR << "'"
-		   << " -I'" << EXPAT_INCLUDE_DIR << "'"
+		   << includeFlag(dir)
+		   << includeFlag(LIBB64_INCLUDE_DIR)
+		   << includeFlag(EXPAT_INCLUDE_DIR)
 		   << " '" << dir << "/" << base << "-bin.c'"
 		   << " '" << dir << "/xml_" << base << ".c'"
 		   << " '" << LIBB64_ARCHIVE << "'"
