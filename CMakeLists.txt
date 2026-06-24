@@ -178,7 +178,16 @@ else()
     endif()
   endforeach()
   set(BOOST_EXCLUDE_LIBRARIES "${_boost_exclude}" CACHE STRING "" FORCE)
+  # Boost's superproject registers its own CTest suites for any lib in
+  # BOOST_INCLUDE_LIBRARIES when BUILD_TESTING is on; we never build those exes
+  # (EXCLUDE_FROM_ALL), so they'd show up in our ctest run as "Not Run". Must
+  # override the *cache* entry: BoostRoot.cmake unset()s any normal BUILD_TESTING
+  # var mid-loop, which would re-expose our cached ON. Restore it after, so our
+  # own test/ subdir still registers.
+  set(_xsd_build_testing "${BUILD_TESTING}")
+  set(BUILD_TESTING OFF CACHE BOOL "" FORCE)
   add_subdirectory(third-party/boost EXCLUDE_FROM_ALL)
+  set(BUILD_TESTING "${_xsd_build_testing}" CACHE BOOL "" FORCE)
   target_link_libraries(xsd_boost INTERFACE Boost::filesystem Boost::system
     Boost::algorithm Boost::foreach Boost::tokenizer)
 endif()
