@@ -103,6 +103,29 @@ include(FetchContent)
 set(FETCHCONTENT_BASE_DIR "${CMAKE_BINARY_DIR}/third-party"
     CACHE PATH "Location for FetchContent sources" FORCE)
 
+# Fetch a release tarball that ships no CMakeLists, optionally pre-applying
+# source patches, then overlay our own build file and expose the result through
+# an INTERFACE target.
+#   fetch_third_party(<name> <url> <sha256> <overlay> <provided> <iface>
+#                      [PATCH <file>...])
+# Each PATCH is applied with `patch -p1`, in order, before the overlay is copied
+# over the upstream tree's missing CMakeLists.txt.
+function(fetch_third_party name url sha256 overlay provided iface)
+  cmake_parse_arguments(ARG "" "" "PATCH" ${ARGN})
+  set(patch_cmd "")
+  foreach(p IN LISTS ARG_PATCH)
+    list(APPEND patch_cmd patch -p1 -i "${p}" COMMAND)
+  endforeach()
+  list(APPEND patch_cmd ${CMAKE_COMMAND} -E copy_if_different
+       "${overlay}" "<SOURCE_DIR>/CMakeLists.txt")
+  FetchContent_Declare(${name}
+    URL      "${url}"
+    URL_HASH SHA256=${sha256}
+    PATCH_COMMAND ${patch_cmd})
+  FetchContent_MakeAvailable(${name})
+  target_link_libraries(${iface} INTERFACE ${provided})
+endfunction()
+
 # -- Lua 5.1 (EXACT: code uses loadstring/setfenv, gone after 5.1) --
 # Conan's cmake_find_package provides target Lua::Lua; CMake's builtin FindLua
 # provides LUA_INCLUDE_DIR / LUA_LIBRARIES. Else fetch lua 5.1.5 and overlay
@@ -115,21 +138,17 @@ elseif(LUA_FOUND)
   target_include_directories(xsd_lua INTERFACE ${LUA_INCLUDE_DIR})
   target_link_libraries(xsd_lua INTERFACE ${LUA_LIBRARIES})
 else()
-  # Apply the recipe's LNUM source patch, then overlay our build files. (The
-  # recipe's other patch is build-system only; cmake/lua-CMakeLists.txt
-  # replaces it and reproduces its LNUM config — see that file.)
-  FetchContent_Declare(lua
-    URL      https://www.lua.org/ftp/lua-5.1.5.tar.gz
-    URL_HASH SHA256=2640fc56a795f29d28ef15e13c34a47e223960b0240e8cb0a82d9b0738695333
-    PATCH_COMMAND patch -p1 -i
+  # Apply the recipe's LNUM source patch + the unsigned-char lundump fix, then
+  # overlay our build files. (The recipe's other patch is build-system only;
+  # cmake/lua-CMakeLists.txt replaces it and reproduces its LNUM config.)
+  fetch_third_party(lua
+    https://www.lua.org/ftp/lua-5.1.5.tar.gz
+    2640fc56a795f29d28ef15e13c34a47e223960b0240e8cb0a82d9b0738695333
+    "${CMAKE_CURRENT_SOURCE_DIR}/cmake/lua-CMakeLists.txt"
+    Lua::Lua xsd_lua
+    PATCH
       "${CMAKE_CURRENT_SOURCE_DIR}/cmake/patches/luanum-5.1.5.patch"
-      COMMAND patch -p1 -i
-      "${CMAKE_CURRENT_SOURCE_DIR}/cmake/patches/lundump-signedchar-5.1.5.patch"
-      COMMAND ${CMAKE_COMMAND} -E copy_if_different
-      "${CMAKE_CURRENT_SOURCE_DIR}/cmake/lua-CMakeLists.txt"
-      "<SOURCE_DIR>/CMakeLists.txt")
-  FetchContent_MakeAvailable(lua)
-  target_link_libraries(xsd_lua INTERFACE Lua::Lua)
+      "${CMAKE_CURRENT_SOURCE_DIR}/cmake/patches/lundump-signedchar-5.1.5.patch")
   set(XSD_BUNDLED_LUA TRUE)
 endif()
 
@@ -142,14 +161,11 @@ elseif(TinyXML_FOUND OR TINYXML_FOUND)
   target_include_directories(xsd_tinyxml INTERFACE ${TinyXML_INCLUDE_DIRS})
   target_link_libraries(xsd_tinyxml INTERFACE ${TinyXML_LIBRARIES})
 else()
-  FetchContent_Declare(tinyxml
-    URL      https://downloads.sourceforge.net/project/tinyxml/tinyxml/2.6.2/tinyxml_2_6_2.tar.gz
-    URL_HASH SHA256=15bdfdcec58a7da30adc87ac2b078e4417dbe5392f3afb719f9ba6d062645593
-    PATCH_COMMAND ${CMAKE_COMMAND} -E copy_if_different
-      "${CMAKE_CURRENT_SOURCE_DIR}/cmake/tinyxml-CMakeLists.txt"
-      "<SOURCE_DIR>/CMakeLists.txt")
-  FetchContent_MakeAvailable(tinyxml)
-  target_link_libraries(xsd_tinyxml INTERFACE TinyXML::TinyXML)
+  fetch_third_party(tinyxml
+    https://downloads.sourceforge.net/project/tinyxml/tinyxml/2.6.2/tinyxml_2_6_2.tar.gz
+    15bdfdcec58a7da30adc87ac2b078e4417dbe5392f3afb719f9ba6d062645593
+    "${CMAKE_CURRENT_SOURCE_DIR}/cmake/tinyxml-CMakeLists.txt"
+    TinyXML::TinyXML xsd_tinyxml)
 endif()
 
 # -- Boost (system + filesystem; foreach + algorithm/string are header-only) --
