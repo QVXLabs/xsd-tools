@@ -1,0 +1,146 @@
+[@lua --include and transform old format
+	include 'shared/trnsfrm_old'
+	schema = trnsfrm_oldFmt(schema)
+][@lua --include any shared 'helper' templates
+	return include 'shared/schemaEx'
+][@lua -- include python json type info
+	include 'python-json/python_type_info'
+][@lua --rename any non-c-safe names to c-safe names & sort dependencies so that they are matched correctly
+	schema = schema.c_safeNames()
+	depOrder = schema.sortDependencies()
+	depOrderSansRoot = table.filter(depOrder, function(k,v) return v.name ~= schema.root and v or nil end)
+]# JSON representation: each element marshals to
+#   {"name": <element name>, "attrs": {<attr>: value, ...},
+#    "content": <content>}
+# where <content> is the typed scalar/list for a simple-content element, or a
+# list of child element dicts for a complex element. The document root
+# marshals to json.dumps of a list of top-level element dicts. Element objects
+# are constructed via the module-level `factories` registry so a consumer can
+# override factories['<name>'] to inject a subclass; the unmarshal path always
+# goes through it.
+import base64
+import binascii
+import json
+
+
+class _jsonelement:
+    def __init__(self):
+        self._content = []
+
+    def getContent(self):
+        return self._content
+
+[@lua -- output class for each element
+	local outbuf = stringBuffer:new()
+	table.map(depOrderSansRoot, function(_, node)
+		outbuf:append(table.concat({
+			'\n',
+			'class json_', node.name, '(_jsonelement):\n',
+			'    def __init__(self):\n',
+			'        _jsonelement.__init__(self)\n'
+		}))
+		-- output default attribute values
+		if next(node.attributes) then
+			table.map(node.attributes, function(attributeName, attribute)
+				if attribute.default then
+					local pyType = pyjson_type_info[attribute.type]
+					outbuf:append(pyType.default(attributeName, attribute.default))
+				else
+					outbuf:append(table.concat({'        self._', attributeName, ' = None\n'}))
+				end
+			end)
+		end
+		outbuf:append(table.concat({
+			'\n',
+			'    def marshal(self):\n',
+			'        attrs = {}\n',
+		}))
+		-- output marshal code for each element attribute
+		table.map(node.attributes, function(attributeName, attribute)
+			local pyType = pyjson_type_info[attribute.type]
+			outbuf:append(pyType.marshal.attribute(attributeName))
+		end)
+		if next(node.content) then
+			outbuf:append(pyjson_type_info[node.content.type].marshal.content())
+		else
+			outbuf:append(table.concat({
+				"        content = []\n",
+				"        for node in self.getContent():\n",
+				"            if isinstance(node, _jsonelement):\n",
+				"                content.append(node.marshal())\n"
+			}))
+		end
+		outbuf:append(table.concat({
+			'        return {"name": "', node.name, '", "attrs": attrs, "content": content}\n',
+			'\n',
+			'    def unmarshal(self, obj):\n',
+			'        attributes = obj["attrs"]\n',
+		}))
+		-- output unmarshal code for each element attribute
+		if next(node.attributes) then
+			outbuf:append('        for attribute in attributes:\n')
+			table.map(node.attributes, function(attributeName, attribute)
+				local pyType = pyjson_type_info[attribute.type]
+				outbuf:append(pyType.unmarshal.attribute(attributeName))
+			end)
+		end
+		outbuf:append('        content = obj["content"]\n')
+		if next(node.content) then
+			outbuf:append(pyjson_type_info[node.content.type].unmarshal.content())
+		else
+			outbuf:append(table.concat({
+				"        self._content = []\n",
+				"        for child in content:\n",
+				"            element = factories[child[\"name\"]]()\n",
+				"            element.unmarshal(child)\n",
+				"            self._content.append(element)\n"
+			}))
+		end
+		outbuf:append('\n')
+		-- output 'getters' code for each attribute
+		table.map(node.attributes, function(attributeName, attribute)
+			outbuf:append(table.concat({
+				'    def ', attributeName, '(self):\n',
+				'        return self._', attributeName, '\n',
+				'\n'
+			}))
+		end)
+		-- output 'setters' code for each attribute
+		table.map(node.attributes, function(attributeName, attribute)
+			outbuf:append(table.concat({
+				'    def set_', attributeName, '(self, value):\n',
+				'        self._', attributeName, '= value\n',
+				'\n'
+			}))
+		end)
+		outbuf:append('\n')
+	end)
+	return outbuf:str()
+]
+[@lua -- module-level overridable factory registry: element name -> class
+	local outbuf = stringBuffer:new()
+	outbuf:append('factories = {\n')
+	table.map(depOrderSansRoot, function(_, node)
+		outbuf:append(table.concat({
+			"    '", node.name, "': json_", node.name, ",\n"
+		}))
+	end)
+	outbuf:append('}\n')
+	return outbuf:str()
+]
+
+class json_[@lua return schema.root](_jsonelement):
+    def __init__(self):
+        _jsonelement.__init__(self)
+
+    def marshal(self):
+        return json.dumps(
+            [elm.marshal() for elm in self.getContent()
+             if isinstance(elm, _jsonelement)])
+
+    def unmarshal(self, obj):
+        self._content = []
+        for child in obj:
+            element = factories[child["name"]]()
+            element.unmarshal(child)
+            self._content.append(element)

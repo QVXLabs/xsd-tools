@@ -1,0 +1,37 @@
+[@lua --define python int type (JSON)
+	pyjsontype_int = {
+		marshal = {
+			attribute = function(attribName)
+				return table.concat({
+					"        attrs[\"", attribName, "\"] = int(self._", attribName, ")\n",
+				})
+			end,
+			content = function()
+				return table.concat({
+					"        content = self._content[0]\n"
+				})
+			end,
+		},
+		unmarshal = {
+			attribute = function(attribName)
+				return table.concat({
+					"            if \"", attribName, "\" == attribute:\n",
+					"                self._", attribName, " = int(attributes[attribute])\n",
+				})
+			end,
+			content = function()
+				return table.concat({
+					"        self._content = [int(content)]\n"
+				})
+			end
+		},
+		default = function(attribName, value)
+			return table.concat({"        self._", attribName, " = ", value, "\n"})
+		end,
+		test = {
+			assign = function()
+				return string.format("%.0f", math.floor(math.random() * 2147483647.0))
+			end,
+		},
+	}
+]

@@ -92,6 +92,7 @@ if(NOT _gen_rc EQUAL 0)
 endif()
 set(GENERATED_ROUNDTRIP_SOURCES
   "${GEN_DIR}/roundtrip_python_sax.cpp"
+  "${GEN_DIR}/roundtrip_python_json.cpp"
   "${GEN_DIR}/roundtrip_c_xml_expat.cpp"
   "${GEN_DIR}/roundtrip_c_xml_expat_dom.cpp"
   "${GEN_DIR}/roundtrip_java_json.cpp")

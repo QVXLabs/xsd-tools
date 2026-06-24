@@ -17,6 +17,8 @@ import sys
 TARGETS = [
     ("PythonSaxRoundtrip", "pythonRoundtrip", ["python3"],
      "roundtrip_python_sax.cpp"),
+    ("PythonJsonRoundtrip", "pythonJsonRoundtrip", ["python3"],
+     "roundtrip_python_json.cpp"),
     ("CXmlExpatRoundtrip", "cExpatRoundtrip", ["cc"],
      "roundtrip_c_xml_expat.cpp"),
     ("CXmlExpatDomRoundtrip", "cExpatDomRoundtrip", ["cc"],
@@ -26,8 +28,8 @@ TARGETS = [
 ]
 
 # Targets emitted by default.
-ENABLED = {"PythonSaxRoundtrip", "CXmlExpatRoundtrip", "CXmlExpatDomRoundtrip",
-           "JavaJsonRoundtrip"}
+ENABLED = {"PythonSaxRoundtrip", "PythonJsonRoundtrip", "CXmlExpatRoundtrip",
+           "CXmlExpatDomRoundtrip", "JavaJsonRoundtrip"}
 
 # Round-trips known to fail for reasons unrelated to the build (e.g. defects
 # in a template's test-value generation). Emitted with gtest's DISABLED_

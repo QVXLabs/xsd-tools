@@ -1,0 +1,39 @@
+[@lua --define python list bool type (JSON)
+	pyjsontype_listBool = {
+		marshal = {
+			attribute = function(attribName)
+				return table.concat({
+					"        attrs[\"", attribName, "\"] = [bool(x) for x in self._", attribName, "]\n",
+				})
+			end,
+			content = function()
+				return table.concat({
+					"        content = [bool(x) for x in self.getContent()]\n"
+				})
+			end,
+		},
+		unmarshal = {
+			attribute = function(attribName)
+				return table.concat({
+					"            if \"", attribName, "\" == attribute:\n",
+					"                self._", attribName, " = [bool(x) for x in attributes[attribute]]\n",
+				})
+			end,
+			content = function()
+				return table.concat({
+					"        self._content = [bool(x) for x in content]\n"
+				})
+			end
+		},
+		default = function(attribName, value)
+			return table.concat({"        self._", attribName, " = [bool(\"\".join(x.split())) for x in \"", value, "\".split(\" \")]\n"})
+		end,
+		test = {
+			assign = function()
+				return table.concat({
+					tostring(math.random(0, 255)),tostring(math.random(0, 255)), tostring(math.random(0, 255))
+				}, " ")
+			end,
+		},
+	}
+]

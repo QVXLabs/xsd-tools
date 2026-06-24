@@ -1,0 +1,41 @@
+[@lua --define python list hex type (JSON)
+	pyjsontype_listHex = {
+		marshal = {
+			attribute = function(attribName)
+				return table.concat({
+					"        attrs[\"", attribName, "\"] = [binascii.hexlify(x).decode('utf-8') for x in self._", attribName, "]\n",
+				})
+			end,
+			content = function()
+				return table.concat({
+					"        content = [binascii.hexlify(x).decode('utf-8') for x in self.getContent()]\n",
+				})
+			end,
+		},
+		unmarshal = {
+			attribute = function(attribName)
+				return table.concat({
+					"            if \"", attribName, "\" == attribute:\n",
+					"                self._", attribName, " = [bytes.fromhex(\"\".join(x.split())) for x in attributes[attribute]]\n"
+				})
+			end,
+			content = function()
+				return table.concat({
+					"        self._content = [bytes.fromhex(\"\".join(x.split())) for x in content]\n",
+				})
+			end
+		},
+		default = function(attribName, value)
+			return table.concat({"        self._", attribName, " = [bytes.fromhex(\"\".join(x.split())) for x in \"", value, "\".split(\" \")]\n"})
+		end,
+		test = {
+			assign = function()
+				return table.concat({
+					string.format('%.4x%.4x%.4x', math.random(0, 65535), math.random(0, 65535), math.random(0, 65535)),
+					string.format('%.4x%.4x%.4x', math.random(0, 65535), math.random(0, 65535), math.random(0, 65535)),
+					string.format('%.4x%.4x%.4x', math.random(0, 65535), math.random(0, 65535), math.random(0, 65535)),
+				}, " ")
+			end,
+		},
+	}
+]

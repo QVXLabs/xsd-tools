@@ -1,0 +1,111 @@
+[@lua --include and transform old format
+	include 'shared/trnsfrm_old'
+	schema = trnsfrm_oldFmt(schema)
+][@lua --include any shared 'helper' templates
+	return include 'shared/schemaEx'
+][@lua -- include python json type info
+	return include 'python-json/python_type_info'
+][@lua --rename any non-c-safe names to c-safe names
+	schema = schema.c_safeNames()
+][@lua -- create friendly root schema name
+	schemaName = schema.types[schema.root].name:gsub("_xsd$", "")
+]import json
+import [@lua return schemaName]
+
+# Build a canonical JSON document (the expected marshal output) by walking the
+# schema and assigning random test values, then verify the round-trip:
+# unmarshal(json.loads(doc)) followed by marshal() reproduces the document.
+[@lua
+	-- Render a test value as the Python literal the binding stores in
+	-- "content"/"attrs" for a given XSD type. Mirrors each type's marshal
+	-- output so json.loads(marshal()) compares equal.
+	local function pyLiteral(typeName, value)
+		local t = pyjson_type_info[typeName]
+		if t == pyjsontype_int or t == pyjsontype_long then
+			return value
+		elseif t == pyjsontype_float then
+			return value
+		elseif t == pyjsontype_bool then
+			-- binding marshals bool(non-empty str) == True
+			return "True"
+		elseif t == pyjsontype_string then
+			-- simple-content string element stores a list of text nodes
+			return table.concat({'["', value, '"]'})
+		elseif t == pyjsontype_base64 or t == pyjsontype_hex then
+			-- base64 test values carry a trailing escaped newline that the
+			-- JSON binding does not reproduce; strip it.
+			value = value:gsub('\\n', '')
+			return table.concat({'"', value, '"'})
+		elseif t == pyjsontype_listString then
+			local parts = {}
+			for w in value:gmatch('%S+') do
+				parts[#parts + 1] = table.concat({'"', w, '"'})
+			end
+			return table.concat({'[', table.concat(parts, ', '), ']'})
+		elseif t == pyjsontype_listBase64 or t == pyjsontype_listHex then
+			local parts = {}
+			for w in value:gmatch('%S+') do
+				w = w:gsub('\\n', '')
+				parts[#parts + 1] = table.concat({'"', w, '"'})
+			end
+			return table.concat({'[', table.concat(parts, ', '), ']'})
+		elseif t == pyjsontype_listBool then
+			local parts = {}
+			for w in value:gmatch('%S+') do
+				parts[#parts + 1] = "True"
+			end
+			return table.concat({'[', table.concat(parts, ', '), ']'})
+		else
+			-- listInt / listLong / listFloat
+			local parts = {}
+			for w in value:gmatch('%S+') do
+				parts[#parts + 1] = w
+			end
+			return table.concat({'[', table.concat(parts, ', '), ']'})
+		end
+	end
+
+	-- Emit the Python literal for one element dict.
+	local outbuf = stringBuffer:new()
+	local function dpOutput(_, node)
+		outbuf:append(table.concat({'{"name": "', node.name, '", "attrs": {'}))
+		local attrParts = {}
+		table.map(node.attributes, function(attribName, attrib)
+			local v = pyjson_type_info[attrib.type].test.assign()
+			attrParts[#attrParts + 1] = table.concat({
+				'"', attribName, '": ', pyLiteral(attrib.type, v)
+			})
+		end)
+		outbuf:append(table.concat(attrParts, ', '))
+		outbuf:append('}, "content": ')
+		if next(node.content) then
+			local v = pyjson_type_info[node.content.type].test.assign()
+			outbuf:append(pyLiteral(node.content.type, v))
+		elseif next(node.dependents) then
+			outbuf:append('[')
+			local kids = {}
+			table.map(node.dependents, function(name, child)
+				dpOutput(name, child)
+			end)
+			outbuf:append(']')
+		else
+			outbuf:append('[]')
+		end
+		outbuf:append('}')
+		outbuf:append(',\n')
+	end
+
+	outbuf:append('doc = [\n')
+	table.map(schema.types[schema.root].dependents, dpOutput)
+	outbuf:append(']\n')
+	return outbuf:str()
+]
+
+def runTest(doc):
+    s = json.dumps(doc)
+    root = [@lua return schemaName].json_[@lua return schema.root]()
+    root.unmarshal(json.loads(s))
+    out = root.marshal()
+    assert json.loads(out) == doc
+
+runTest(doc)

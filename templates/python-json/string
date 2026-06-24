@@ -1,0 +1,44 @@
+[@lua --define python String type (JSON)
+	pyjsontype_string = {
+		marshal = {
+			attribute = function(attribName)
+				return table.concat({
+					"        attrs[\"", attribName, "\"] = self._", attribName, "\n",
+				})
+			end,
+			content = function()
+				return table.concat({
+					"        children = []\n",
+					"        for node in self.getContent():\n",
+					"            if isinstance(node, _jsonelement):\n",
+					"                children.append(node.marshal())\n",
+					"            else:\n",
+					"                children.append(str(node))\n",
+					"        content = children\n",
+				})
+			end,
+		},
+		unmarshal = {
+			attribute = function(attribName)
+				return table.concat({
+					"            if \"", attribName, "\" == attribute:\n",
+					"                self._", attribName, " = attributes[attribute]\n",
+				})
+			end,
+			content = function()
+				return table.concat({
+					"        self._content = content\n"
+				})
+			end
+		},
+		default = function(attribName, value)
+			return table.concat({"        self._", attribName, " = \"", value, "\"\n"})
+		end,
+		test = {
+			assign = function()
+				local tbl = { 'arch', 'Ancestor', 'Interaction', 'Productivity', 'Jelly', 'Glue', 'Way'}
+				return tbl[math.random(1, #tbl)]
+			end,
+		},
+	}
+]

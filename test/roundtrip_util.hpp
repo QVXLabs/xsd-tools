@@ -30,6 +30,10 @@ namespace xsdtest {
 	 * (marshal(unmarshal(x)) == x), assert clean exit. */
 	::testing::AssertionResult pythonRoundtrip(const std::string& xsdPath);
 
+	/* python-json: emit binding + self-checking driver, run the driver
+	 * (marshal(unmarshal(doc)) == doc), assert clean exit. */
+	::testing::AssertionResult pythonJsonRoundtrip(const std::string& xsdPath);
+
 	/* c-xml-expat / c-xml-expat-dom: emit + split multi-file C binding and
 	 * driver, compile (libb64 + expat) and run. */
 	::testing::AssertionResult cExpatRoundtrip(const std::string& xsdPath);

@@ -179,6 +179,30 @@ namespace xsdtest {
 		return ::testing::AssertionSuccess();
 	}
 
+	::testing::AssertionResult pythonJsonRoundtrip(const std::string& xsdPath) {
+		const std::string base = baseName(xsdPath);
+		const std::string dir = makeTempDir(base);
+		if (dir.empty())
+			return ::testing::AssertionFailure() << "could not create tempdir";
+		try {
+			/* driver does `import <base>`, so name the binding <base>.py */
+			writeFile(dir + "/" + base + ".py",
+			          generate(TEMPLATES_DIR "/python-json.tmpl", xsdPath));
+			writeFile(dir + "/driver.py",
+			          generate(TEMPLATES_DIR "/python-json.tmpl-test",
+			                   xsdPath));
+		} catch (std::exception& e) {
+			return ::testing::AssertionFailure()
+				<< "generation failed: " << e.what();
+		}
+		CommandResult run = runCommand("python3 driver.py", dir);
+		if (0 != run.exitCode)
+			return ::testing::AssertionFailure()
+				<< "round-trip failed (exit " << run.exitCode << "):\n"
+				<< run.output;
+		return ::testing::AssertionSuccess();
+	}
+
 	::testing::AssertionResult cExpatRoundtrip(const std::string& xsdPath) {
 		return cRoundtripImpl(xsdPath, "c-xml-expat", "c-xml-expat-test");
 	}
