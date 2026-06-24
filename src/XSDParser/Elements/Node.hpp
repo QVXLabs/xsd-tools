@@ -120,6 +120,11 @@ namespace XSD {
 			 * loops in the ParseChildren overrides. */
 			void _eachChild(
 				const std::function<void(const Node&)>& rFn) const noexcept(false);
+			/* Recurse the child sibling chain until rFn returns true (a
+			 * short-circuiting search); returns true if some child matched.
+			 * Functional replacement for the do/while search loops. */
+			bool _findChild(
+				const std::function<bool(const Node&)>& rFn) const noexcept(false);
 			bool operator == (const Node& elm) const;
 			bool operator == (const Node& elm);
 			inline const TiXmlElement& GetXMLElm() const { return m_rXmlElm;}

@@ -47,13 +47,10 @@ Enumeration::ParseChildren(BaseProcessor& rProcessor) const noexcept(false) {
 	/* no children allowed */
 	std::unique_ptr<Node> pNode(Node::FirstChild());
 	if (NULL != pNode.get()) {
-		do {
-			if (XSD_ISELEMENT(pNode.get(), Annotation))
-				pNode->ParseChildren(rProcessor);
-			else
-				throw XMLException(pNode->GetXMLElm(), XMLException::InvallidChildXMLElement);
-			break;
-		} while (NULL != (pNode = std::unique_ptr<Node>(pNode->NextSibling())).get());
+		if (XSD_ISELEMENT(pNode.get(), Annotation))
+			pNode->ParseChildren(rProcessor);
+		else
+			throw XMLException(pNode->GetXMLElm(), XMLException::InvallidChildXMLElement);
 	}
 }
 

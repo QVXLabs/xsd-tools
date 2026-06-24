@@ -338,6 +338,23 @@ Node::_eachChild(
 	_eachSibling(std::unique_ptr<Node>(FirstChild()), rFn);
 }
 
+/* Recurse the sibling chain from pNode until rFn returns true. */
+static bool
+_findSibling(std::unique_ptr<Node> pNode,
+		const std::function<bool(const Node&)>& rFn) noexcept(false) {
+	if (NULL == pNode.get())
+		return false;
+	if (rFn(*pNode))
+		return true;
+	return _findSibling(std::unique_ptr<Node>(pNode->NextSibling()), rFn);
+}
+
+bool
+Node::_findChild(
+		const std::function<bool(const Node&)>& rFn) const noexcept(false) {
+	return _findSibling(std::unique_ptr<Node>(FirstChild()), rFn);
+}
+
 const TiXmlElement*
 Node::ContentElement(const char* pElemName) const noexcept(false) {
 	std::string elementName = QualifyElementName(pElemName);
