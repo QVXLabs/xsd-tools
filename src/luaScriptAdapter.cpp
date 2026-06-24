@@ -92,9 +92,12 @@ LuaScriptAdapter::Load(const uint8_t* pBuf, size_t bufSz) noexcept(false) {
 	int err = luaL_loadbuffer(m_pLuaState, (const char*)pBuf, bufSz, "TemplateEngine");
 	switch (err) {
 	case 0: break; /* no error */
-	case LUA_ERRSYNTAX:
-		throw LuaException("Syntax Error Loading TemplateEngine", err);
+	case LUA_ERRSYNTAX: {
+		const char* pDetail = lua_tostring(m_pLuaState, -1);
+		throw LuaException(pDetail ? pDetail
+			: "Syntax Error Loading TemplateEngine", err);
 		break;
+	}
 	case LUA_ERRMEM:
 		throw LuaException("Memory Error Loading TemplateEngine", err);
 		break;

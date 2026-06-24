@@ -38,6 +38,14 @@ set_target_properties(lua PROPERTIES C_STANDARD 11 C_STANDARD_REQUIRED ON)
 # LNUM number mode (matches the recipe's number_type=float default). PUBLIC so
 # consumers' view of lua.h enables the integer-subtype API identically.
 target_compile_definitions(lua PUBLIC LNUM_INT32)
+# LNUM's integer-constant tag is LUA_TINT == -2, dumped as byte 0xFE. lundump.c
+# LoadChar returns a raw `char`, so where `char` is unsigned (e.g. AArch64
+# Linux) it reads 254 and rejects the bytecode ("bad constant in precompiled
+# chunk"). Force signed char so dump and undump agree. PUBLIC: consumers that
+# undump bytecode need it too.
+if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
+  target_compile_options(lua PUBLIC -fsigned-char)
+endif()
 if(UNIX)
   # Matches the recipe build (LUA_USE_LINUX => POSIX + dlopen).
   target_compile_definitions(lua PUBLIC LUA_USE_POSIX LUA_USE_DLOPEN)
