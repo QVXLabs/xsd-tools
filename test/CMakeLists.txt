@@ -32,6 +32,57 @@ if(NOT Expat_FOUND AND NOT TARGET Expat::Expat)
   set(EXPAT_BUNDLED TRUE)
 endif()
 
+# json-c — only the generated C→JSON round-trip needs it. find_package first
+# (our Conan recipe / system provides json-c::json-c), else FetchContent the
+# upstream 0.17 tarball (ships its own CMake; no submodule).
+find_package(json-c QUIET)
+set(JSONC_BUNDLED FALSE)
+if(NOT TARGET json-c::json-c AND NOT json-c_FOUND)
+  message(STATUS "json-c: fetching json-c 0.17")
+  include(FetchContent)
+  # Save/restore BUILD_TESTING: json-c's CMake reads it, but it's also the
+  # top-level gate that add_subdirectory()s this dir on reconfigure.
+  set(_xsd_save_build_testing "${BUILD_TESTING}")
+  set(BUILD_TESTING OFF CACHE BOOL "" FORCE)
+  set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
+  set(DISABLE_WERROR ON CACHE BOOL "" FORCE)
+  FetchContent_Declare(jsonc
+    URL      "https://s3.amazonaws.com/json-c_releases/releases/json-c-0.17.tar.gz"
+    URL_HASH SHA256=7550914d58fb63b2c3546f3ccfbe11f1c094147bd31a69dcd23714d7956159e6)
+  FetchContent_MakeAvailable(jsonc)
+  set(BUILD_TESTING "${_xsd_save_build_testing}" CACHE BOOL "" FORCE)
+  set(JSONC_BUNDLED TRUE)
+endif()
+
+# -- json-c include/link flags for the popen-driven C compile. Bundled headers
+#    are flat in the source tree (umbrella json.h) with json_config.h/config.h
+#    generated into the binary tree; pass both. roundtrip_util splits the dir
+#    list on '|' (a ';' would split the -D, being a CMake list separator). --
+if(JSONC_BUNDLED)
+  set(JSONC_INCLUDE_DIR_VAL "${jsonc_SOURCE_DIR}|${jsonc_BINARY_DIR}")
+  set(JSONC_LINK_VAL "$<TARGET_FILE:json-c>")
+  set(JSONC_EXTRA_DEP json-c)
+else()
+  set(JSONC_EXTRA_DEP "")
+  if(json-c_INCLUDE_DIRS)
+    set(JSONC_INCLUDE_DIR_VAL "${json-c_INCLUDE_DIRS}")
+  elseif(TARGET json-c::json-c)
+    get_target_property(JSONC_INCLUDE_DIR_VAL json-c::json-c
+                        INTERFACE_INCLUDE_DIRECTORIES)
+  endif()
+  if(JSONC_INCLUDE_DIR_VAL MATCHES "-NOTFOUND$")
+    set(JSONC_INCLUDE_DIR_VAL "")
+  endif()
+  string(REPLACE ";" "|" JSONC_INCLUDE_DIR_VAL "${JSONC_INCLUDE_DIR_VAL}")
+  if(TARGET json-c::json-c)
+    set(JSONC_LINK_VAL "$<TARGET_FILE:json-c::json-c>")
+  elseif(json-c_LIBRARIES)
+    string(REPLACE ";" " " JSONC_LINK_VAL "${json-c_LIBRARIES}")
+  else()
+    set(JSONC_LINK_VAL "-ljson-c")
+  endif()
+endif()
+
 set(CORPUS_DIR   "${CMAKE_CURRENT_SOURCE_DIR}/xsd-positive")
 set(XSDPARSE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/xsdparse")
 set(TEMPLATES_DIR "${CMAKE_SOURCE_DIR}/templates")
@@ -95,6 +146,7 @@ set(GENERATED_ROUNDTRIP_SOURCES
   "${GEN_DIR}/roundtrip_python_json.cpp"
   "${GEN_DIR}/roundtrip_c_xml_expat.cpp"
   "${GEN_DIR}/roundtrip_c_xml_expat_dom.cpp"
+  "${GEN_DIR}/roundtrip_c_json.cpp"
   "${GEN_DIR}/roundtrip_java_json.cpp")
 
 add_executable(xsdb-test
@@ -103,7 +155,7 @@ add_executable(xsdb-test
   parserTests.cpp
   resourceTests.cpp
   ${GENERATED_ROUNDTRIP_SOURCES})
-add_dependencies(xsdb-test b64 ${EXPAT_EXTRA_DEP})
+add_dependencies(xsdb-test b64 ${EXPAT_EXTRA_DEP} ${JSONC_EXTRA_DEP})
 target_include_directories(xsdb-test PRIVATE
   "${CMAKE_CURRENT_SOURCE_DIR}" "${CMAKE_SOURCE_DIR}")
 target_link_libraries(xsdb-test PRIVATE xsdb-lib GTest::gtest_main xsd_flags)
@@ -116,6 +168,8 @@ target_compile_definitions(xsdb-test PRIVATE
   LIBB64_ARCHIVE="$<TARGET_FILE:b64>"
   EXPAT_INCLUDE_DIR="${EXPAT_INCLUDE_DIR_VAL}"
   EXPAT_LINK="${EXPAT_LINK_VAL}"
+  JSONC_INCLUDE_DIR="${JSONC_INCLUDE_DIR_VAL}"
+  JSONC_LINK="${JSONC_LINK_VAL}"
   JAVA_POM="${CMAKE_CURRENT_SOURCE_DIR}/java-json.org.tmpl/pom.xml")
 
 include(GoogleTest)

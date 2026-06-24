@@ -50,6 +50,26 @@ namespace {
 		return dir.empty() ? std::string() : " -I'" + dir + "'";
 	}
 
+	/* Like includeFlag, but `dirs` may hold several `|`-separated paths
+	 * (CMake list form re-joined with '|' so it survives a -D), emitting one
+	 * -I per non-empty entry. */
+	std::string includeFlags(const std::string& dirs) {
+		std::string out;
+		std::string::size_type start = 0;
+		while (start <= dirs.size()) {
+			std::string::size_type sep = dirs.find('|', start);
+			std::string::size_type end =
+				(sep == std::string::npos) ? dirs.size() : sep;
+			std::string dir = dirs.substr(start, end - start);
+			if (!dir.empty())
+				out += " -I'" + dir + "'";
+			if (sep == std::string::npos)
+				break;
+			start = sep + 1;
+		}
+		return out;
+	}
+
 	void writeFile(const std::string& path, const std::string& content) {
 		std::ofstream ofs(path.c_str(), std::ios::binary);
 		ofs.write(content.data(),
@@ -91,9 +111,16 @@ namespace {
 		return files;
 	}
 
+	/* Emit + split a multi-file C binding and self-checking driver, compile
+	 * (libb64 + one extra lib) and run. `srcPrefix` is the generated source's
+	 * filename prefix (e.g. "xml_" / "json_"); `extraInclude`/`extraLink` are
+	 * the -I dir and link flags for the marshalling library. */
 	::testing::AssertionResult cRoundtripImpl(const std::string& xsdPath,
 	                                          const std::string& bindingTmpl,
-	                                          const std::string& driverTmpl) {
+	                                          const std::string& driverTmpl,
+	                                          const std::string& srcPrefix,
+	                                          const std::string& extraInclude,
+	                                          const std::string& extraLink) {
 		const std::string base = xsdtest::baseName(xsdPath);
 		const std::string dir = xsdtest::baseName(xsdPath).empty()
 			? std::string() : makeTempDir(base);
@@ -110,17 +137,17 @@ namespace {
 			return ::testing::AssertionFailure()
 				<< "generation failed: " << e.what();
 		}
-		/* compile: <base>-bin.c + xml_<base>.c + libb64 + expat */
+		/* compile: <base>-bin.c + <srcPrefix><base>.c + libb64 + extra lib */
 		std::ostringstream cc;
 		cc << C_COMPILER
 		   << " -std=c11"  /* match the project's pinned C standard */
 		   << includeFlag(dir)
 		   << includeFlag(LIBB64_INCLUDE_DIR)
-		   << includeFlag(EXPAT_INCLUDE_DIR)
+		   << includeFlags(extraInclude)
 		   << " '" << dir << "/" << base << "-bin.c'"
-		   << " '" << dir << "/xml_" << base << ".c'"
+		   << " '" << dir << "/" << srcPrefix << base << ".c'"
 		   << " '" << LIBB64_ARCHIVE << "'"
-		   << " " << EXPAT_LINK
+		   << " " << extraLink
 		   << " -o '" << dir << "/" << base << "'";
 		CommandResult build = runCommand(cc.str(), dir);
 		if (0 != build.exitCode)
@@ -204,12 +231,20 @@ namespace xsdtest {
 	}
 
 	::testing::AssertionResult cExpatRoundtrip(const std::string& xsdPath) {
-		return cRoundtripImpl(xsdPath, "c-xml-expat", "c-xml-expat-test");
+		return cRoundtripImpl(xsdPath, "c-xml-expat", "c-xml-expat-test",
+		                      "xml_", EXPAT_INCLUDE_DIR, EXPAT_LINK);
 	}
 
 	::testing::AssertionResult cExpatDomRoundtrip(const std::string& xsdPath) {
 		return cRoundtripImpl(xsdPath, "c-xml-expat-dom.template",
-		                      "c-xml-expat-dom.template-test");
+		                      "c-xml-expat-dom.template-test",
+		                      "xml_", EXPAT_INCLUDE_DIR, EXPAT_LINK);
+	}
+
+	::testing::AssertionResult cJsonRoundtrip(const std::string& xsdPath) {
+		return cRoundtripImpl(xsdPath, "c-json-jsonc.template",
+		                      "c-json-jsonc.template-test",
+		                      "json_", JSONC_INCLUDE_DIR, JSONC_LINK);
 	}
 
 	::testing::AssertionResult javaRoundtrip(const std::string& xsdPath) {

@@ -1,0 +1,156 @@
+[@lua --include and transform old format
+	include 'shared/trnsfrm_old'
+	schema = trnsfrm_oldFmt(schema)
+][@lua --include any shared 'helper' templates
+	return include 'shared/schemaEx'
+][@lua --include xsd to c type mapping
+	return include 'c-json-jsonc/c_type_info'
+][@lua --generate helper globals
+	schema = schema.c_safeNames()
+	uniqueXSDTypes = schema.uniqueTypes()
+	uniqueCTypes = {}
+	table.map(uniqueXSDTypes, function(_, v)
+		local ctype = c_type_info[v]
+		uniqueCTypes[ctype] = ctype
+		if 'c_list' == ctype.type then
+			local baseType = ctype.baseType()
+			uniqueCTypes[baseType] = baseType
+		end
+	end)
+	typeSansRoot = table.filter(schema.types, function(k,v) return v.name ~= schema.root and v or nil end)
+][@lua -- create friendly root schema name
+	schemaName = schema.types[schema.root].name:gsub("_xsd$", "")
+]
+#include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
+#include <assert.h>
+#include "json_[@lua return schemaName].h"
+
+[@lua -- output test data
+	local outbuf = stringBuffer:new()
+	local listTypes = table.filter(uniqueCTypes, function(_,v) return 'c_list' == v.type and v or nil end)
+	local listTypeVarMap = {}
+	local ndx = 1
+	table.map(listTypes, function(_,v)
+		listTypeVarMap[v] = 'list'..ndx
+		ndx = ndx + 1
+	end)
+	table.map(listTypes, function(_,v)
+		outbuf:append(v.test.subDef(listTypeVarMap[v]))
+	end)
+	local ID = 1
+	table.map(typeSansRoot, function(_, node)
+		valTbl = {'._eid = '..tostring(ID)}
+		local prcssType = function(ncname, xsdType)
+			local c_type = c_type_info[xsdType.type]
+			if "c_list" == c_type.type then
+				local cVarName = listTypeVarMap[c_type]
+				table.insert(valTbl, c_type.buildVar('.',ncname)..' = '..c_type.test.assign(cVarName))
+			else
+				table.insert(valTbl, c_type.buildVar('.',ncname)..' = '..c_type.test.assign())
+			end
+		end
+		table.map(node.attributes, prcssType)
+		if next(node.content) then
+			prcssType("Content", node.content)
+		end
+		outbuf:append(table.concat({
+			"static const json_", node.name, " ", node.name, "Tst = {", table.concat(valTbl, ','),"};\n",
+		}));
+		ID = ID + 1
+	end)
+	return outbuf:str()
+]
+
+static void* reallocCb(struct json_marshaller* pMarshaller, void* pMem, size_t size) {
+	(void)pMarshaller;
+	if (0 == size) { free(pMem); return NULL; }
+	return realloc(pMem, size);
+}
+
+[@lua -- output unmarshal callbacks (assert round-tripped fields match)
+	local outbuf = stringBuffer:new()
+	table.map(typeSansRoot, function(_, node)
+		outbuf:append(table.concat({
+			"static void unmarshal_", node.name, "(struct json_marshaller* pMarshaller, const json_", node.name, "* pObj, uint32_t parent) {\n",
+			"\t(void)pMarshaller;\n",
+			"\t(void)parent;\n",
+			"\t(void)pObj;\n",
+		}))
+		local prcssType = function(ncname, xsdtype)
+			local c_type = c_type_info[xsdtype.type]
+			outbuf:append(c_type.test.assert(c_type.buildVar('pObj->', ncname), c_type.buildVar(node.name..'Tst'..'.', ncname)))
+		end
+		table.map(node.attributes, prcssType)
+		if next(node.content) then
+			prcssType("Content", node.content)
+		end
+		outbuf:append("}\n")
+	end)
+	return outbuf:str()
+]
+
+int main(void) {
+	json_buffer output;
+	json_marshaller mrshllr = {
+		.realloc = reallocCb,
+[@lua --output unmarshal function assignments
+	local tbl = {}
+	table.map(typeSansRoot, function(_, node)
+		table.insert(tbl, "\t\t.unmarshal_"..node.name.." = unmarshal_"..node.name)
+	end)
+	return table.concat(tbl, ",\n")
+]
+	};
+	/* test marshalling */
+[@lua --output marshalling struct declrs
+	local outbuf = stringBuffer:new()
+	table.map(typeSansRoot, function(_,node)
+		if next(node.dependents) then
+			outbuf:append(table.concat({
+				"\tjson_marshal_", node.name, " ", node.name, ";\n",
+			}))
+		end
+	end)
+	return outbuf:str()
+][@lua -- output marshalling start
+	if next(schema.types[schema.root].dependents) then
+		return table.concat({
+			'\tjson_marshal_', schema.root, ' ', schema.root, ' = json_marshal(&mrshllr);\n'
+		})
+	else
+		return table.concat({
+			'\tjson_marshal(&mrshllr);\n'
+		})
+	end
+][@lua --output marshalling statments
+	local outbuf = stringBuffer:new()
+	local function marshalRec(parent, node)
+		if next(node.dependents) then
+			outbuf:append(table.concat({
+				"\t", node.name, " = ", parent, ".marshal_", node.name, "(&mrshllr, &", node.name, "Tst);\n"
+			}))
+		else
+			outbuf:append(table.concat({
+				"\t", parent, ".marshal_", node.name, "(&mrshllr, &", node.name, "Tst);\n"
+			}))
+		end
+		table.map(node.dependents, function(k, v)
+			if next(v.dependents) then
+				outbuf:append(table.concat({
+					"\t", node.name, ".marshal_",k,"(&mrshllr, &", k, "Tst);\n"
+				}))
+			end
+		end)
+	table.map(node.dependents, function(_,v) marshalRec(node.name,v) end)
+	end
+	table.map(schema.types[schema.root].dependents, function(_,v) marshalRec(schema.root, v) end)
+	return outbuf:str()
+]	output = json_marshal_flush(&mrshllr, 1);
+	/* test unmarshalling through the default factory table */
+	json_unmarshal_ex(&mrshllr, &output, 1, json_[@lua return schemaName]_default_factories());
+	/* clean up */
+	output.m_pBuf = realloc(output.m_pBuf, 0);
+	return 0;
+}

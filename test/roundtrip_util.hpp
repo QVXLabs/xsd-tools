@@ -39,6 +39,10 @@ namespace xsdtest {
 	::testing::AssertionResult cExpatRoundtrip(const std::string& xsdPath);
 	::testing::AssertionResult cExpatDomRoundtrip(const std::string& xsdPath);
 
+	/* c-json-jsonc: emit + split multi-file C binding and driver, compile
+	 * (libb64 + json-c) and run. */
+	::testing::AssertionResult cJsonRoundtrip(const std::string& xsdPath);
+
 	/* java-json.org: emit binding + driver into a Maven project, mvn package
 	 * and run. Caller GTEST_SKIPs when mvn/JDK are unavailable. */
 	::testing::AssertionResult javaRoundtrip(const std::string& xsdPath);

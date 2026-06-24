@@ -1,0 +1,62 @@
+[@lua --define int64_t type
+	ctype_int64t = {
+		type = 'c_type',
+		c_type = {
+			name = function()
+				return 'int64_t'
+			end,
+			definition = function()
+				return ''
+			end,
+			statement = function(varName)
+				return table.concat({
+					'int64_t\tm_', varName, ';\n',
+				})
+			end,
+		},
+		delete = {
+			definition = function()
+				return ''
+			end,
+			statement = function(obj)
+				return ''
+			end,
+		},
+		buildVar = function(obj, member)
+			return table.concat({obj,'m_',member})
+		end,
+		binding = {
+			marshal = {
+				definition = function()
+					return ''
+				end,
+				value = function(obj)
+					return table.concat({'json_object_new_int64((int64_t)', obj, ')'})
+				end,
+				statement = function(dst, key, obj)
+					return table.concat({
+						'json_object_object_add(', dst, ', ', key, ', json_object_new_int64((int64_t)', obj, '));\n',
+					})
+				end,
+			},
+			unmarshal = {
+				definition = function()
+					return ''
+				end,
+				statement = function(src, obj)
+					return table.concat({
+						obj, ' = (int64_t)json_object_get_int64(', src, ');\n',
+					})
+				end,
+			},
+		},
+		test = {
+			assign = function()
+				return string.format("%.0f", math.floor(math.random() * 9223372036854775807.0))..'LL'
+			end,
+			assert = function(obj1, obj2)
+				return string.format("\tassert(%s == %s);\n", obj1, obj2)
+			end
+		},
+	}
+]

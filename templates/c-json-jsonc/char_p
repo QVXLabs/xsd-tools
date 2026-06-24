@@ -1,0 +1,79 @@
+[@lua --define char_p type
+	ctype_char_p = {
+		type = 'c_type',
+		c_type = {
+			name = function()
+				return 'char*'
+			end,
+			definition = function()
+				return ''
+			end,
+			statement = function(varName)
+				return table.concat({
+					'char*\tm_p', varName, ';\n',
+				})
+			end,
+		},
+		delete = {
+			definition = function()
+				return table.concat({
+					'static void _destroy_charp(json_marshaller* pMarshaller, char** ppObj) {\n',
+					'\tif (*ppObj) {\n',
+					'\t\t*ppObj = pMarshaller->realloc(pMarshaller, *ppObj, 0);\n',
+					'\t}\n',
+					'}\n'
+				})
+			end,
+			statement = function(obj)
+				return table.concat({
+					'_destroy_charp(pMarshaller, &', obj, ');\n',
+				})
+			end,
+		},
+		buildVar = function(obj, member)
+			return table.concat({obj,'m_p',member})
+		end,
+		binding = {
+			marshal = {
+				definition = function()
+					return ''
+				end,
+				value = function(obj)
+					return table.concat({'json_object_new_string(_safeCStr(', obj, '))'})
+				end,
+				statement = function(dst, key, obj)
+					return table.concat({
+						'json_object_object_add(', dst, ', ', key,
+						', json_object_new_string(_safeCStr(', obj, ')));\n',
+					})
+				end,
+			},
+			unmarshal = {
+				definition = function()
+					return table.concat({
+						'static void _unmarshal_charp(json_marshaller* pMarshaller, const char* pContent, char** ppObj) {\n',
+						'\tif (*ppObj) {\n',
+						'\t\t*ppObj = pMarshaller->realloc(pMarshaller, *ppObj, 0);\n',
+						'\t}\n',
+						'\t*ppObj = _CStrCpy(pMarshaller, _safeCStr(pContent));\n',
+						'}\n',
+					})
+				end,
+				statement = function(src, obj)
+					return table.concat({
+						'_unmarshal_charp(pMarshaller, json_object_get_string(', src, '), &', obj, ');\n',
+					})
+				end,
+			},
+		},
+		test = {
+			assign = function()
+				local tbl = { '"arch"', '"Ancestor"', '"Interaction"', '"Productivity"', '"Jelly"', '"Glue"', '"Way"'}
+				return tbl[math.random(1, #tbl)]
+			end,
+			assert = function(obj1, obj2)
+				return string.format("\tassert(!strcmp(%s, %s));\n", obj1, obj2)
+			end
+		},
+	}
+]

@@ -1,0 +1,126 @@
+[@lua --define list type
+	c_list = {}
+	function c_list:new(base)
+		local function calcName()
+			return table.concat({'json_', base.c_type.name():gsub('[ *]', ''), 'List',})
+		end
+		return {
+			type = 'c_list',
+			c_type = {
+				name = calcName(),
+				definition = function()
+					return table.concat({
+						'typedef struct {\n',
+						'\t', base.c_type.name(), '\t*', base.buildVar('','pArray'), ';\n',
+						'\tuint32_t\tm_nElements;\n',
+						'} ', calcName(), ';\n',
+					})
+				end,
+				statement = function(varName)
+					return table.concat({
+						calcName(), '\tm_', varName, ';\n',
+					})
+				end,
+			},
+			delete = {
+				definition = function()
+					local objArray = base.buildVar('pObj->','pArray')
+					return table.concat({
+						'static void _destroy_', calcName(), '(json_marshaller* pMarshaller, ', calcName(), '* pObj) {\n',
+						'\tif (', objArray, ') {\n',
+						'\t\tunsigned ndx;\n',
+						'\t\tfor (ndx = 0; ndx < pObj->m_nElements; ++ndx) {\n',
+						'\t\t\t', base.delete.statement(objArray..'[ndx]'),
+						'\t\t}\n',
+						'\t\tpMarshaller->realloc(pMarshaller, ', objArray, ', 0);\n',
+						'\t}\n',
+						'}\n',
+					})
+				end,
+				statement = function(obj)
+					return table.concat({
+						'_destroy_', calcName(), '(pMarshaller, &', obj, ');\n',
+					})
+				end,
+			},
+			buildVar = function(obj, member)
+				return table.concat({obj,'m_',member})
+			end,
+			baseType = function()
+				return base
+			end,
+			binding = {
+				marshal = {
+					definition = function()
+						return table.concat({
+							'static struct json_object* _marshal_', calcName(), '(json_marshaller* pMarshaller, const ', calcName(), '* pObj) {\n',
+							'\tunsigned ndx;\n',
+							'\tstruct json_object* pArr = json_object_new_array();\n',
+							'\t(void)pMarshaller;\n',
+							'\tfor (ndx = 0; ndx < pObj->m_nElements; ++ndx) {\n',
+							'\t\tjson_object_array_add(pArr, ', base.binding.marshal.value(base.buildVar('pObj->','pArray[ndx]')), ');\n',
+							'\t}\n',
+							'\treturn pArr;\n',
+							'}\n',
+						})
+					end,
+					value = function(obj)
+						return table.concat({'_marshal_', calcName(), '(pMarshaller, &', obj, ')'})
+					end,
+					statement = function(dst, key, obj)
+						return table.concat({
+							'json_object_object_add(', dst, ', ', key, ', _marshal_', calcName(), '(pMarshaller, &', obj, '));\n',
+						})
+					end,
+				},
+				unmarshal = {
+					definition = function()
+						return table.concat({
+							'static void _unmarshal_', calcName(), '(json_marshaller* pMarshaller, struct json_object* pArr, ', calcName(), '* pObj) {\n',
+							'\tunsigned ndx;\n',
+							'\tpObj->m_nElements = (uint32_t)json_object_array_length(pArr);\n',
+							'\t', base.buildVar('pObj->','pArray'), ' = pMarshaller->realloc(pMarshaller, NULL, pObj->m_nElements ? pObj->m_nElements * sizeof(', base.c_type.name(), ') : 1);\n',
+							'\tmemset(', base.buildVar('pObj->','pArray'), ', 0, pObj->m_nElements ? pObj->m_nElements * sizeof(', base.c_type.name(), ') : 1);\n',
+							'\tfor (ndx = 0; ndx < pObj->m_nElements; ++ndx) {\n',
+							'\t\tstruct json_object* pElem = json_object_array_get_idx(pArr, ndx);\n',
+							'\t\t', base.binding.unmarshal.statement('pElem', base.buildVar('pObj->', 'pArray[ndx]')),
+							'\t}\n',
+							'}\n',
+						})
+					end,
+					statement = function(src, obj)
+						return table.concat({
+							'_unmarshal_', calcName(), '(pMarshaller, ', src, ', &', obj, ');\n'
+						})
+					end,
+				},
+			},
+			test = {
+				subDef = function(var)
+					local value = { base.test.assign(), base.test.assign(), base.test.assign() }
+					return table.concat({
+						"static ", base.c_type.name(), " ", var, "[] = { ", table.concat(value, ", "), " };\n"
+					})
+				end,
+				assign = function(subDefObj)
+					return string.format(
+						'{ %s = %s, .m_nElements = sizeof(%s)/sizeof(%s[0]) }',
+						base.buildVar('.','pArray'),
+						subDefObj, subDefObj, subDefObj
+					)
+				end,
+				assert = function(obj1, obj2)
+					return table.concat({
+						string.format("\tassert(%s.m_nElements ==  %s.m_nElements);\n", obj1, obj2),
+						"\t{\n",
+						"\t\tunsigned ndx;\n",
+						string.format("\t\tfor(ndx = 0; ndx < %s.m_nElements; ++ndx) {\n", obj1),
+						"\t\t", base.test.assert(obj1..base.buildVar('.','pArray')..'[ndx]', obj2..base.buildVar('.','pArray')..'[ndx]'),
+						"\t\t}\n",
+						"\t}\n",
+					})
+				end
+			},
+		}
+	end
+]
