@@ -28,6 +28,7 @@
 #endif /* TIXML_USE_STL */
 #include <typeinfo>
 #include <memory>
+#include <functional>
 #include <sstream>
 #include <boost/algorithm/string/predicate.hpp>
 #include <tinyxml.h>
@@ -114,6 +115,11 @@ namespace XSD {
 			Node* Parent() const noexcept(false);
 			Node* FirstChild() const noexcept(false);
 			Node* NextSibling() const noexcept(false);
+			/* Recurse over the child sibling chain, invoking rFn on each
+			 * child. Functional replacement for the do/while NextSibling
+			 * loops in the ParseChildren overrides. */
+			void _eachChild(
+				const std::function<void(const Node&)>& rFn) const noexcept(false);
 			bool operator == (const Node& elm) const;
 			bool operator == (const Node& elm);
 			inline const TiXmlElement& GetXMLElm() const { return m_rXmlElm;}

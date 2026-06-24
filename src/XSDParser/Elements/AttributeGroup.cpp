@@ -43,16 +43,13 @@ AttributeGroup::AttributeGroup(const AttributeGroup& cpy)
 void
 AttributeGroup::ParseChildren(BaseProcessor& rProcessor) const noexcept(false) {
 	/* process children */
-	std::unique_ptr<Node> pNode(Node::FirstChild());
-	if (NULL != pNode.get()) {
-		do {
-			if (XSD_ISELEMENT(pNode.get(), Attribute) ||
-				XSD_ISELEMENT(pNode.get(), Annotation)) {
-				pNode->ParseElement(rProcessor);
-			} else
-				throw XMLException(pNode->GetXMLElm(), XMLException::InvallidChildXMLElement);
-		} while (NULL != (pNode = std::unique_ptr<Node>(pNode->NextSibling())).get());
-	}
+	_eachChild([&rProcessor](const Node& rNode) {
+		if (XSD_ISELEMENT(&rNode, Attribute) ||
+			XSD_ISELEMENT(&rNode, Annotation)) {
+			rNode.ParseElement(rProcessor);
+		} else
+			throw XMLException(rNode.GetXMLElm(), XMLException::InvallidChildXMLElement);
+	});
 }
 
 void

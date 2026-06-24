@@ -47,16 +47,13 @@ Schema::~Schema()
 void
 Schema::ParseChildren(BaseProcessor& rProcessor) const noexcept(false) {
 	/* process children */
-	std::unique_ptr<Node> pNode(Node::FirstChild());
-	if (NULL != pNode.get()) {
-		do {
-			if (XSD_ISELEMENT(pNode.get(), Element) ||
-				XSD_ISELEMENT(pNode.get(), Annotation) ||
-				XSD_ISELEMENT(pNode.get(), Include)) {
-				pNode->ParseElement(rProcessor);
-			}
-		} while (NULL != (pNode = std::unique_ptr<Node>(pNode->NextSibling())).get());
-	}
+	_eachChild([&rProcessor](const Node& rNode) {
+		if (XSD_ISELEMENT(&rNode, Element) ||
+			XSD_ISELEMENT(&rNode, Annotation) ||
+			XSD_ISELEMENT(&rNode, Include)) {
+			rNode.ParseElement(rProcessor);
+		}
+	});
 }
 
 void

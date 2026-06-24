@@ -322,6 +322,22 @@ Node::NextSibling() const noexcept(false) {
 	return pElm ? _ConstructNode(pElm, m_rParser) : NULL;
 }
 
+/* Recurse the sibling chain from pNode, invoking rFn on each node. */
+static void
+_eachSibling(std::unique_ptr<Node> pNode,
+		const std::function<void(const Node&)>& rFn) noexcept(false) {
+	if (NULL == pNode.get())
+		return;
+	rFn(*pNode);
+	_eachSibling(std::unique_ptr<Node>(pNode->NextSibling()), rFn);
+}
+
+void
+Node::_eachChild(
+		const std::function<void(const Node&)>& rFn) const noexcept(false) {
+	_eachSibling(std::unique_ptr<Node>(FirstChild()), rFn);
+}
+
 const TiXmlElement*
 Node::ContentElement(const char* pElemName) const noexcept(false) {
 	std::string elementName = QualifyElementName(pElemName);

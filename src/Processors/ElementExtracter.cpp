@@ -56,19 +56,16 @@ ElementExtracter::Extract(const Schema& rDocRoot) {
 /* virtual */ void 
 ElementExtracter::ProcessSchema(const Schema* pNode) {
 	/* different iterator accross the schema children */
-	std::unique_ptr<Node> pChildNode(pNode->FirstChild());
-	if (NULL != pChildNode.get()) {
-		do {
-			if (XSD_ISELEMENT(pChildNode.get(), Element) ||
-				XSD_ISELEMENT(pChildNode.get(), Annotation) ||
-				XSD_ISELEMENT(pChildNode.get(), Include) ||
-				XSD_ISELEMENT(pChildNode.get(), SimpleType) ||
-				XSD_ISELEMENT(pChildNode.get(), ComplexType) ||
-				XSD_ISELEMENT(pChildNode.get(), Group)) {
-				pChildNode->ParseElement(*this);
-			}
-		} while (NULL != (pChildNode = std::unique_ptr<Node>(pChildNode->NextSibling())).get());
-	}
+	pNode->_eachChild([&](const Node& rNode) {
+		if (XSD_ISELEMENT(&rNode, Element) ||
+			XSD_ISELEMENT(&rNode, Annotation) ||
+			XSD_ISELEMENT(&rNode, Include) ||
+			XSD_ISELEMENT(&rNode, SimpleType) ||
+			XSD_ISELEMENT(&rNode, ComplexType) ||
+			XSD_ISELEMENT(&rNode, Group)) {
+			rNode.ParseElement(*this);
+		}
+	});
 }
 
 /* virtual */ void 

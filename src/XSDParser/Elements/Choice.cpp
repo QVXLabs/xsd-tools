@@ -47,19 +47,16 @@ Choice::Choice(const Choice& rCpy)
 void
 Choice::ParseChildren(BaseProcessor& rProcessor) const noexcept(false) {
 	/* process children */
-	std::unique_ptr<Node> pNode(Node::FirstChild());
-	if (NULL != pNode.get()) {
-		do {
-			if (XSD_ISELEMENT(pNode.get(), Element) ||
-				XSD_ISELEMENT(pNode.get(), Choice) ||
-				XSD_ISELEMENT(pNode.get(), Annotation) ||
-				XSD_ISELEMENT(pNode.get(), Sequence) ||
-				XSD_ISELEMENT(pNode.get(), Any)) {
-				pNode->ParseElement(rProcessor);
-			} else
-				throw XMLException(pNode->GetXMLElm(), XMLException::InvallidChildXMLElement);
-		} while (NULL != (pNode = std::unique_ptr<Node>(pNode->NextSibling())).get());
-	}
+	_eachChild([&rProcessor](const Node& rNode) {
+		if (XSD_ISELEMENT(&rNode, Element) ||
+			XSD_ISELEMENT(&rNode, Choice) ||
+			XSD_ISELEMENT(&rNode, Annotation) ||
+			XSD_ISELEMENT(&rNode, Sequence) ||
+			XSD_ISELEMENT(&rNode, Any)) {
+			rNode.ParseElement(rProcessor);
+		} else
+			throw XMLException(rNode.GetXMLElm(), XMLException::InvallidChildXMLElement);
+	});
 }
 
 void

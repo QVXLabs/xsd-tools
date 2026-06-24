@@ -49,17 +49,14 @@ ComplexContent::ComplexContent(const ComplexContent& rType)
 void
 ComplexContent::ParseChildren(BaseProcessor& rProcessor) const noexcept(false) {
 	/* process children */
-	std::unique_ptr<Node> pNode(Node::FirstChild());
-	if (NULL != pNode.get()) {
-		do {
-			if (XSD_ISELEMENT(pNode.get(), Restriction) ||
-				XSD_ISELEMENT(pNode.get(), Annotation) ||
-				XSD_ISELEMENT(pNode.get(), Extension)) {
-				pNode->ParseElement(rProcessor);
-			} else
-				throw XMLException(pNode->GetXMLElm(), XMLException::InvallidChildXMLElement);
-		} while (NULL != (pNode = std::unique_ptr<Node>(pNode->NextSibling())).get());
-	}
+	_eachChild([&rProcessor](const Node& rNode) {
+		if (XSD_ISELEMENT(&rNode, Restriction) ||
+			XSD_ISELEMENT(&rNode, Annotation) ||
+			XSD_ISELEMENT(&rNode, Extension)) {
+			rNode.ParseElement(rProcessor);
+		} else
+			throw XMLException(rNode.GetXMLElm(), XMLException::InvallidChildXMLElement);
+	});
 }
 
 void

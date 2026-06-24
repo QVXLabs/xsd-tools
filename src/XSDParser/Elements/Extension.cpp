@@ -53,32 +53,26 @@ void
 Extension::ParseChildren(BaseProcessor& rProcessor) const noexcept(false) {
 	if (isParentComplex()) {
 		/* process children */
-		std::unique_ptr<Node> pNode(Node::FirstChild());
-		if (NULL != pNode.get()) {
-			do {
-				if (XSD_ISELEMENT(pNode.get(), Group) ||
-					XSD_ISELEMENT(pNode.get(), Choice) ||
-					XSD_ISELEMENT(pNode.get(), Sequence) ||
-					XSD_ISELEMENT(pNode.get(), Annotation) ||
-					XSD_ISELEMENT(pNode.get(), All) ||
-					XSD_ISELEMENT(pNode.get(), Attribute)) {
-					pNode->ParseElement(rProcessor);
-				} else
-					throw XMLException(pNode->GetXMLElm(), XMLException::InvallidChildXMLElement);
-			} while (NULL != (pNode = std::unique_ptr<Node>(pNode->NextSibling())).get());
-		}
+		_eachChild([&rProcessor](const Node& rNode) {
+			if (XSD_ISELEMENT(&rNode, Group) ||
+				XSD_ISELEMENT(&rNode, Choice) ||
+				XSD_ISELEMENT(&rNode, Sequence) ||
+				XSD_ISELEMENT(&rNode, Annotation) ||
+				XSD_ISELEMENT(&rNode, All) ||
+				XSD_ISELEMENT(&rNode, Attribute)) {
+				rNode.ParseElement(rProcessor);
+			} else
+				throw XMLException(rNode.GetXMLElm(), XMLException::InvallidChildXMLElement);
+		});
 	} else {
 		/* process children */
-		std::unique_ptr<Node> pNode(Node::FirstChild());
-		if (NULL != pNode.get()) {
-			do {
-				if (XSD_ISELEMENT(pNode.get(), Attribute) ||
-					XSD_ISELEMENT(pNode.get(), Annotation)) {
-					pNode->ParseElement(rProcessor);
-				} else
-					throw XMLException(pNode->GetXMLElm(), XMLException::InvallidChildXMLElement);
-			} while (NULL != (pNode = std::unique_ptr<Node>(pNode->NextSibling())).get());
-		}
+		_eachChild([&rProcessor](const Node& rNode) {
+			if (XSD_ISELEMENT(&rNode, Attribute) ||
+				XSD_ISELEMENT(&rNode, Annotation)) {
+				rNode.ParseElement(rProcessor);
+			} else
+				throw XMLException(rNode.GetXMLElm(), XMLException::InvallidChildXMLElement);
+		});
 	}
 }
 

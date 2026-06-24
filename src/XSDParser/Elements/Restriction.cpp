@@ -65,88 +65,79 @@ void
 Restriction::ParseChildren(BaseProcessor& rProcessor) const noexcept(false) {
 	if (isParentComplexContent()) {
 		/* process children */
-		std::unique_ptr<Node> pNode(Node::FirstChild());
-		if (NULL != pNode.get()) {
-			do {
-				if (XSD_ISELEMENT(pNode.get(), Group) ||
-					XSD_ISELEMENT(pNode.get(), Choice) ||
-					XSD_ISELEMENT(pNode.get(), Sequence) ||
-					XSD_ISELEMENT(pNode.get(), XSD::Elements::Attribute) ||
-					XSD_ISELEMENT(pNode.get(), All) ||
-					XSD_ISELEMENT(pNode.get(), Annotation) ||
-					XSD_ISELEMENT(pNode.get(), XSD::Elements::ComplexContent)) {
-					pNode->ParseElement(rProcessor);
-				} else
-					throw XMLException(pNode->GetXMLElm(), XMLException::InvallidChildXMLElement);
-			} while (NULL != (pNode = std::unique_ptr<Node>(pNode->NextSibling())).get());
-		}
+		_eachChild([&rProcessor](const Node& rNode) {
+			if (XSD_ISELEMENT(&rNode, Group) ||
+				XSD_ISELEMENT(&rNode, Choice) ||
+				XSD_ISELEMENT(&rNode, Sequence) ||
+				XSD_ISELEMENT(&rNode, XSD::Elements::Attribute) ||
+				XSD_ISELEMENT(&rNode, All) ||
+				XSD_ISELEMENT(&rNode, Annotation) ||
+				XSD_ISELEMENT(&rNode, XSD::Elements::ComplexContent)) {
+				rNode.ParseElement(rProcessor);
+			} else
+				throw XMLException(rNode.GetXMLElm(), XMLException::InvallidChildXMLElement);
+		});
 	} else if (isParentSimpleContent()){
 		/* process children */
-		std::unique_ptr<Node> pNode(Node::FirstChild());
-		if (NULL != pNode.get()) {
-			do {
-				if (XSD_ISELEMENT(pNode.get(), XSD::Elements::Attribute) ||
-					XSD_ISELEMENT(pNode.get(), XSD::Elements::MinExclusive) ||
-					XSD_ISELEMENT(pNode.get(), XSD::Elements::MaxExclusive) ||
-					XSD_ISELEMENT(pNode.get(), XSD::Elements::MinInclusive) ||
-					XSD_ISELEMENT(pNode.get(), XSD::Elements::MaxInclusive) ||
-					XSD_ISELEMENT(pNode.get(), XSD::Elements::FractionDigits) ||
-					XSD_ISELEMENT(pNode.get(), XSD::Elements::TotalDigits) ||
-					XSD_ISELEMENT(pNode.get(), XSD::Elements::MinLength) ||
-					XSD_ISELEMENT(pNode.get(), XSD::Elements::MaxLength) ||
-					XSD_ISELEMENT(pNode.get(), XSD::Elements::Length) ||
-					XSD_ISELEMENT(pNode.get(), XSD::Elements::Pattern) ||
-					XSD_ISELEMENT(pNode.get(), XSD::Elements::WhiteSpace) ||
-					XSD_ISELEMENT(pNode.get(), XSD::Elements::Enumeration) ||
-					XSD_ISELEMENT(pNode.get(), XSD::Elements::Annotation)) {
-					  pNode->ParseElement(rProcessor);
-				} else
-					throw XMLException(pNode->GetXMLElm(), XMLException::InvallidChildXMLElement);
-			} while (NULL != (pNode = std::unique_ptr<Node>(pNode->NextSibling())).get());
-		}
+		_eachChild([&rProcessor](const Node& rNode) {
+			if (XSD_ISELEMENT(&rNode, XSD::Elements::Attribute) ||
+				XSD_ISELEMENT(&rNode, XSD::Elements::MinExclusive) ||
+				XSD_ISELEMENT(&rNode, XSD::Elements::MaxExclusive) ||
+				XSD_ISELEMENT(&rNode, XSD::Elements::MinInclusive) ||
+				XSD_ISELEMENT(&rNode, XSD::Elements::MaxInclusive) ||
+				XSD_ISELEMENT(&rNode, XSD::Elements::FractionDigits) ||
+				XSD_ISELEMENT(&rNode, XSD::Elements::TotalDigits) ||
+				XSD_ISELEMENT(&rNode, XSD::Elements::MinLength) ||
+				XSD_ISELEMENT(&rNode, XSD::Elements::MaxLength) ||
+				XSD_ISELEMENT(&rNode, XSD::Elements::Length) ||
+				XSD_ISELEMENT(&rNode, XSD::Elements::Pattern) ||
+				XSD_ISELEMENT(&rNode, XSD::Elements::WhiteSpace) ||
+				XSD_ISELEMENT(&rNode, XSD::Elements::Enumeration) ||
+				XSD_ISELEMENT(&rNode, XSD::Elements::Annotation)) {
+				  rNode.ParseElement(rProcessor);
+			} else
+				throw XMLException(rNode.GetXMLElm(), XMLException::InvallidChildXMLElement);
+		});
 	} else {
 		/* process children */
-		std::unique_ptr<Node> pNode(Node::FirstChild());
 		std::unique_ptr<Types::BaseType> pBase(Base());
-		if (NULL != pNode.get()) {
-			do {
-				if (XSD_ISELEMENT(pNode.get(), XSD::Elements::MinExclusive) ||
-					XSD_ISELEMENT(pNode.get(), XSD::Elements::MaxExclusive) ||
-					XSD_ISELEMENT(pNode.get(), XSD::Elements::MinInclusive) ||
-					XSD_ISELEMENT(pNode.get(), XSD::Elements::MaxInclusive) ||
-					XSD_ISELEMENT(pNode.get(), XSD::Elements::FractionDigits) ||
-					XSD_ISELEMENT(pNode.get(), XSD::Elements::TotalDigits) ||
-					XSD_ISELEMENT(pNode.get(), XSD::Elements::Annotation)) {
-					/* verify that parent restriction type is numeric */
-					Types::Decimal	allowedBaseType;
-					if (!pBase->isTypeRelated(&allowedBaseType))
-						throw XMLException(pNode->GetXMLElm(), XMLException::InvallidChildXMLElement);
-					else {
-						/* process element */
-						pNode->ParseElement(rProcessor);
-					}
-				} else if ( XSD_ISELEMENT(pNode.get(), XSD::Elements::MinLength) ||
-							XSD_ISELEMENT(pNode.get(), XSD::Elements::MaxLength) ||
-							XSD_ISELEMENT(pNode.get(), XSD::Elements::Length) ||
-							XSD_ISELEMENT(pNode.get(), XSD::Elements::Pattern) ||
-							XSD_ISELEMENT(pNode.get(), XSD::Elements::WhiteSpace) ||
-							XSD_ISELEMENT(pNode.get(), XSD::Elements::Annotation)) {
-					/* verify that parent restriction type is a string */
-					Types::String	allowedBaseType;
-					if (!pBase->isTypeRelated(&allowedBaseType))
-						throw XMLException(pNode->GetXMLElm(), XMLException::InvallidChildXMLElement);
-					else {
-						/* process element */
-						pNode->ParseElement(rProcessor);
-					}
-				} else if (XSD_ISELEMENT(pNode.get(), XSD::Elements::Enumeration) ||
-						   XSD_ISELEMENT(pNode.get(), XSD::Elements::Annotation)) {
+		_eachChild([&rProcessor, &pBase](const Node& rNode) {
+			if (XSD_ISELEMENT(&rNode, XSD::Elements::MinExclusive) ||
+				XSD_ISELEMENT(&rNode, XSD::Elements::MaxExclusive) ||
+				XSD_ISELEMENT(&rNode, XSD::Elements::MinInclusive) ||
+				XSD_ISELEMENT(&rNode, XSD::Elements::MaxInclusive) ||
+				XSD_ISELEMENT(&rNode, XSD::Elements::FractionDigits) ||
+				XSD_ISELEMENT(&rNode, XSD::Elements::TotalDigits) ||
+				XSD_ISELEMENT(&rNode, XSD::Elements::Annotation)) {
+				/* verify that parent restriction type is numeric */
+				Types::Decimal	allowedBaseType;
+				if (!pBase->isTypeRelated(&allowedBaseType))
+					throw XMLException(rNode.GetXMLElm(), XMLException::InvallidChildXMLElement);
+				else {
 					/* process element */
-					pNode->ParseElement(rProcessor);
-				} else
-					throw XMLException(pNode->GetXMLElm(), XMLException::InvallidChildXMLElement);
-			} while (NULL != (pNode = std::unique_ptr<Node>(pNode->NextSibling())).get());
-		}
+					rNode.ParseElement(rProcessor);
+				}
+			} else if ( XSD_ISELEMENT(&rNode, XSD::Elements::MinLength) ||
+						XSD_ISELEMENT(&rNode, XSD::Elements::MaxLength) ||
+						XSD_ISELEMENT(&rNode, XSD::Elements::Length) ||
+						XSD_ISELEMENT(&rNode, XSD::Elements::Pattern) ||
+						XSD_ISELEMENT(&rNode, XSD::Elements::WhiteSpace) ||
+						XSD_ISELEMENT(&rNode, XSD::Elements::Annotation)) {
+				/* verify that parent restriction type is a string */
+				Types::String	allowedBaseType;
+				if (!pBase->isTypeRelated(&allowedBaseType))
+					throw XMLException(rNode.GetXMLElm(), XMLException::InvallidChildXMLElement);
+				else {
+					/* process element */
+					rNode.ParseElement(rProcessor);
+				}
+			} else if (XSD_ISELEMENT(&rNode, XSD::Elements::Enumeration) ||
+					   XSD_ISELEMENT(&rNode, XSD::Elements::Annotation)) {
+				/* process element */
+				rNode.ParseElement(rProcessor);
+			} else
+				throw XMLException(rNode.GetXMLElm(), XMLException::InvallidChildXMLElement);
+		});
 	}
 }
 

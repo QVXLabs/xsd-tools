@@ -48,16 +48,13 @@ Union::Union(const Union& rCpy)
 void
 Union::ParseChildren(BaseProcessor& rProcessor) const noexcept(false) {
 	/* process children */
-	std::unique_ptr<Node> pNode(Node::FirstChild());
-	if (NULL != pNode.get()) {
-		do {
-			if (XSD_ISELEMENT(pNode.get(), SimpleType) ||
-				XSD_ISELEMENT(pNode.get(), Annotation)) {
-				pNode->ParseElement(rProcessor);
-			} else
-				throw XMLException(pNode->GetXMLElm(), XMLException::InvallidChildXMLElement);
-		} while (NULL != (pNode = std::unique_ptr<Node>(pNode->NextSibling())).get());
-	}
+	_eachChild([&rProcessor](const Node& rNode) {
+		if (XSD_ISELEMENT(&rNode, SimpleType) ||
+			XSD_ISELEMENT(&rNode, Annotation)) {
+			rNode.ParseElement(rProcessor);
+		} else
+			throw XMLException(rNode.GetXMLElm(), XMLException::InvallidChildXMLElement);
+	});
 }
 
 void
