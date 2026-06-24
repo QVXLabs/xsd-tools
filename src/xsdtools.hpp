@@ -36,5 +36,12 @@ namespace XsdTools {
 	              std::ostream& out,
 	              const std::vector<std::string>& templateArgs =
 	                  std::vector<std::string>());
+
+	/* Split a generated blob on its FILE marker lines, writing each
+	 * section as a real file under `outDir`. Pre-marker text becomes
+	 * "main" (skipped if empty). Returns file names in order; throws
+	 * Core::ResourceException if a file cannot be created. */
+	std::vector<std::string> SplitMarkedFiles(const std::string& blob,
+	                                           const std::string& outDir);
 }
 #endif /* XSDTOOLS_HPP_ */
