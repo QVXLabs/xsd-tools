@@ -6,7 +6,8 @@ lua/5.1.5
 tinyxml/2.6.2
 expat/2.4.1
 boost/1.77.0
+gTest/1.11.0
 
 [generators]
-pkg_config
+cmake_find_package
 virtualenv

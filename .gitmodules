@@ -1,0 +1,12 @@
+[submodule "third-party/googletest"]
+	path = third-party/googletest
+	url = https://github.com/google/googletest
+[submodule "third-party/expat"]
+	path = third-party/expat
+	url = https://github.com/libexpat/libexpat
+[submodule "third-party/boost"]
+	path = third-party/boost
+	url = https://github.com/boostorg/boost
+[submodule "test/libb64"]
+	path = test/libb64
+	url = https://github.com/Ardy123/libb64.git

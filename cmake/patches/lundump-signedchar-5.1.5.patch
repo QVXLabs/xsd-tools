@@ -1,0 +1,12 @@
+diff -Naur lua-5.1.5-orig/src/lundump.c lua-5.1.5/src/lundump.c
+--- a/src/lundump.c	2021-09-02 21:09:52.000000000 -0700
++++ b/src/lundump.c	2021-09-03 00:32:06.000000000 -0700
+@@ -53,7 +53,7 @@
+
+ static int LoadChar(LoadState* S)
+ {
+- char x;
++ signed char x;
+  LoadVar(S,x);
+  return x;
+ }

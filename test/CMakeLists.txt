@@ -1,0 +1,121 @@
+# ---------------------------------------------------------------------------
+# xsdb-test : GoogleTest suite — hand-written internals tests + auto-generated
+# per-XSD round-trip cases. Follows libqmg's find-or-vendor GTest pattern.
+# ---------------------------------------------------------------------------
+
+find_package(GTest QUIET)
+if(NOT TARGET GTest::gtest_main)
+  message(STATUS "GTest: building third-party/googletest submodule")
+  set(INSTALL_GTEST OFF CACHE BOOL "" FORCE)
+  add_subdirectory("${CMAKE_SOURCE_DIR}/third-party/googletest"
+                   "${CMAKE_BINARY_DIR}/googletest" EXCLUDE_FROM_ALL)
+  if(NOT TARGET GTest::gtest_main)
+    add_library(GTest::gtest_main ALIAS gtest_main)
+  endif()
+endif()
+
+find_package(Python3 REQUIRED COMPONENTS Interpreter)
+
+# Expat — only the generated C round-trip needs it. find_package, else the
+# third-party/expat submodule (built static).
+find_package(Expat QUIET)
+set(EXPAT_BUNDLED FALSE)
+if(NOT Expat_FOUND AND NOT TARGET Expat::Expat)
+  message(STATUS "Expat: building third-party/expat submodule")
+  set(EXPAT_BUILD_TOOLS OFF CACHE BOOL "" FORCE)
+  set(EXPAT_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+  set(EXPAT_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+  set(EXPAT_BUILD_DOCS OFF CACHE BOOL "" FORCE)
+  set(EXPAT_SHARED_LIBS OFF CACHE BOOL "" FORCE)
+  add_subdirectory("${CMAKE_SOURCE_DIR}/third-party/expat/expat"
+                   "${CMAKE_BINARY_DIR}/expat-build" EXCLUDE_FROM_ALL)
+  set(EXPAT_BUNDLED TRUE)
+endif()
+
+set(CORPUS_DIR   "${CMAKE_CURRENT_SOURCE_DIR}/xsd-positive")
+set(XSDPARSE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/xsdparse")
+set(TEMPLATES_DIR "${CMAKE_SOURCE_DIR}/templates")
+
+# -- libb64 (used by the C round-trip's generated code) --
+add_library(b64 STATIC
+  "${CMAKE_CURRENT_SOURCE_DIR}/libb64/src/cdecode.c"
+  "${CMAKE_CURRENT_SOURCE_DIR}/libb64/src/cencode.c")
+target_include_directories(b64 PUBLIC
+  "${CMAKE_CURRENT_SOURCE_DIR}/libb64/include")
+
+# -- Expat include/link flags for the popen-driven C compile --
+set(EXPAT_EXTRA_DEP "")
+if(EXPAT_BUNDLED)
+  set(EXPAT_INCLUDE_DIR_VAL "${CMAKE_SOURCE_DIR}/third-party/expat/expat/lib")
+  set(EXPAT_LINK_VAL "$<TARGET_FILE:expat>")
+  set(EXPAT_EXTRA_DEP expat)
+else()
+  # CMake's builtin FindEXPAT sets EXPAT_* and target EXPAT::EXPAT; Conan's
+  # cmake_find_package generator sets Expat_* and target Expat::Expat.
+  if(EXPAT_INCLUDE_DIR)
+    set(EXPAT_INCLUDE_DIR_VAL "${EXPAT_INCLUDE_DIR}")
+  else()
+    set(EXPAT_INCLUDE_DIR_VAL "${Expat_INCLUDE_DIR}")
+  endif()
+  foreach(_expat_tgt EXPAT::EXPAT Expat::Expat)
+    if(NOT EXPAT_INCLUDE_DIR_VAL AND TARGET ${_expat_tgt})
+      get_target_property(EXPAT_INCLUDE_DIR_VAL ${_expat_tgt}
+                          INTERFACE_INCLUDE_DIRECTORIES)
+    endif()
+  endforeach()
+  # An unset property yields <var>-NOTFOUND; expat on a standard path needs no
+  # -I, so treat that as empty (roundtrip_util.cpp omits the flag).
+  if(NOT EXPAT_INCLUDE_DIR_VAL OR EXPAT_INCLUDE_DIR_VAL MATCHES "-NOTFOUND$")
+    set(EXPAT_INCLUDE_DIR_VAL "")
+  endif()
+  if(EXPAT_LIBRARIES)
+    string(REPLACE ";" " " EXPAT_LINK_VAL "${EXPAT_LIBRARIES}")
+  else()
+    string(REPLACE ";" " " EXPAT_LINK_VAL "${Expat_LIBRARIES}")
+  endif()
+  if(NOT EXPAT_LINK_VAL)
+    set(EXPAT_LINK_VAL "-lexpat")
+  endif()
+endif()
+
+# -- Auto-generate the round-trip .cpp at configure time. Re-run configure
+#    when the corpus changes. --
+file(GLOB _corpus_xsds CONFIGURE_DEPENDS "${CORPUS_DIR}/*.xsd")
+set(GEN_DIR "${CMAKE_CURRENT_BINARY_DIR}/generated-tests")
+execute_process(
+  COMMAND "${Python3_EXECUTABLE}"
+          "${CMAKE_CURRENT_SOURCE_DIR}/gen_roundtrip_tests.py"
+          "${CORPUS_DIR}" "${GEN_DIR}"
+  RESULT_VARIABLE _gen_rc)
+if(NOT _gen_rc EQUAL 0)
+  message(FATAL_ERROR "gen_roundtrip_tests.py failed (${_gen_rc})")
+endif()
+set(GENERATED_ROUNDTRIP_SOURCES
+  "${GEN_DIR}/roundtrip_python_sax.cpp"
+  "${GEN_DIR}/roundtrip_c_xml_expat.cpp"
+  "${GEN_DIR}/roundtrip_c_xml_expat_dom.cpp"
+  "${GEN_DIR}/roundtrip_java_json.cpp")
+
+add_executable(xsdb-test
+  roundtrip_util.cpp
+  generateTests.cpp
+  parserTests.cpp
+  resourceTests.cpp
+  ${GENERATED_ROUNDTRIP_SOURCES})
+add_dependencies(xsdb-test b64 ${EXPAT_EXTRA_DEP})
+target_include_directories(xsdb-test PRIVATE
+  "${CMAKE_CURRENT_SOURCE_DIR}" "${CMAKE_SOURCE_DIR}")
+target_link_libraries(xsdb-test PRIVATE xsdb-lib GTest::gtest_main xsd_flags)
+target_compile_definitions(xsdb-test PRIVATE
+  TEMPLATES_DIR="${TEMPLATES_DIR}"
+  XSD_CORPUS_DIR="${CORPUS_DIR}"
+  XSDPARSE_DIR="${XSDPARSE_DIR}"
+  C_COMPILER="${CMAKE_C_COMPILER}"
+  LIBB64_INCLUDE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/libb64/include"
+  LIBB64_ARCHIVE="$<TARGET_FILE:b64>"
+  EXPAT_INCLUDE_DIR="${EXPAT_INCLUDE_DIR_VAL}"
+  EXPAT_LINK="${EXPAT_LINK_VAL}"
+  JAVA_POM="${CMAKE_CURRENT_SOURCE_DIR}/java-json.org.tmpl/pom.xml")
+
+include(GoogleTest)
+gtest_discover_tests(xsdb-test)

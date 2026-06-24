@@ -28,6 +28,7 @@
 #define INCBIN_PREFIX _binary_
 #include <incbin.h>
 #include "src/resource.hpp"
+#include "resource_config.hpp"
 
 using namespace std;
 using namespace Core;
@@ -35,10 +36,10 @@ using namespace Core;
 INCBIN(luascript_luac, "luascript.luac");
 
 static const unsigned char * _binary_luascript_luac = &_binary_luascript_luacData[0];
-static const size_t _binary_luascript_luac_size = _binary_luascript_luacSize; 
+static const size_t _binary_luascript_luac_size = _binary_luascript_luacSize;
 
 static const string gscHOMEPATH("~/.xsdtools/templates");
-static const string gscGLOBALPATH("/usr/share/xsdtools/templates");
+static const string gscGLOBALPATH(XSDTOOLS_GLOBAL_TEMPLATE_PATH);
 
 ResourceException::ResourceException(const string& rMsg)
 	: m_errorMsg(rMsg)

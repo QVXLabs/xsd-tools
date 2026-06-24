@@ -1,3 +1,5 @@
 #!/bin/sh
-tar -czvf SOURCES/xsd-tools.tgz -C ../../.. xsd-tools/SConstruct xsd-tools/templates xsd-tools/site_scons xsd-tools/src
+tar -czvf SOURCES/xsd-tools.tgz -C ../../.. \
+    xsd-tools/CMakeLists.txt xsd-tools/templates xsd-tools/src \
+    xsd-tools/third-party
 rpmbuild -v -bb --clean SPECS/xsd-tools.spec

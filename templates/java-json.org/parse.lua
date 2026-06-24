@@ -347,14 +347,21 @@
 
       generateData["integer"] = generateInteger()
       generateData["int"] = generateInteger()
+      generateData["short"] = generateInteger()
+      generateData["byte"] = generateInteger()
       generateData["positiveInteger"] = generatePositiveInteger()
+      generateData["nonNegativeInteger"] = generatePositiveInteger()
+      generateData["unsignedLong"] = generatePositiveInteger()
+      generateData["unsignedInt"] = generatePositiveInteger()
+      generateData["unsignedShort"] = generatePositiveInteger()
+      generateData["unsignedByte"] = generatePositiveInteger()
       generateData["string"] = "'"..generateString().."'"
       generateData["date"] = "'"..generateDate().."'"
       generateData["dateTime"] = "'"..generateDate()..generateTime().."'"
       generateData["address"] = "'"..generateAddress().."'"
       generateData["time"] = generateTime()
-      generateData["base64Binary"] = generateString()
-      generateData["hexBinary"] = hexBinary(8)
+      generateData["base64Binary"] = "'"..generateString().."'"
+      generateData["hexBinary"] = "'"..hexBinary(8).."'"
 
 	  local str = stringBuffer:new()
       -- length of typedef.fields
