@@ -1,5 +1,6 @@
 cmake_minimum_required(VERSION 3.16)
-project(xsd-tools CXX C)
+include(${CMAKE_CURRENT_LIST_DIR}/cmake/GitVersion.cmake)
+project(xsd-tools VERSION ${XSD_VERSION} LANGUAGES CXX C)
 
 # Some vendored deps (googletest 1.11, expat R_2_4_1) declare a pre-3.5
 # cmake_minimum_required, which CMake 4.x rejects. Treat such floors as 3.5.
@@ -269,9 +270,10 @@ add_custom_command(
 add_custom_target(luascript DEPENDS "${LUASCRIPT_LUAC}")
 
 # ---------------------------------------------------------------------------
-# Prefix-aware runtime template path -> resource_config.hpp
+# Version + prefix-aware runtime template path -> resource_config.hpp
 # ---------------------------------------------------------------------------
 include(GNUInstallDirs)
+set(XSDTOOLS_VERSION "${XSD_VERSION_FULL}")
 set(XSDTOOLS_GLOBAL_TEMPLATE_PATH
   "${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_DATADIR}/xsdtools/templates")
 configure_file(

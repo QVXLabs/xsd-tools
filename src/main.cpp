@@ -29,12 +29,20 @@
 #include "./src/luaScriptAdapter.hpp"
 #include "./src/resource.hpp"
 #include "./src/XSDParser/Parser.hpp"
+#include "resource_config.hpp"
 
 using namespace std;
 
 int main(int argc, const char* argv[]) {
+	if (argc >= 2) {
+		const string firstArg(argv[1]);
+		if ("--version" == firstArg || "-v" == firstArg) {
+			cout << "xsdb " << XSDTOOLS_VERSION << endl;
+			return 0;
+		}
+	}
 	if (argc < 3) {
-		cout << "xsdb (c) 2012 Ardavon Falls" << endl;
+		cout << "xsdb " << XSDTOOLS_VERSION << " (c) Ardavon Falls" << endl;
 		cout << "Syntax xsdb <template> <input xsd file> <unique template paramters>" << endl;
 		cout << "To retrieve list of template paramters invoke with option \"-h info\"" << endl;
 		cout << "For example:" << endl;
