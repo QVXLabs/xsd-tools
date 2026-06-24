@@ -11,7 +11,8 @@
 # PUBLIC: the patched luaconf.h only sets LNUM_FLOAT, while lua.h/lua.c gate
 # the integer-subtype API on LNUM_INT32 — the recipe supplied it through its
 # generated luaconf.h, we supply it as a compile definition. LNUM_FLOAT
-# requires C99 (luaconf_internal.h #errors otherwise).
+# requires C99 (luaconf_internal.h #errors otherwise); we build as C11 so MSVC
+# also defines __STDC_VERSION__ accordingly (it has no C99 mode).
 #
 # Builds a static liblua and the luac compiler from the same sources, so the
 # embedded bytecode (number representation included) is always loadable by the
@@ -33,7 +34,7 @@ add_library(lua STATIC ${LUA_CORE} ${LUA_LIB})
 # <lua.hpp>). The recipe installed both onto the include path.
 target_include_directories(lua PUBLIC
   "${CMAKE_CURRENT_SOURCE_DIR}/src" "${CMAKE_CURRENT_SOURCE_DIR}/etc")
-set_target_properties(lua PROPERTIES C_STANDARD 99 C_STANDARD_REQUIRED ON)
+set_target_properties(lua PROPERTIES C_STANDARD 11 C_STANDARD_REQUIRED ON)
 # LNUM number mode (matches the recipe's number_type=float default). PUBLIC so
 # consumers' view of lua.h enables the integer-subtype API identically.
 target_compile_definitions(lua PUBLIC LNUM_INT32)

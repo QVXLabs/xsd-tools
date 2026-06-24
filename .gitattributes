@@ -1,0 +1,4 @@
+# Patch files must keep LF endings: they're applied (via `patch`) against the
+# LF-only upstream tarballs FetchContent extracts. CRLF here breaks the match
+# on Windows checkouts.
+*.patch -text

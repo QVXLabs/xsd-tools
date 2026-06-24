@@ -8,8 +8,9 @@ on:
 
 jobs:
   # ---------------------------------------------------------------------
-  # Linux + macOS, x86_64 and ARM. Deps via Conan (the only reliable source
-  # of Lua 5.1 + a matching luac, which the embedded engine requires).
+  # Linux + macOS, x86_64 and ARM. Deps resolve via the in-tree fallback:
+  # boost/expat/googletest submodules + lua/tinyxml fetched by CMake. The
+  # bundled lua build yields the matching 5.1 luac the engine requires.
   # ---------------------------------------------------------------------
   unix:
     name: ${{ matrix.os }} (${{ matrix.arch }})
@@ -49,20 +50,9 @@ jobs:
           else
             brew install ninja maven || true
           fi
-          pip install 'conan<2'
-
-      - name: Resolve dependencies (Conan)
-        run: |
-          conan profile new default --detect --force
-          # libstdc++11 ABI on Linux gcc
-          if [ "$RUNNER_OS" = "Linux" ]; then
-            conan profile update settings.compiler.libcxx=libstdc++11 default
-          fi
-          conan install . -if build --build=missing
 
       - name: Configure + build + test
         run: |
-          source build/activate.sh
           cmake -S . -B build -G "Ninja Multi-Config"
           cmake --build build --config Release -j
           ctest --test-dir build -C Release --output-on-failure
@@ -100,17 +90,12 @@ jobs:
 
       - uses: ilammy/msvc-dev-cmd@v1
 
-      - name: Install tools
-        run: pip install "conan<2"
-
-      - name: Resolve dependencies (Conan)
-        run: |
-          conan profile new default --detect --force
-          conan install . -if build --build=missing
-
       - name: Configure + build + test
         run: |
-          ./build/activate.ps1
+          # GNU patch (for the lua LNUM patch) ships with Git. Append it to
+          # PATH so it doesn't shadow MSVC's link.exe with Git's coreutils.
+          $env:PATH += ";$env:ProgramFiles\Git\usr\bin"
+          patch --version
           cmake -S . -B build -G "Ninja Multi-Config"
           cmake --build build --config Release
           ctest --test-dir build -C Release --output-on-failure
