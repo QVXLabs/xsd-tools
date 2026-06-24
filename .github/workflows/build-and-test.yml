@@ -40,20 +40,28 @@ jobs:
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '17'
+          java-version: '21'
 
       - name: Install build tools
         run: |
           if [ "$RUNNER_OS" = "Linux" ]; then
             sudo apt-get update
             sudo apt-get install -y ninja-build maven
+            # The runner image ships a stray Lua dev package; find_package(Lua
+            # 5.1 EXACT) matches it and links system liblua, but a mismatched
+            # luac then compiles bytecode liblua rejects (LUA_ERRSYNTAX at
+            # load). Show what's present, then remove it so the self-contained
+            # bundled lua+luac pair is used.
+            echo "Lua packages present before removal:"
+            dpkg -l | grep -i lua || echo "  (none)"
+            sudo apt-get remove -y 'liblua5.*' 'lua5.*' || true
           else
             brew install ninja maven || true
           fi
 
       - name: Configure + build + test
         run: |
-          cmake -S . -B build -G "Ninja Multi-Config"
+          cmake -S . -B build -G "Ninja Multi-Config" -DCMAKE_DISABLE_FIND_PACKAGE_Lua=ON
           cmake --build build --config Release -j
           ctest --test-dir build -C Release --output-on-failure
 
@@ -86,7 +94,7 @@ jobs:
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '17'
+          java-version: '21'
 
       - uses: ilammy/msvc-dev-cmd@v1
 
@@ -96,6 +104,6 @@ jobs:
           # PATH so it doesn't shadow MSVC's link.exe with Git's coreutils.
           $env:PATH += ";$env:ProgramFiles\Git\usr\bin"
           patch --version
-          cmake -S . -B build -G "Ninja Multi-Config"
+          cmake -S . -B build -G "Ninja Multi-Config" -DCMAKE_DISABLE_FIND_PACKAGE_Lua=ON
           cmake --build build --config Release
           ctest --test-dir build -C Release --output-on-failure
