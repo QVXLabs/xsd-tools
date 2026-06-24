@@ -1,0 +1,17 @@
+# Build overlay for TinyXML 2.6.2 (original TiXmlDocument API), copied over the
+# fetched source tree. Matches the Conan recipe tinyxml/2.6.2.
+# Source: SourceForge tinyxml_2_6_2.tar.gz. Mirrors the recipe's
+# cmake-tinyxml-2.6.2 patch (STL enabled, the four lib sources).
+cmake_minimum_required(VERSION 3.5)
+project(tinyxml CXX)
+
+add_library(tinyxml STATIC
+  tinyxml.cpp
+  tinyxmlparser.cpp
+  tinyxmlerror.cpp
+  tinystr.cpp)
+target_include_directories(tinyxml PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")
+# xsd-tools (and the recipe) use the STL string API.
+target_compile_definitions(tinyxml PUBLIC TIXML_USE_STL)
+
+add_library(TinyXML::TinyXML ALIAS tinyxml)

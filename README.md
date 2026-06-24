@@ -1,4 +1,4 @@
-![ubuntu latest x86_64 workflow](https://github.com/Ardy123/xsd-tools/actions/workflows/cmake.yml/badge.svg)
+![ubuntu latest x86_64 workflow](https://github.com/Ardy123/xsd-tools/actions/workflows/build-and-test.yml/badge.svg)
 
 # xsd-tools
 ### Overview ###
@@ -130,32 +130,62 @@ To use xsd-tools, invoke xsdb using the following syntax from the console
 
 ### Install Instructions ###
 
-#### Requirements ####
-The following packages/libs must be available on your system.
-  * liblua5.1-0-dev
-  * libtinyxml-dev
-  * libboost-dev
-  * libboost-system-dev
-  * libboost-filesystem-dev
-  * python
-  * scons
+The build uses **CMake**. For each dependency CMake tries `find_package`
+first (satisfied by **Conan** — which also supplies the Lua 5.1 `luac` the
+embedded template engine needs — or by system packages); whatever is not found
+falls back automatically to a bundled copy, all matching the Conan recipe
+versions. googletest, expat, and the boost superproject are git submodules;
+fetch them first:
+```
+   git submodule update --init --recursive
+```
+(The boost superproject is large; its recursive init pulls boost's component
+libraries.) lua 5.1.5 and tinyxml 2.6.2 are downloaded automatically by CMake
+(FetchContent) at configure time into `<build>/third-party/` — no submodule
+needed, but the first configure needs network access. The lua fallback applies
+the recipe's LNUM patch, so `patch` must be on the host.
 
-On ubuntu systems this can be done by running the following line from a shell.
+#### Requirements ####
+  * cmake (>= 3.16) and a generator (Ninja recommended)
+  * `patch` (only for the lua FetchContent fallback)
+  * a C++11 compiler (gcc/clang/MSVC)
+  * Lua **5.1** (library + `luac`) — newer Lua will not work
+  * tinyxml, expat, boost (system + filesystem)
+  * python3 (build-time test generation; runtime for the python round-trip)
+  * conan (`pip install 'conan<2'`) for the dependency path below
+
+On ubuntu the system packages are:
 ```
-   # sudo apt-get install lua5.1 liblua5.1-0-dev libtinyxml-dev libboost-dev  libboost-system-dev libboost-filesystem-dev scons
+   sudo apt-get install cmake ninja-build lua5.1 liblua5.1-0-dev \
+       libtinyxml-dev libexpat1-dev libboost-system-dev \
+       libboost-filesystem-dev python3
 ```
-#### Building ####
-from a prompt type
+
+#### Building (Conan) ####
+The simplest path — fetches deps and builds both configurations:
 ```
-   # scons
+   ./build-conan.sh Release      # or: Debug
 ```
-#### Installing ####
-from a prompt type
+Equivalently, by hand:
 ```
-   # sudo scons install
+   conan install . -if build --build=missing
+   source build/activate.sh                 # puts the Lua 5.1 luac on PATH
+   cmake -S . -B build -G "Ninja Multi-Config"
+   cmake --build build --config Release
 ```
-#### Uninstalling ####
-from a prompt type
+`Ninja Multi-Config` keeps both Debug and Release in one tree; pick the
+config at build time with `--config`.
+
+#### Testing ####
 ```
-   # sudo scons uninstall
+   ctest --test-dir build -C Release --output-on-failure
 ```
+
+#### Installing / Uninstalling ####
+```
+   sudo cmake --install build --config Release            # uses CMAKE_INSTALL_PREFIX
+   xargs rm < build/install_manifest.txt                  # to uninstall
+```
+Set the install location at configure time
+(`-DCMAKE_INSTALL_PREFIX=/usr/local`); it is baked into the binary's template
+search path.

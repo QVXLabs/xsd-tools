@@ -2,4 +2,11 @@
 *.luac
 *.pyc
 xsdb
-.sconsign.dblite
+# CMake / Conan build tree
+/build/
+conanbuildinfo.*
+conaninfo.txt
+graph_info.json
+activate*.sh
+deactivate*.sh
+environment*.env

@@ -23,14 +23,12 @@
 
 #include <exception>
 #include <string>
-#include <sstream>
 #include <iostream>
-#include <lua.hpp>
+#include <vector>
+#include "./src/xsdtools.hpp"
 #include "./src/luaScriptAdapter.hpp"
 #include "./src/resource.hpp"
 #include "./src/XSDParser/Parser.hpp"
-#include "./src/Processors/LuaProcessor.hpp"
-#include "./src/XSDParser/Elements/Schema.hpp"
 
 using namespace std;
 
@@ -43,40 +41,26 @@ int main(int argc, const char* argv[]) {
 		cout << "\t #./xsdb templates/test test/xsd-positive/testA001.xsd -h all" << endl;
 		cout << "Please note that not all templates have optional paramters in which" << endl;
 		cout << "case they will not return anything as optional paramters." << endl;
-	} else {
-		XSD::Parser 				parser;
-		XSD::Elements::Schema* 		pDocRoot = NULL;
-		const std::string			tmpltName(argv[1]);
-		const std::string			xsdName(argv[2]);
-		Core::Resource				resource;
-		Core::LuaScriptAdapter		luaScriptAdapter(luaL_newstate());
-		Processors::LuaProcessor	luaPrcssr(luaScriptAdapter.LuaState());
-		size_t 						nginScriptSz = 0;
-		const uint8_t* 				pNginScript = resource.GetEngineScript(&nginScriptSz);
-		try {
-			/* init lua */
-			luaScriptAdapter.Open();
-			/* process additional 'optional' template command line arguments */
-			luaScriptAdapter.ParseCommandLineArgs(argv, argc);
-			/* parse xsd document */
-			pDocRoot = parser.Parse(xsdName);
-			pDocRoot->ParseElement(luaPrcssr);
-			/* execute lua template processing engine */
-			luaScriptAdapter.SetSchemaName(xsdName);
-			luaScriptAdapter.Load(pNginScript, nginScriptSz);
-			luaScriptAdapter.Execute(resource.GetTemplatePath(tmpltName));
-		} catch (XSD::XMLException& e) {
-			cerr << "XSD Parsing Error: " << e.what() << endl;
-		} catch (Core::LuaException& e) {
-			cerr << "Lua Error: " << e.what() << endl;
-		} catch (Core::ResourceException& e) {
-			cerr << e.what() << endl;
-		} catch (std::exception& e) {
-			cerr << "General error: " << e.what() << endl;
-		}
-		/* close out lua */
-		luaScriptAdapter.Close();
-		/* release root schema node */
-		delete pDocRoot;
+		return 0;
 	}
+	/* additional argv beyond <template> <xsd> are template key/value pairs */
+	std::vector<std::string> templateArgs;
+	for (int ndx = 3; ndx < argc; ++ndx)
+		templateArgs.push_back(argv[ndx]);
+	try {
+		XsdTools::Generate(argv[1], argv[2], std::cout, templateArgs);
+	} catch (XSD::XMLException& e) {
+		cerr << "XSD Parsing Error: " << e.what() << endl;
+		return 1;
+	} catch (Core::LuaException& e) {
+		cerr << "Lua Error: " << e.what() << endl;
+		return 1;
+	} catch (Core::ResourceException& e) {
+		cerr << e.what() << endl;
+		return 1;
+	} catch (std::exception& e) {
+		cerr << "General error: " << e.what() << endl;
+		return 1;
+	}
+	return 0;
 }

@@ -15,7 +15,7 @@ Prefix:			/usr
 Group:			Development/Tools
 
 BuildRequires:		gcc-c++ >= 4.4.7
-BuildRequires:		scons >= 2.0.1
+BuildRequires:		cmake >= 3.16
 BuildRequires:		tinyxml-devel >= 2.6.1
 BuildRequires:		boost-devel >= 1.41.0
 BuildRequires:		lua-devel >= 5.1.4
@@ -31,18 +31,19 @@ A tool to generate data bindings from XML XSD schema for multiple languages incl
 %setup -q -n xsd-tools
 
 %build
-echo "build"
-scons -j2
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr \
+      -DBUILD_TESTING=OFF
+cmake --build build -j2
 
 %install
-scons install prefix=$RPM_BUILD_ROOT/usr
+DESTDIR=$RPM_BUILD_ROOT cmake --install build
 
 %clean
 rm -rf $RPM_BUILD_ROOT
 
 %files
 %defattr(-,root,root)
-/usr/local/bin/xsdb
+/usr/bin/xsdb
 /usr/share/xsdtools/templates/
 
 

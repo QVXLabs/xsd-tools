@@ -1,0 +1,50 @@
+# Build overlay for Lua 5.1.5, copied over the fetched + patched source tree
+# (lua.org ships no CMakeLists). Reproduces the Conan recipe lua/5.1.5.
+# Source: https://www.lua.org/ftp/lua-5.1.5.tar.gz
+#
+# The recipe applies the LNUM ("luanum") patch, which we also apply via
+# FetchContent's PATCH_COMMAND. LNUM gives Lua 5.1 a real integer number
+# subtype (lnum.c) and selectable number mode. The recipe's default config
+# (number_type=float) is reproduced here: LNUM_FLOAT (single-precision
+# LUA_NUMBER, set by the patched luaconf.h) + LNUM_INT32 (32-bit integer
+# subtype) + complex disabled. LNUM_INT32 must be defined explicitly and
+# PUBLIC: the patched luaconf.h only sets LNUM_FLOAT, while lua.h/lua.c gate
+# the integer-subtype API on LNUM_INT32 — the recipe supplied it through its
+# generated luaconf.h, we supply it as a compile definition. LNUM_FLOAT
+# requires C99 (luaconf_internal.h #errors otherwise).
+#
+# Builds a static liblua and the luac compiler from the same sources, so the
+# embedded bytecode (number representation included) is always loadable by the
+# linked liblua.
+cmake_minimum_required(VERSION 3.5)
+project(lua C)
+
+set(LUA_CORE
+  src/lapi.c src/lcode.c src/ldebug.c src/ldo.c src/ldump.c src/lfunc.c
+  src/lgc.c src/llex.c src/lmem.c src/lnum.c src/lobject.c src/lopcodes.c
+  src/lparser.c src/lstate.c src/lstring.c src/ltable.c src/ltm.c
+  src/lundump.c src/lvm.c src/lzio.c)
+set(LUA_LIB
+  src/lauxlib.c src/lbaselib.c src/ldblib.c src/liolib.c src/lmathlib.c
+  src/loslib.c src/ltablib.c src/lstrlib.c src/loadlib.c src/linit.c)
+
+add_library(lua STATIC ${LUA_CORE} ${LUA_LIB})
+# src/ holds lua.h etc.; etc/ holds the C++ wrapper lua.hpp (consumers include
+# <lua.hpp>). The recipe installed both onto the include path.
+target_include_directories(lua PUBLIC
+  "${CMAKE_CURRENT_SOURCE_DIR}/src" "${CMAKE_CURRENT_SOURCE_DIR}/etc")
+set_target_properties(lua PROPERTIES C_STANDARD 99 C_STANDARD_REQUIRED ON)
+# LNUM number mode (matches the recipe's number_type=float default). PUBLIC so
+# consumers' view of lua.h enables the integer-subtype API identically.
+target_compile_definitions(lua PUBLIC LNUM_INT32)
+if(UNIX)
+  # Matches the recipe build (LUA_USE_LINUX => POSIX + dlopen).
+  target_compile_definitions(lua PUBLIC LUA_USE_POSIX LUA_USE_DLOPEN)
+  target_link_libraries(lua PUBLIC ${CMAKE_DL_LIBS} m)
+endif()
+
+add_library(Lua::Lua ALIAS lua)
+
+# luac bytecode compiler (print.c is the bytecode lister it depends on).
+add_executable(luac src/luac.c src/print.c)
+target_link_libraries(luac PRIVATE lua)
