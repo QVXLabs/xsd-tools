@@ -322,22 +322,6 @@ Node::NextSibling() const noexcept(false) {
 	return pElm ? _ConstructNode(pElm, m_rParser) : NULL;
 }
 
-/* Recurse the sibling chain from pNode, invoking rFn on each node. */
-static void
-_eachSibling(std::unique_ptr<Node> pNode,
-		const std::function<void(const Node&)>& rFn) noexcept(false) {
-	if (NULL == pNode.get())
-		return;
-	rFn(*pNode);
-	_eachSibling(std::unique_ptr<Node>(pNode->NextSibling()), rFn);
-}
-
-void
-Node::_eachChild(
-		const std::function<void(const Node&)>& rFn) const noexcept(false) {
-	_eachSibling(std::unique_ptr<Node>(FirstChild()), rFn);
-}
-
 /* Recurse the sibling chain from pNode until rFn returns true. */
 static bool
 _findSibling(std::unique_ptr<Node> pNode,
@@ -353,6 +337,13 @@ bool
 Node::_findChild(
 		const std::function<bool(const Node&)>& rFn) const noexcept(false) {
 	return _findSibling(std::unique_ptr<Node>(FirstChild()), rFn);
+}
+
+void
+Node::_eachChild(
+		const std::function<void(const Node&)>& rFn) const noexcept(false) {
+	/* visit-all expressed via the short-circuiting search */
+	_findChild([&rFn](const Node& rNode) -> bool { rFn(rNode); return false; });
 }
 
 const TiXmlElement*
