@@ -1,13 +1,11 @@
 [@lua --TS type mapping objects (mirrors java_type_info)
 	include 'ts-xml/string'
 	include 'ts-xml/number'
-	include 'ts-xml/bigint'
 	include 'ts-xml/bool'
 	include 'ts-xml/base64'
 	include 'ts-xml/hex'
 	include 'ts-xml/list_string'
 	include 'ts-xml/list_number'
-	include 'ts-xml/list_bigint'
 	include 'ts-xml/list_bool'
 	ts_type_info = {
 		['anySimpleType']		= tstype_string,
@@ -42,13 +40,13 @@
 		['IDREFS']				= tstype_string,
 		['NMTOKENS']			= tstype_string,
 		['decimal']				= tstype_number,
-		['integer']				= tstype_bigint,
-		['long']				= tstype_bigint,
+		['integer']				= tstype_number,
+		['long']				= tstype_number,
 		['int']					= tstype_number,
 		['short']				= tstype_number,
 		['byte']				= tstype_number,
-		['positiveInteger']		= tstype_bigint,
-		['unsignedLong']		= tstype_bigint,
+		['positiveInteger']		= tstype_number,
+		['unsignedLong']		= tstype_number,
 		['unsignedInt']			= tstype_number,
 		['unsignedShort']		= tstype_number,
 		['unsignedByte']		= tstype_number,
@@ -56,8 +54,8 @@
 		['double']				= tstype_number,
 		['float']				= tstype_number,
 		['precisionDecimal']	= tstype_number,
-		['nonPositiveInteger']	= tstype_bigint,
-		['nonNegativeInteger']	= tstype_bigint,
+		['nonPositiveInteger']	= tstype_number,
+		['nonNegativeInteger']	= tstype_number,
 		['base64Binary']		= tstype_base64,
 		['hexBinary']			= tstype_hex,
 		['list(anySimpleType)']		= tstype_listString,
@@ -92,13 +90,13 @@
 		['list(IDREFS)']			= tstype_listString,
 		['list(NMTOKENS)']			= tstype_listString,
 		['list(decimal)']			= tstype_listNumber,
-		['list(integer)']			= tstype_listBigint,
-		['list(long)']				= tstype_listBigint,
+		['list(integer)']			= tstype_listNumber,
+		['list(long)']				= tstype_listNumber,
 		['list(int)']				= tstype_listNumber,
 		['list(short)']				= tstype_listNumber,
 		['list(byte)']				= tstype_listNumber,
-		['list(positiveInteger)']	= tstype_listBigint,
-		['list(unsignedLong)']		= tstype_listBigint,
+		['list(positiveInteger)']	= tstype_listNumber,
+		['list(unsignedLong)']		= tstype_listNumber,
 		['list(unsignedInt)']		= tstype_listNumber,
 		['list(unsignedShort)']		= tstype_listNumber,
 		['list(unsignedByte)']		= tstype_listNumber,
@@ -106,8 +104,8 @@
 		['list(double)']			= tstype_listNumber,
 		['list(float)']				= tstype_listNumber,
 		['list(precisionDecimal)']	= tstype_listNumber,
-		['list(nonPositiveInteger)']= tstype_listBigint,
-		['list(nonNegativeInteger)']= tstype_listBigint,
+		['list(nonPositiveInteger)']= tstype_listNumber,
+		['list(nonNegativeInteger)']= tstype_listNumber,
 		['list(base64Binary)']		= tstype_listString,
 		['list(hexBinary)']			= tstype_listString,
 	}
