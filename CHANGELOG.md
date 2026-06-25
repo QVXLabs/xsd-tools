@@ -17,8 +17,14 @@ All notable changes to xsd-tools are documented here. The format is based on
   installed header + exported `xsdtools::xsdtools` CMake target.
 - Version derived from the git tag (`cmake/GitVersion.cmake`), reported by
   `xsdb --version`.
+- Generated unmarshallers now enforce XSD restriction facets (range, length,
+  enumeration) on element content **and** attributes, across all seven targets.
+  Violations are rejected per language: C returns an error / skips / aborts,
+  Python raises `ValueError`, Java throws `IllegalArgumentException`.
+- Smallest-type selection: a facet-bounded integer field narrows to the
+  smallest type that holds its range — C `uint8_t`…`int64_t`, Java
+  `Byte`/`Short`/`Integer`/`Long`; Python is unaffected (arbitrary precision).
 - (planned) Namespace awareness and `xs:import` support. Closes #10.
-- (planned) Runtime enforcement of XSD restriction facets in generated code.
 - (planned) Prebuilt binary releases (Linux/macOS), Homebrew formula, Docker image.
 
 ### Changed

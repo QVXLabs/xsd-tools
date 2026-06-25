@@ -1,0 +1,4 @@
+xsd-tools — AUTHORS
+
+Ardavon Falls  <afalls@qvxlabs.com>   original author and maintainer
+Carlos Rojas   <iam@carlosrojas.me>   contributor

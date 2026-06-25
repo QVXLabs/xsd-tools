@@ -22,6 +22,11 @@ It processes XSD schema documents and invokes a template file which outputs code
 ### Features ###
   * XSD schema parsing
   * Six built-in output targets (C/Python/Java × XML/JSON), easily extendable
+  * Generated unmarshallers enforce XSD restriction facets at parse time
+    (range, length, enumeration on elements and attributes) — invalid documents
+    are rejected.
+  * Facet-bounded integer fields narrow to the smallest fitting type
+    (e.g. `0..255` → `uint8_t` in C, `Short` in Java).
   * Simple Lua based templates for customizing code generation.
   * Usable as a C++ library (`XsdTools::Generate()`) as well as a CLI.
   * Open Source!
