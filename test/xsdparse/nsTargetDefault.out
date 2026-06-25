@@ -1,0 +1,20 @@
+record = {
+	attributes = {}
+	maxOccurs = 1
+	content = {
+		label = {
+			attributes = {}
+			maxOccurs = 1
+			content = {
+				string = {
+					attributes = {}
+					maxOccurs = 1
+					content = {}
+					minOccurs = 1
+				}
+			}
+			minOccurs = 1
+		}
+	}
+	minOccurs = 1
+}

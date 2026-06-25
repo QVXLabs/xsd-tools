@@ -1,0 +1,43 @@
+record = {
+	attributes = {
+		id = {
+			string = {
+				attributes = {}
+				use = optional
+				maxOccurs = 1
+				content = {}
+				minOccurs = 1
+			}
+		}
+	}
+	maxOccurs = 1
+	content = {
+		count = {
+			attributes = {}
+			maxOccurs = 1
+			content = {
+				integer = {
+					attributes = {}
+					maxOccurs = 1
+					content = {}
+					minOccurs = 1
+				}
+			}
+			minOccurs = 1
+		}
+		label = {
+			attributes = {}
+			maxOccurs = 1
+			content = {
+				string = {
+					attributes = {}
+					maxOccurs = 1
+					content = {}
+					minOccurs = 1
+				}
+			}
+			minOccurs = 1
+		}
+	}
+	minOccurs = 1
+}

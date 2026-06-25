@@ -241,7 +241,7 @@ Node::ConstructNode_(const TiXmlElement* pElm, const Parser& rParser) const {
 			[](const TiXmlElement& e, const Parser& p) -> Node*
 				{ return new AppInfo(e, p); } },
 	};
-	const std::string elementName = StripNamespace_(pElm->ValueStr());
+	const std::string elementName = stripPrefix_(pElm->ValueStr());
 	for (const auto& rEntry : kTable) {
 		if (boost::iequals(std::string(rEntry.pTag), elementName))
 			return rEntry.pMake(*pElm, rParser);
@@ -251,19 +251,25 @@ Node::ConstructNode_(const TiXmlElement* pElm, const Parser& rParser) const {
 }
 
 Node*
-Node::FindXSDElm_(const char* pName, const char* pTypeName) const noexcept(false) {
+Node::FindXSDElm_(const XsdQName& rName, const char* pTypeName) const noexcept(false) {
 	std::string elementName = QualifyElementName(pTypeName);
+	const char* pLocal = rName.local.c_str();
 	/* search root document */
 	Node* pRetNode = NULL;
 	std::unique_ptr<Schema> pSchemaRoot(GetSchema());
-	const TiXmlElement* pElm = pSchemaRoot->FindChildXMLElement_(elementName.c_str(), "name", pName);
+	const TiXmlElement* pElm =
+		(pSchemaRoot->TargetNamespace() == rName.ns)
+			? pSchemaRoot->FindChildXMLElement_(elementName.c_str(), "name", pLocal)
+			: NULL;
 	/* search all included documents */
 	if (!pElm) {
 		const TiXmlElement* pIncludElm = pSchemaRoot->GetXMLElm().FirstChildElement(XSD::Elements::Include::XSDTag());
 		for ( ; pIncludElm; pIncludElm = pIncludElm->NextSiblingElement(XSD::Elements::Include::XSDTag()) ) {
 			std::unique_ptr<Include> pNode(static_cast<Include*>(ConstructNode_(pIncludElm, rParser_)));
 			const Schema* pSchema = pNode->QuerySchema();
-			if (NULL != (pElm = pSchema->FindChildXMLElement_(elementName.c_str(), "name", pName))) {
+			if (pSchema->TargetNamespace() != rName.ns)
+				continue;
+			if (NULL != (pElm = pSchema->FindChildXMLElement_(elementName.c_str(), "name", pLocal))) {
 				pRetNode = ConstructNode_(pElm, pSchema->rParser_);
 				break;
 			}
@@ -274,8 +280,8 @@ Node::FindXSDElm_(const char* pName, const char* pTypeName) const noexcept(false
 }
 
 Node*
-Node::FindXSDNode_(const char* pName, const char* pTypeName) const noexcept(false) {
-	Node* pNode = FindXSDElm_(pName, pTypeName);
+Node::FindXSDNode_(const XsdQName& rName, const char* pTypeName) const noexcept(false) {
+	Node* pNode = FindXSDElm_(rName, pTypeName);
 	if (!pNode)
 		throw XMLException(rXmlElm_, XMLException::MissingElement);
 	return pNode;
@@ -294,7 +300,8 @@ Node::FindChildXSDNode_(const char* pXMLTag) const noexcept(false) {
 Node*
 Node::FindXSDRef_(const char* pRefAttribStr, const char* pTypeName) const noexcept(false) {
 	if (HasAttribute(pRefAttribStr)) {
-		std::unique_ptr<Node> pRefElm(FindXSDNode_(GetAttribute<const char*>(pRefAttribStr), pTypeName));
+		XsdQName ref = ResolveQName_(GetAttribute<const char*>(pRefAttribStr));
+		std::unique_ptr<Node> pRefElm(FindXSDNode_(ref, pTypeName));
 		return pRefElm->FindXSDRef_(pRefAttribStr, pTypeName);
 	} else
 		return ConstructNode_(&rXmlElm_, rParser_);
@@ -311,36 +318,48 @@ Node::Attribute_(const char* pAttrib) const noexcept(false) {
 
 Types::BaseType*
 Node::Type_(const char* pType) const noexcept(false) {
-	/* search for type name */
-	std::string typeName = StripNamespace_(std::string(pType));
-	Types::BaseType* pRetType = rParser_.QueryTypesDb().FindType(typeName.c_str());
-	if (typeid(*pRetType) == typeid(Types::Unknown)) {
-		delete pRetType;
-		Node* pSimpleType = FindXSDElm_(typeName.c_str(), SimpleType::XSDTag());
-		if (NULL != pSimpleType)
-			return new Types::SimpleType(static_cast<SimpleType*>(pSimpleType));
-		Node* pComplexType = FindXSDElm_(typeName.c_str(), ComplexType::XSDTag());
-		if (NULL != pComplexType)
-			return new Types::ComplexType(
-				static_cast<ComplexType*>(pComplexType));
-		throw XMLException(rXmlElm_, XMLException::MissingElement);
-	}
-	return pRetType;
+	return Type_(ResolveQName_(std::string(pType)));
 }
 
-const std::string 
-Node::StripNamespace_(const std::string& rQName) const noexcept(false) {
-	std::unique_ptr<Schema> pSchema(GetSchema());
-	std::string xmlNamespace = pSchema->Namespace();
-	/* verify that the namespace is in the qualified name */
-	if (0 == rQName.find(xmlNamespace)) {
-		if (xmlNamespace.length() > 0) {
-			return rQName.substr(xmlNamespace.length() + 1);
-		} else {
-			return rQName;
-		}
+Types::BaseType*
+Node::Type_(const XsdQName& rName) const noexcept(false) {
+	/* Builtins are detected by namespace URI, not by the "xs" prefix.
+	 * TypesDB stays keyed by bare local name. An empty ns (a schema that
+	 * declares no namespace at all) also probes builtins, preserving the
+	 * legacy bare-name lookup. */
+	if (rName.ns == XSD_NS || rName.ns.empty()) {
+		Types::BaseType* pBuiltin =
+			rParser_.QueryTypesDb().FindType(rName.local.c_str());
+		if (typeid(*pBuiltin) != typeid(Types::Unknown))
+			return pBuiltin;
+		delete pBuiltin;
 	}
-	return rQName;
+	/* user-defined type search */
+	Node* pSimpleType = FindXSDElm_(rName, SimpleType::XSDTag());
+	if (NULL != pSimpleType)
+		return new Types::SimpleType(static_cast<SimpleType*>(pSimpleType));
+	Node* pComplexType = FindXSDElm_(rName, ComplexType::XSDTag());
+	if (NULL != pComplexType)
+		return new Types::ComplexType(
+			static_cast<ComplexType*>(pComplexType));
+	throw XMLException(rXmlElm_, XMLException::MissingElement);
+}
+
+/* static */ std::string
+Node::stripPrefix_(const std::string& rQName) noexcept {
+	const size_t ndx = rQName.find(":");
+	return (std::string::npos == ndx) ? rQName : rQName.substr(ndx + 1);
+}
+
+XsdQName
+Node::ResolveQName_(const std::string& rRaw) const noexcept(false) {
+	std::unique_ptr<Schema> pSchema(GetSchema());
+	const size_t ndx = rRaw.find(":");
+	std::string prefix = (std::string::npos == ndx)
+		? std::string("") : rRaw.substr(0, ndx);
+	std::string local = (std::string::npos == ndx)
+		? rRaw : rRaw.substr(ndx + 1);
+	return XsdQName{ pSchema->ResolvePrefix(prefix), local };
 }
 
 Node*
