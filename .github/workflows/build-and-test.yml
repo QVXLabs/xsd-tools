@@ -42,6 +42,15 @@ jobs:
           distribution: temurin
           java-version: '21'
 
+      # Warm the shared Maven local repo across runs: the Java round-trips
+      # all read ~/.m2, so a cold runner would otherwise re-download every
+      # dependency. Locally this cache is already warm; it only matters here.
+      - uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository
+          key: m2-${{ runner.os }}-${{ hashFiles('test/**/pom.xml') }}
+          restore-keys: m2-${{ runner.os }}-
+
       - name: Install build tools
         run: |
           if [ "$RUNNER_OS" = "Linux" ]; then
@@ -63,7 +72,9 @@ jobs:
         run: |
           cmake -S . -B build -G "Ninja Multi-Config" -DCMAKE_DISABLE_FIND_PACKAGE_Lua=ON
           cmake --build build --config Release -j
-          ctest --test-dir build -C Release --output-on-failure
+          # Run the gtest binary directly (project convention: no ctest),
+          # sharded across cores for the mvn/cc/python round-trips.
+          python3 test/run_parallel.py --binary build/test/Release/xsdb-test
 
   # ---------------------------------------------------------------------
   # Windows (MSVC), x86_64 and ARM. Exercises the incbin generator-tool
@@ -96,6 +107,12 @@ jobs:
           distribution: temurin
           java-version: '21'
 
+      - uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository
+          key: m2-${{ runner.os }}-${{ hashFiles('test/**/pom.xml') }}
+          restore-keys: m2-${{ runner.os }}-
+
       - uses: ilammy/msvc-dev-cmd@v1
 
       - name: Configure + build + test
@@ -106,4 +123,5 @@ jobs:
           patch --version
           cmake -S . -B build -G "Ninja Multi-Config" -DCMAKE_DISABLE_FIND_PACKAGE_Lua=ON
           cmake --build build --config Release
-          ctest --test-dir build -C Release --output-on-failure
+          # Run the gtest binary directly (project convention: no ctest).
+          python3 test/run_parallel.py --binary build/test/Release/xsdb-test
