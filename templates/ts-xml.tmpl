@@ -177,19 +177,26 @@ export class Factory {
 ]
 	/* Dispatch a local name to a freshly created element, or undefined. */
 	create(localName: string): Element | undefined {
-		let e: Element | undefined;
 [@lua
+	-- No concrete types (e.g. an abstract-only schema): a bare
+	-- `e = undefined` makes tsc narrow `e` to `never` at `if (e)`. Emit a
+	-- trivial body instead.
+	if next(depOrderSansRoot) == nil then
+		return "\t\treturn undefined;\n"
+	end
 	local outbuf = stringBuffer:new()
+	outbuf:append("\t\tlet e: Element | undefined;\n")
 	table.map(depOrderSansRoot, function(_, node)
 		outbuf:append(table.concat({
 			"\t\tif (localName === \"", node.name, "\") e = this.create",
 			tsSafeName(node.name), "();\n\t\telse ",
 		}))
 	end)
+	outbuf:append("e = undefined;\n")
+	outbuf:append("\t\tif (e) e.factory = this;\n")
+	outbuf:append("\t\treturn e;\n")
 	return outbuf:str()
-]e = undefined;
-		if (e) e.factory = this;
-		return e;
+]
 	}
 }
 
