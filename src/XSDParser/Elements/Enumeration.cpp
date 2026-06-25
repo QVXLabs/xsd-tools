@@ -24,12 +24,10 @@
 #ifndef TIXML_USE_STL
 #	define TIXML_USE_STL
 #endif /* TIXML_USE_STL */
-#include <memory>
 #include <string.h>
 #include <string>
 #include <tinyxml.h>
 #include "./src/XSDParser/Elements/Enumeration.hpp"
-#include "./src/XSDParser/Elements/Annotation.hpp"
 
 using namespace XSD;
 using namespace XSD::Elements;
@@ -41,18 +39,6 @@ Enumeration::Enumeration(const TiXmlElement& elm, const Parser& rParser)
 Enumeration::Enumeration(const Enumeration& cpy)
 	: FacetNode(cpy)
 { }
-
-void
-Enumeration::ParseChildren(BaseProcessor& rProcessor) const noexcept(false) {
-	/* no children allowed */
-	std::unique_ptr<Node> pNode(Node::FirstChild());
-	if (NULL != pNode.get()) {
-		if (XSD_ISELEMENT(pNode.get(), Annotation))
-			pNode->ParseChildren(rProcessor);
-		else
-			throw XMLException(pNode->GetXMLElm(), XMLException::InvallidChildXMLElement);
-	}
-}
 
 void
 Enumeration::ParseElement(BaseProcessor& rProcessor) const noexcept(false) {

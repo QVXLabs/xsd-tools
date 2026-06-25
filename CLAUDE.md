@@ -60,10 +60,21 @@ Multi-file output uses `/* FILE: name */` markers.
 
 - **Match the existing spacing and naming of the file/area you edit; don't
   reformat surrounding code.** C++ uses **tab indentation**; pointers are `p`-
-  prefixed (`pNode`), references `r`-prefixed (`rProcessor`), members `m_`,
-  private helpers `_`-**suffixed** (`FindXSDElm_`), methods PascalCase
-  (`ParseElement`), macros UPPER_CASE. CMake uses 2-space indent; Lua templates
-  follow their existing local style. New files mirror their closest neighbor.
+  prefixed (`pNode`), references `r`-prefixed (`rProcessor`), class members and
+  private helpers are `_`-**suffixed** (`facets_`, `FindXSDElm_`) — **not** the
+  old `m_`/leading-`_` forms — methods PascalCase (`ParseElement`), macros
+  UPPER_CASE. CMake uses 2-space indent; Lua templates follow their existing
+  local style. New files mirror their closest neighbor.
+- **Prefer `static` (file-local) over anonymous namespaces** for
+  internal-linkage helpers; use a function-local type where a helper struct is
+  only needed inside one function.
+- **Parse lazily — only what's needed; build no second full model.** The
+  processing pass expands only the types reachable from the root element, on
+  demand: referenced groups/attributeGroups are parsed only when referenced,
+  `maxOccurs=0` elements are skipped, and types are expanded on first use in
+  `parseType_`. Don't add eager whole-schema walks or a parallel in-memory
+  model of the schema. (Cyclic schemas are rejected via the active-path guard
+  in `parseType_` rather than expanded — the model has no reference form.)
 - **Output targets are template-only** — copy the closest existing target and
   adapt only format-specific bodies; reuse `*_type_info` dispatch tables, shared
   helpers, FILE markers, and the `-test` driver.

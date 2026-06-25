@@ -72,8 +72,8 @@ SimpleType::GetParentType(void) const noexcept(false) {
 		return pRestriction->GetParentType();
 	} else if ((NULL == pRestriction.get()) && (NULL != pList.get()) && (NULL == pUnion.get())) {
 		return pList->GetParentType();
-	} else if ((NULL == pRestriction.get()) && (NULL != pList.get()) && (NULL == pUnion.get())) {
-		return pList->GetParentType();
+	} else if ((NULL == pRestriction.get()) && (NULL == pList.get()) && (NULL != pUnion.get())) {
+		return pUnion->GetParentType();
 	} else {
 		/* simple type can't have multiple child modifiers */
 		throw XMLException(Node::GetXMLElm(), XMLException::InvallidChildXMLElement);

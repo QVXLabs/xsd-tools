@@ -39,7 +39,6 @@ namespace XSD {
 		public:
 			Enumeration(const TiXmlElement& elm, const Parser& rParser);
 			Enumeration(const Enumeration& cpy);
-			void ParseChildren(BaseProcessor& rProcessor) const noexcept(false);
 			void ParseElement(BaseProcessor& rProcessor) const noexcept(false);
 			std::string Value() const noexcept(false);
 		};

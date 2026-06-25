@@ -57,6 +57,7 @@ static const char* ERRORTBL_[] ={
 		ENUM_STR(URINotValid),
 		ENUM_STR(NamespaceMismatch),
 		ENUM_STR(InvalidAttributeValue),
+		ENUM_STR(CyclicTypeDefinition),
 };
 
 /*

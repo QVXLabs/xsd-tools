@@ -24,6 +24,8 @@
 #ifndef LUAPROCESSOR_HPP_
 #define LUAPROCESSOR_HPP_
 
+#include <memory>
+#include <set>
 #include "./src/XSDParser/Types.hpp"
 #include "./src/Processors/LuaProcessorBase.hpp"
 #include "./src/Processors/LuaAdapter.hpp"
@@ -75,6 +77,11 @@ namespace Processors {
 		void walkAttributeFacets_(const XSD::Types::BaseType* pType);
 		/* facets accumulated across a restriction derivation chain */
 		LuaFacets m_facets;
+		/* types currently being expanded on the active path; shared across
+		 * the nested processors of one generation so a type that re-enters
+		 * its own expansion (a cyclic schema) is rejected instead of
+		 * recursing until the stack overflows */
+		std::shared_ptr<std::set<const void*> > m_activePath;
 	};
 }	/* using namespace Processors */
 #endif /* LUAPROCESSOR_HPP_ */

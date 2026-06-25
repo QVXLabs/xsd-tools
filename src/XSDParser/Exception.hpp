@@ -48,6 +48,7 @@ namespace XSD {
 			URINotValid,
 			NamespaceMismatch,
 			InvalidAttributeValue,
+			CyclicTypeDefinition,
 		};
 		struct ErrorInfo {
 			const int m_errorId;

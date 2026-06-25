@@ -1,0 +1,17 @@
+<?xml version="1.0"?>
+<!-- Annotation inside a STRING restriction (previously gated behind the
+     numeric isTypeRelated check -> threw) and inside an <enumeration>
+     (previously mis-dispatched). Both must now generate. -->
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+  <xs:element name="color">
+    <xs:simpleType>
+      <xs:restriction base="xs:string">
+        <xs:annotation><xs:documentation>a colour</xs:documentation></xs:annotation>
+        <xs:enumeration value="red">
+          <xs:annotation><xs:documentation>the red one</xs:documentation></xs:annotation>
+        </xs:enumeration>
+        <xs:enumeration value="green"/>
+      </xs:restriction>
+    </xs:simpleType>
+  </xs:element>
+</xs:schema>

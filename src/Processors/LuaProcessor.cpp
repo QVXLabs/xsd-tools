@@ -68,14 +68,17 @@ using namespace Processors;
 
 LuaProcessor::LuaProcessor(lua_State * pLuaState)
 	: LuaProcessorBase(new LuaAdapter(pLuaState))
+	, m_activePath(new set<const void*>())
 { }
 
 LuaProcessor::LuaProcessor(const LuaProcessor& rProcessor)
 	: LuaProcessorBase(rProcessor)
+	, m_activePath(rProcessor.m_activePath)
 { }
 
 LuaProcessor::LuaProcessor(LuaAdapter * pLuaAdapter)
 	: LuaProcessorBase(pLuaAdapter)
+	, m_activePath(new set<const void*>())
 { }
 
 /* virtual */
@@ -87,6 +90,7 @@ LuaProcessor::ProcessSchema(const XSD::Elements::Schema* pNode) {
 	if (pNode->isRootSchema()) {
 		/* create root schema table and append it to stack */
 		LuaProcessor processor(luaAdapter_()->Schema());
+		processor.m_activePath = m_activePath;
 		pNode->ParseChildren(processor);
 	} else {
 		/* parse schema children */
@@ -109,6 +113,7 @@ LuaProcessor::ProcessElement(const XSD::Elements::Element* pNode) {
 			/* enter the type content table & add elements, then leave */
 			LuaType * pLuaType = dynamic_cast<LuaType*>(luaAdapter_());
 			LuaProcessor processor(pLuaType->Content());
+			processor.m_activePath = m_activePath;
 			processor.ProcessElement(pNode);
 		} else {
 			/* Default min/maxOccurs is 1 */
@@ -116,6 +121,7 @@ LuaProcessor::ProcessElement(const XSD::Elements::Element* pNode) {
 			int minOccurs = pNode->HasMinOccurs() ?	pNode->MinOccurs() : 1;
 			LuaProcessor luaPrcssr(
 				pLuaContent->Type(pNode->Name(), maxOccurs, minOccurs));
+			luaPrcssr.m_activePath = m_activePath;
 			luaPrcssr.parseType_(*pElmType);
 		}
 	} else {
@@ -276,6 +282,7 @@ LuaProcessor::ProcessComplexType(const XSD::Elements::ComplexType* pNode) {
 			/* enter the type content table & add elements, then leave */
 			LuaType * pLuaType = dynamic_cast<LuaType*>(luaAdapter_());
 			LuaProcessor processor(pLuaType->Content());
+			processor.m_activePath = m_activePath;
 			processor.ProcessComplexType(pNode);
 		} else {
 			unique_ptr<XSD::Types::String> pType(new XSD::Types::String());
@@ -430,13 +437,35 @@ LuaProcessor::ProcessPattern(const XSD::Elements::Pattern* pNode) {
 
 /* virtual */ void
 LuaProcessor::parseType_(const XSD::Types::BaseType& rXSDType) {
+	/* RAII marker: a type is "on the active path" while its content is
+	   expanded. The model inline-expands every referenced type, so a cyclic
+	   schema (mutual or self-referential) would otherwise recurse until the
+	   stack overflows. Keyed on the backing TiXmlElement, because each
+	   resolution of a named type yields a fresh Node wrapper. */
+	struct ActiveMark {
+		std::set<const void*>&	m_path;
+		const void*				m_key;
+		ActiveMark(std::set<const void*>& rPath, const void* pKey)
+			: m_path(rPath), m_key(pKey) { m_path.insert(pKey); }
+		~ActiveMark() { m_path.erase(m_key); }
+	};
 	if(XSD_ISTYPE(&rXSDType, XSD::Types::SimpleType)) {
-		const XSD::Types::SimpleType* pSimpleType = 
+		const XSD::Types::SimpleType* pSimpleType =
 			dynamic_cast<const XSD::Types::SimpleType*>(&rXSDType);
+		const void* pKey = &pSimpleType->m_pValue->GetXMLElm();
+		if (0 != m_activePath->count(pKey))
+			throw XSD::XMLException(pSimpleType->m_pValue->GetXMLElm(),
+				XSD::XMLException::CyclicTypeDefinition);
+		ActiveMark mark(*m_activePath, pKey);
 		pSimpleType->m_pValue->ParseElement(*this);
 	} else if(XSD_ISTYPE(&rXSDType, XSD::Types::ComplexType)) {
-		const XSD::Types::ComplexType* pComplexType = 
+		const XSD::Types::ComplexType* pComplexType =
 			dynamic_cast<const XSD::Types::ComplexType*>(&rXSDType);
+		const void* pKey = &pComplexType->m_pValue->GetXMLElm();
+		if (0 != m_activePath->count(pKey))
+			throw XSD::XMLException(pComplexType->m_pValue->GetXMLElm(),
+				XSD::XMLException::CyclicTypeDefinition);
+		ActiveMark mark(*m_activePath, pKey);
 		pComplexType->m_pValue->ParseElement(*this);
 	} else {
 		/* inserts basic type. Handles array types the same as basic types */

@@ -84,7 +84,7 @@ else()
 endif()
 
 set(CORPUS_DIR   "${CMAKE_CURRENT_SOURCE_DIR}/xsd-positive")
-set(FACETS_DIR   "${CMAKE_CURRENT_SOURCE_DIR}/xsd-facets")
+set(NEGATIVE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/xsd-negative")
 set(XSDPARSE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/xsdparse")
 set(TEMPLATES_DIR "${CMAKE_SOURCE_DIR}/templates")
 
@@ -165,7 +165,7 @@ target_link_libraries(xsdb-test PRIVATE xsdb-lib GTest::gtest_main xsd_flags)
 target_compile_definitions(xsdb-test PRIVATE
   TEMPLATES_DIR="${TEMPLATES_DIR}"
   XSD_CORPUS_DIR="${CORPUS_DIR}"
-  XSD_FACETS_DIR="${FACETS_DIR}"
+  XSD_NEGATIVE_DIR="${NEGATIVE_DIR}"
   XSDPARSE_DIR="${XSDPARSE_DIR}"
   C_COMPILER="${CMAKE_C_COMPILER}"
   LIBB64_INCLUDE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/libb64/include"
