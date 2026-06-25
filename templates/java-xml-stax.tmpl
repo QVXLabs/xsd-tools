@@ -1,4 +1,33 @@
-[@lua --include and transform old format
+[@lua -- E3d: snapshot element namespace/form BEFORE trnsfrm_old, which drops
+	-- the element-level namespace/qualified fields (carrying them only onto leaf
+	-- content/attributes). Build a name -> {ns, qualified} map and record the
+	-- document's target namespace from the single top-level element. Gated on a
+	-- namespace being present: non-namespaced schemas leave nsByName empty and
+	-- emit byte-identical output.
+	nsByName = {}
+	nsTopLevel = {}
+	local function _nsCollect(name, node)
+		if type(node) ~= 'table' then return end
+		if node.namespace then
+			nsByName[name] = {ns = node.namespace, qualified = node.qualified}
+		end
+		table.map(node.content or {}, function(k, v) _nsCollect(k, v) end)
+	end
+	table.map(schema, function(k, v)
+		if type(v) == 'table' then
+			-- top-level elements are the document roots; only they declare xmlns
+			if v.namespace then nsTopLevel[k] = true end
+			_nsCollect(k, v)
+		end
+	end)
+	-- The document target namespace (single target per schema); nil when absent.
+	docRootNS = nil
+	table.map(nsTopLevel, function(name, _)
+		docRootNS = docRootNS or nsByName[name].ns
+	end)
+	-- Single synthesized prefix for the target NS (the XSD source prefix is not
+	-- in the model); StAX binds it on the root via setPrefix/writeNamespace.
+	nsPrefix = "tns"
 	include 'shared/trnsfrm_old'
 	schema = trnsfrm_oldFmt(schema)
 ][@lua --include any shared 'helper' templates
@@ -21,6 +50,20 @@
 		return v.name ~= schema.root and v or nil end)
 	-- Hex.java is only referenced by scalar hexBinary content/attributes.
 	needsHex = schema.uniqueTypes()["hexBinary"] ~= nil
+	-- E3d namespace helpers (no-ops when the schema has no targetNamespace).
+	-- The single document-root element is always qualified in the target NS;
+	-- local elements/attributes are qualified only when their XSD form is.
+	docRootName = next(schema.types[schema.root].dependents)
+	local function nsIsQualified(name)
+		if not docRootNS then return false end
+		if name == docRootName then return true end
+		local info = nsByName[name]
+		return info ~= nil and info.qualified == true
+	end
+	-- Java expression for an element's namespace URI, or nil when unqualified.
+	function nsUriExpr(name)
+		return nsIsQualified(name) and ('"'..docRootNS..'"') or nil
+	end
 ]/* command to split output: csplit - '/\/\* FILE: /' {*} */
 [@lua if not needsHex then return "" end
 	return [[/* FILE: Hex.java */
@@ -67,6 +110,11 @@ public abstract class Element {
 	protected Factory _factory;
 
 	public abstract String localName();
+	/* Target-namespace URI for qualified elements; null = no namespace. */
+	protected String namespaceURI() { return null; }
+	/* Emit namespace declarations after this element's start tag (root only). */
+	protected void marshalNamespaces(XMLStreamWriter w)
+			throws XMLStreamException {}
 	protected void readAttributes(XMLStreamReader r) {}
 	protected void readContent() {}
 	protected void validate() {}
@@ -83,7 +131,13 @@ public abstract class Element {
 	}
 
 	public void marshal(XMLStreamWriter w) throws XMLStreamException {
-		w.writeStartElement(localName());
+		String ns = namespaceURI();
+		if (ns != null) {
+			w.writeStartElement(ns, localName());
+		} else {
+			w.writeStartElement(localName());
+		}
+		marshalNamespaces(w);
 		marshalAttributes(w);
 		marshalContent(w);
 		if (_children != null) {
@@ -181,7 +235,10 @@ public class Document {
 		XMLStreamWriter w =
 			XMLOutputFactory.newInstance().createXMLStreamWriter(sw);
 		w.writeStartDocument("UTF-8", "1.0");
-		root.marshal(w);
+[@lua return docRootNS
+		and ('\t\tw.setPrefix("'..nsPrefix..'", "'..docRootNS..'");\n')
+		or ""
+]		root.marshal(w);
 		w.writeEndDocument();
 		w.flush();
 		return sw.toString();
@@ -323,6 +380,24 @@ public class Document {
 			"\t@Override public String localName() { return \"",
 			node.name, "\"; }\n\n",
 		}))
+
+		-- E3d: qualified elements carry their namespace URI; the document root
+		-- additionally declares the bound prefix after its start tag.
+		local nsUri = nsUriExpr(node.name)
+		if nsUri then
+			outbuf:append(table.concat({
+				"\t@Override protected String namespaceURI() { return ",
+				nsUri, "; }\n\n",
+			}))
+		end
+		if docRootNS and node.name == docRootName then
+			outbuf:append(table.concat({
+				"\t@Override protected void marshalNamespaces(",
+				"XMLStreamWriter w) throws XMLStreamException {\n",
+				"\t\tw.writeNamespace(\"", nsPrefix, "\", \"", docRootNS,
+				"\");\n\t}\n\n",
+			}))
+		end
 
 		-- override only what differs from Element's empty defaults
 		if hasAttrs then

@@ -1,4 +1,27 @@
-[@lua --include and transform old format
+[@lua --capture namespace info (E3a) before trnsfrm flattens the raw model
+	-- trnsfrm_old drops element-level namespace/qualified, so harvest them from
+	-- the raw element wrappers first, keyed by element name. nsInfo stays empty
+	-- for non-namespaced schemas, gating all NS emission off (byte-identical).
+	nsInfo = {}
+	docRootNS = nil
+	local function harvestNS(name, node)
+		if type(node) ~= 'table' then return end
+		if node.namespace ~= nil or node.qualified ~= nil then
+			nsInfo[name] = { ns = node.namespace, qualified = node.qualified }
+		end
+		table.map(node, function(k, v)
+			if type(v) == 'table' then harvestNS(k, v) end
+		end)
+	end
+	-- top-level keys are the global element(s); the schema target namespace is
+	-- the root element's resolved namespace.
+	table.map(schema, function(k, v)
+		if type(v) == 'table' then
+			harvestNS(k, v)
+			docRootNS = docRootNS or v.namespace
+		end
+	end)
+][@lua --include and transform old format
 	include 'shared/trnsfrm_old'
 	schema = trnsfrm_oldFmt(schema)
 ][@lua --include any shared 'helper' templates
@@ -81,6 +104,28 @@
 			out:append(ind..'\tbreak;\n')
 		end)
 		return out:str()
+	end
+][@lua -- namespace emission helpers (E3a), no-ops when the schema has no
+	-- targetNamespace. Qualified names use a single 'tns' prefix declared on the
+	-- document root; expat's NS-aware parser strips it on unmarshal.
+	nsPrefix = 'tns'
+	docRootName = next(schema.types[schema.root].dependents)
+	-- An element/attribute is emitted with the prefix when its form is qualified
+	-- (XSD elementFormDefault); the global document-root element is always
+	-- qualified when the schema has a target namespace.
+	local function isQualified(name)
+		if not docRootNS then return false end
+		if name == docRootName then return true end
+		local info = nsInfo[name]
+		return info ~= nil and info.qualified == true
+	end
+	-- Prefix a tag/attribute name when qualified, else leave it bare.
+	function nsQualify(name)
+		return isQualified(name) and (nsPrefix..':'..name) or name
+	end
+	-- The xmlns declaration emitted on the document-root start tag (or '').
+	function nsRootDecl()
+		return docRootNS and (' xmlns:'..nsPrefix..'="'..docRootNS..'"') or ''
 	end
 ]/* command to split output: csplit - '/\/\* FILE: /' {*} */
 /* FILE: xml_common.h */
@@ -354,7 +399,7 @@ static int marshal_adjustElmStk_(xml_marshaller* pMarshaller, uint32_t validType
 	table.map(depOrderSansRoot, function(_,node)
 		outbuf:append(table.concat({
 			"\t\tcase ", sdbm_hash(node.name), ":\n",
-			"\t\t\tcstr_appendN_(pMarshaller, pOutStr, ", cLit('</'..node.name..'>'), ");\n",
+			"\t\t\tcstr_appendN_(pMarshaller, pOutStr, ", cLit('</'..nsQualify(node.name)..'>'), ");\n",
 			"\t\t\tbreak;\n",
 		}))
 	end)
@@ -425,20 +470,24 @@ static int marshal_adjustElmStk_(xml_marshaller* pMarshaller, uint32_t validType
 		-- output stack adjustment code to make sure the proper element type is being marshalled
 		local stkfmt = '\tif (!marshal_adjustElmStk_(pMarshaller, %su)) return%s;\n'
 		outbuf:append(stkfmt:format(sdbm_hash(parent.name), next(node.dependents) and ' retFuncs' or ''))
-		-- output start tag (coalesced open + '>' when attribute-free)
+		-- output start tag (coalesced open + '>' when attribute-free). The
+		-- document-root tag carries the xmlns declaration; both are emitted only
+		-- when the schema has a target namespace.
+		local openTag = '<'..nsQualify(node.name)
+			..((node.name == docRootName) and nsRootDecl() or '')
 		if not next(node.attributes) then
 			outbuf:append(table.concat({
-				'\tcstr_appendN_(pMarshaller, pOutStr, ', cLit('<'..node.name..'>'), ');\n'
+				'\tcstr_appendN_(pMarshaller, pOutStr, ', cLit(openTag..'>'), ');\n'
 			}))
 		else
 			outbuf:append(table.concat({
-				'\tcstr_appendN_(pMarshaller, pOutStr, ', cLit('<'..node.name), ');\n'
+				'\tcstr_appendN_(pMarshaller, pOutStr, ', cLit(openTag), ');\n'
 			}))
 			-- output attributes
 			table.map(node.attributes, function(k,v)
 				local attribType = c_narrowCType(v.type, v.facets)
 				outbuf:append(table.concat({
-					'\tcstr_appendN_(pMarshaller, pOutStr, ', cLit(k..'="'), ');\n',
+					'\tcstr_appendN_(pMarshaller, pOutStr, ', cLit(nsQualify(k)..'="'), ');\n',
 					'\t', attribType.binding.marshal.statement('pOutStr', attribType.buildVar('pObj->',k)),
 				}))
 			end)
@@ -568,6 +617,10 @@ static void prsElmRec_init_(xml_prsElmRec* pElmRec, xml_marshaller* pMarshaller,
 		if next(node.attributes) then
 			local attrKeys = {}
 			table.map(node.attributes, function(n, _) attrKeys[#attrKeys+1] = n end)
+			-- Match on the attribute's local name. For a namespaced schema expat
+			-- expands a qualified attr to "uri:local", so strip the prefix; for
+			-- a non-namespaced schema dispatch on *ppAttrs directly (unchanged).
+			local scrut = docRootNS and 'pAttrLocal' or '*ppAttrs'
 			local function attrStmt(name)
 				local a = node.attributes[name]
 				local at = c_narrowCType(a.type, a.facets)
@@ -579,8 +632,12 @@ static void prsElmRec_init_(xml_prsElmRec* pElmRec, xml_marshaller* pMarshaller,
 					..attrStmt(name)..'\t\t\t\tbreak;\n'
 			end
 			body:append('\t\tfor ( ; *ppAttrs ; ppAttrs+=2) {\n')
-			body:append('\t\t\tswitch(SDBMHash_(0, *ppAttrs)) {\n')
-			body:append(sdbmCases('*ppAttrs', attrKeys, attrCase, attrStmt, '\t\t\t'))
+			if docRootNS then
+				body:append('\t\t\tconst char* pAttrLocal = strrchr(*ppAttrs, '
+					..'\':\') ? strrchr(*ppAttrs, \':\') + 1 : *ppAttrs;\n')
+			end
+			body:append('\t\t\tswitch(SDBMHash_(0, '..scrut..')) {\n')
+			body:append(sdbmCases(scrut, attrKeys, attrCase, attrStmt, '\t\t\t'))
 			body:append('\t\t\tdefault:break;\n\t\t\t}\n\t\t}\n')
 		end
 		body:append(table.concat({

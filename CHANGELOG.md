@@ -24,7 +24,11 @@ All notable changes to xsd-tools are documented here. The format is based on
 - Smallest-type selection: a facet-bounded integer field narrows to the
   smallest type that holds its range — C `uint8_t`…`int64_t`, Java
   `Byte`/`Short`/`Integer`/`Long`; Python is unaffected (arbitrary precision).
-- (planned) Namespace awareness and `xs:import` support. Closes #10.
+- Namespace awareness: schemas with a `targetNamespace` resolve by namespace
+  URI (builtins detected by URI, not the `xs` prefix), the XML targets emit the
+  correct `xmlns`/prefix declarations, and `xs:import` resolves types across
+  namespaces (contrast `xs:include`'s same-namespace merge). Cyclic schemas are
+  rejected instead of overflowing the stack. Closes #10.
 - (planned) Prebuilt binary releases (Linux/macOS), Homebrew formula, Docker image.
 
 ### Changed

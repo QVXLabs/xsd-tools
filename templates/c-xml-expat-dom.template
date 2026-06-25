@@ -1,6 +1,7 @@
 [@lua
 include 'shared/facets'
 include 'c-xml-expat-dom/shared'
+include 'c-xml-expat-dom/namespace'
 include 'c-xml-expat-dom/types'
 include 'c-xml-expat-dom/cstring'
 include 'c-xml-expat-dom/base64'
@@ -140,12 +141,16 @@ function collidingElementNames(XSDDoc)
    local byHash, colliding = {}, {}
    topologicalSort(XSDDoc, function(name, ctype)
       if isSimpleType(ctype._typedef) then return end
-      local h = sdbm_hash(name)
-      if byHash[h] and byHash[h] ~= name then
+      -- Collisions are over the wire tag (prefixed when qualified), since the
+      -- dispatch hashes it; the colliding set stays keyed by the bare local
+      -- name (how the dispatch looks it up).
+      local wire = c_nsTagName(name, ctype._typedef)
+      local h = sdbm_hash(wire)
+      if byHash[h] and byHash[h].wire ~= wire then
          colliding[name] = true
-         colliding[byHash[h]] = true
+         colliding[byHash[h].name] = true
       else
-         byHash[h] = name
+         byHash[h] = { name = name, wire = wire }
       end
    end)
    return colliding
@@ -174,9 +179,9 @@ function outputDclrTypeMthds(name, ctype)
    return str:str()
 end
 
-function outputDefTypeMthds(name, ctype)
+function outputDefTypeMthds(name, ctype, parentName)
    local str = stringBuffer:new()
-   str:append(ctype:defMarshal(name))
+   str:append(ctype:defMarshal(name, parentName == nil))
    str:append("/* ------------ */\n")
    str:append(ctype:defUnmarshal(name))
    str:append("/* ------------ */\n")
@@ -257,9 +262,11 @@ function outputXmlStartElement(XSDDoc)
      XSDDoc,
      function(name, ctype, parentName, parentCType)
         if isSimpleType(ctype._typedef) then return end
-        local elemName = sdbm_hash(name)
+        -- Match the wire tag (prefixed when qualified); bare name otherwise.
+        local wire = c_nsTagName(name, ctype._typedef)
+        local elemName = sdbm_hash(wire)
         local confirm = collisions[name]
-           and (" && !strcmp(pElmName, \"%s\")"):format(name) or ""
+           and (" && !strcmp(pElmName, \"%s\")"):format(wire) or ""
         local parentEnum = parentName and parentCType:typeEnum() or "0"
         if ifCnt == 0 then
            str:append(
@@ -317,9 +324,11 @@ function outputXmlEndElement(XSDDoc)
      XSDDoc,
      function(name, ctype, parentName, parentCType)
         if isSimpleType(ctype._typedef) then return end
-        local elemName = sdbm_hash(name)
+        -- Match the wire tag (prefixed when qualified); bare name otherwise.
+        local wire = c_nsTagName(name, ctype._typedef)
+        local elemName = sdbm_hash(wire)
         local confirm = collisions[name]
-           and (" && !strcmp(pElmName, \"%s\")"):format(name) or ""
+           and (" && !strcmp(pElmName, \"%s\")"):format(wire) or ""
         -- handle first if statment which doesn't use an 'else if'
         if ifCnt == 0 then
            str:append(

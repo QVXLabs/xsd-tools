@@ -36,6 +36,7 @@
 #include "./src/XSDParser/Types.hpp"
 #include "./src/XSDParser/Parser.hpp"
 #include "./src/XSDParser/ProcessorBase.hpp"
+#include "./src/XSDParser/XsdQName.hpp"
 
 #define XSD_ISELEMENT(TYPE_PTR,TYPE)	typeid(*TYPE_PTR) == typeid(TYPE)
 #define XSD_ELEMENT_TAG(NAME)			public: static const char* XSDTag() throw() { return NAME; }
@@ -59,16 +60,27 @@ namespace XSD {
 			Node();
 			const TiXmlElement* ContentElement(const char* pElemName) const noexcept(false);
 			const TiXmlElement* FindChildXMLElement_(const char* pXMLElmTag, const char* pAttrib, const char* pName) const noexcept(false);
-			Node* FindXSDElm_(const char* pName, const char* pTypeName) const noexcept(false);
+			Node* FindXSDElm_(const XsdQName& rName, const char* pTypeName) const noexcept(false);
+			/* Cross-namespace resolution: search xs:import'ed documents whose
+			 * loaded target namespace matches rName.ns. NULL if none match. */
+			Node* FindImportedXSDElm_(const XsdQName& rName, const char* pTypeName) const noexcept(false);
 			Node* ConstructNode_(const TiXmlElement* pElm, const Parser& rParser) const;
-			Node* FindXSDNode_(const char* pName, const char* pTypeName) const noexcept(false);
+			Node* FindXSDNode_(const XsdQName& rName, const char* pTypeName) const noexcept(false);
 			Node* FindChildXSDNode_(const char* pXMLTag) const noexcept(false);
 			Node* FindXSDRef_(const char* pRefAttribStr, const char* pTypeName) const noexcept(false);
 			std::string Attribute_(const char* pAttrib) const noexcept(false);
-			const std::string StripNamespace_(const std::string& rQName) const noexcept(false);
+			/* Pure syntactic prefix strip (prefix:local -> local); used by the
+			 * ConstructNode_ tag dispatch. NOT a resolution step. */
+			static std::string stripPrefix_(const std::string& rQName) noexcept;
+			/* Resolve a raw "prefix:local" into a namespace-aware XsdQName via
+			 * the owning Schema's xmlns declarations. No-prefix maps through
+			 * the default xmlns URI (may be XSD_NS, the target NS, or ""). */
+			XsdQName ResolveQName_(const std::string& rRaw) const noexcept(false);
 		protected:
 			Node(const TiXmlElement& elm, const Parser& rParser);
 			Node(const Node& rCpy);
+			Types::BaseType* Type_(const XsdQName& rName) const noexcept(false);
+			/* Convenience overload: resolve a raw QName string then dispatch. */
 			Types::BaseType* Type_(const char* pType) const noexcept(false);
 			/* QueryRootElement(): returns the root element of the document containg the node*/
 			const TiXmlElement& QueryRootElement() const;
@@ -90,6 +102,11 @@ namespace XSD {
 			/* The "name" attribute as a string; shared by named nodes. */
 			std::string name_() const noexcept(false);
 			std::string QualifyElementName(const char* pElemName) const noexcept;
+			/* Resolve a schemaLocation-style attribute to a loadable URI,
+			 * making relative file paths absolute against this document.
+			 * Shared by xs:include and xs:import. */
+			std::string resolveSchemaURI_(const char* pAttrib)
+				const noexcept(false);
 			template<typename T> T GetAttribute(const char* pAttrib) const noexcept(false) {
 				T retVal;
 				std::stringstream sstrm(Attribute_(pAttrib));
@@ -97,7 +114,7 @@ namespace XSD {
 				return retVal;
 			}
 			template<typename T> T* FindXSDElm(const char* pName) const noexcept(false) {
-				return static_cast<T*>(FindXSDNode_(pName, T::XSDTag()));
+				return static_cast<T*>(FindXSDNode_(ResolveQName_(pName), T::XSDTag()));
 			}
 			template<typename T> T* FindXSDRef(const char* pRefAttribStr) const noexcept(false) {
 				return static_cast<T*>(FindXSDRef_(pRefAttribStr, T::XSDTag()));

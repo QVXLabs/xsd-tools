@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!-- E2 negative: references a cross-namespace type (addr:AddressType) with no
+     xs:import declaring that namespace, so resolution must throw. -->
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+           xmlns:tns="urn:example:order"
+           xmlns:addr="urn:example:address"
+           targetNamespace="urn:example:order">
+  <xs:element name="order">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element name="shipTo" type="addr:AddressType"/>
+      </xs:sequence>
+    </xs:complexType>
+  </xs:element>
+</xs:schema>

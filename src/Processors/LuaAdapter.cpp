@@ -32,6 +32,8 @@
 #define MAXOCCURS_TAG  "maxOccurs"
 #define MINOCCURS_TAG  "minOccurs"
 #define FACETS_TAG     "facets"
+#define NAMESPACE_TAG  "namespace"
+#define QUALIFIED_TAG  "qualified"
 #define DEBUG_LUASTACK (0)
 
 using namespace std;
@@ -191,6 +193,28 @@ LuaType::Facets(const LuaFacets& rFacets) {
 	luaStackDump_(pLuaState);
 }
 
+void
+LuaType::Namespace(const std::string& rNamespace) {
+	/* only emit when there is a resolved namespace */
+	if (rNamespace.empty())
+		return;
+	lua_State * pLuaState = getLuaState_();
+	/* type table is at stack top */
+	lua_pushstring(pLuaState, rNamespace.c_str());
+	lua_setfield(pLuaState, -2, NAMESPACE_TAG);
+}
+
+void
+LuaType::Qualified(bool qualified) {
+	/* only emit when qualified; unqualified is the default */
+	if (!qualified)
+		return;
+	lua_State * pLuaState = getLuaState_();
+	/* type table is at stack top */
+	lua_pushboolean(pLuaState, 1);
+	lua_setfield(pLuaState, -2, QUALIFIED_TAG);
+}
+
 /* Class LuaAttribute */
 LuaAttribute::LuaAttribute(	lua_State * pLuaState, 
 							const std::string& rName, 
@@ -257,6 +281,36 @@ LuaAttribute::Facets(const LuaFacets& rFacets) {
 	lua_pop(pLuaState, 2);
 	/* debug */
 	luaStackDump_(pLuaState);
+}
+
+void
+LuaAttribute::Namespace(const std::string& rNamespace) {
+	/* only emit when there is a resolved namespace */
+	if (rNamespace.empty())
+		return;
+	lua_State * pLuaState = getLuaState_();
+	/* descend attributes[name] -> [typeName] so the field lands on the type
+	   sub-table (same placement as Facets) */
+	lua_getfield(pLuaState, -1, name_.c_str());
+	lua_getfield(pLuaState, -1, typeName_.c_str());
+	lua_pushstring(pLuaState, rNamespace.c_str());
+	lua_setfield(pLuaState, -2, NAMESPACE_TAG);
+	lua_pop(pLuaState, 2);
+}
+
+void
+LuaAttribute::Qualified(bool qualified) {
+	/* only emit when qualified; unqualified is the default */
+	if (!qualified)
+		return;
+	lua_State * pLuaState = getLuaState_();
+	/* descend attributes[name] -> [typeName] so the field lands on the type
+	   sub-table (same placement as Facets) */
+	lua_getfield(pLuaState, -1, name_.c_str());
+	lua_getfield(pLuaState, -1, typeName_.c_str());
+	lua_pushboolean(pLuaState, 1);
+	lua_setfield(pLuaState, -2, QUALIFIED_TAG);
+	lua_pop(pLuaState, 2);
 }
 
 /* virtual */

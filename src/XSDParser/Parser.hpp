@@ -23,6 +23,7 @@
 #ifndef PARSER_HPP_
 #define PARSER_HPP_
 
+#include <map>
 #include <string>
 #include <vector>
 #include "./src/XSDParser/TypesDB.hpp"
@@ -47,6 +48,8 @@ namespace XSD {
 		typedef std::vector<DocumentRecord *> XmlDocList;
 		Types::TypesDB 		typesDb_;
 	    mutable XmlDocList	docLst_;
+		/* xs:import index: imported targetNamespace URI -> document URI. */
+		mutable std::map<std::string, std::string> nsIndex_;
 		DocumentRecord* findByUri_(const std::string& rUri) const;
 		DocumentRecord* findByDoc_(const TiXmlDocument& document) const;
 	public:
@@ -60,6 +63,11 @@ namespace XSD {
 		std::string GetUri(const TiXmlDocument& document) const;
 		const TiXmlDocument * GetDocument(const std::string& rUri) const;
 		bool isRootDocument(const TiXmlDocument& document) const;
+		/* Record an xs:import: map its targetNamespace URI to the loaded doc. */
+		void RegisterNamespace(const std::string& rNamespace,
+			const std::string& rUri) const;
+		/* The document URI registered for an imported namespace ("" if none). */
+		std::string GetNamespaceUri(const std::string& rNamespace) const;
 	};
 }	/* namespace XSD */
 

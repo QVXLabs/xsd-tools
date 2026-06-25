@@ -33,7 +33,9 @@ It processes XSD schema documents and invokes a template file which outputs code
 
 _Look at the Wiki section for more information._
 
-NOTE: Currently the tools are not namespace aware.
+Namespaces are supported: schemas with a `targetNamespace` resolve and the XML
+targets emit the right `xmlns`/prefixes, and `xs:import` brings in types from
+another namespace (`xs:include` continues to merge same-namespace documents).
 
 ### Sample Output ###
 ```

@@ -24,9 +24,11 @@
 #include <memory>
 #include <tinyxml.h>
 #include "./src/util.hpp"
+#include "./src/XSDParser/XsdQName.hpp"
 #include "./src/XSDParser/Elements/Schema.hpp"
 #include "./src/XSDParser/Elements/Element.hpp"
 #include "./src/XSDParser/Elements/Include.hpp"
+#include "./src/XSDParser/Elements/Import.hpp"
 #include "./src/XSDParser/Elements/Annotation.hpp"
 
 using namespace XSD;
@@ -50,7 +52,8 @@ Schema::ParseChildren(BaseProcessor& rProcessor) const noexcept(false) {
 	eachChild_([&rProcessor](const Node& rNode) {
 		if (XSD_ISELEMENT(&rNode, Element) ||
 			XSD_ISELEMENT(&rNode, Annotation) ||
-			XSD_ISELEMENT(&rNode, Include)) {
+			XSD_ISELEMENT(&rNode, Include) ||
+			XSD_ISELEMENT(&rNode, Import)) {
 			rNode.ParseElement(rProcessor);
 		}
 	});
@@ -71,12 +74,31 @@ Schema::URI() const noexcept(false) {
 	return documentURI_;
 }
 
+Schema::PrefixMap
+Schema::prefixMap_() const noexcept(false) {
+	/* Built off the live root element each call. A process-static cache keyed
+	 * on TiXmlDocument* is unsafe: freed documents recycle their address, so
+	 * stale entries leak across parses. The scan is a handful of attrs. */
+	PrefixMap map;
+	for (const TiXmlAttribute* pAttrib = Node::GetXMLElm().FirstAttribute();
+			pAttrib; pAttrib = pAttrib->Next()) {
+		std::string name(pAttrib->Name());
+		if (name == "xmlns")
+			map[std::string("")] = pAttrib->Value();
+		else if (0 == name.find("xmlns:"))
+			map[name.substr(name.find(":") + 1)] = pAttrib->Value();
+	}
+	return map;
+}
+
 const std::string
 Schema::Namespace() const noexcept(false) {
-	/* search for xmlns attribute (sans the namespace prefix) */
+	/* The prefix whose URI is the XSD-lang namespace; preserves the legacy
+	 * first-match-in-document-order, substring-match semantics so the tag
+	 * prefix ("xs"/"") that QualifyElementName prepends stays byte-identical. */
 	const TiXmlAttribute * pAttrib = Node::GetXMLElm().FirstAttribute();
-	for ( ; pAttrib && (std::string::npos == std::string(pAttrib->Value()).find("http://www.w3.org/2001/XMLSchema"));
-			pAttrib = pAttrib->Next()) { 
+	for ( ; pAttrib && (std::string::npos == std::string(pAttrib->Value()).find(XSD_NS));
+			pAttrib = pAttrib->Next()) {
 	}
 	/* extract the namespace prefix if attribute found */
 	if (pAttrib) {
@@ -84,6 +106,19 @@ Schema::Namespace() const noexcept(false) {
 		return attribName.substr(attribName.find(":") + 1);
 	}
 	return std::string("");
+}
+
+std::string
+Schema::TargetNamespace() const noexcept(false) {
+	const char* pVal = Node::GetXMLElm().Attribute("targetNamespace");
+	return pVal ? std::string(pVal) : std::string("");
+}
+
+std::string
+Schema::ResolvePrefix(const std::string& rPrefix) const noexcept(false) {
+	PrefixMap map = prefixMap_();
+	PrefixMap::const_iterator it = map.find(rPrefix);
+	return (it != map.end()) ? it->second : std::string("");
 }
 
 Types::BaseType * 

@@ -330,6 +330,7 @@ set(LIBXSDB_SOURCES
   src/XSDParser/Elements/Enumeration.cpp
   src/XSDParser/Elements/AttributeGroup.cpp
   src/XSDParser/Elements/Include.cpp
+  src/XSDParser/Elements/Import.cpp
   src/XSDParser/Elements/Annotation.cpp
   src/XSDParser/Elements/Documentation.cpp
   src/XSDParser/Elements/All.cpp
@@ -369,8 +370,11 @@ if(MSVC)
   set(_incbin_data "${CMAKE_BINARY_DIR}/generated/luascript_data.c")
   add_custom_command(
     OUTPUT "${_incbin_data}"
+    # incbin's arg parser only accepts the glued -Ipath form (a bare -I
+    # registers an empty path and the next token is misread as a source file),
+    # so the include flag must be a single token with no space.
     COMMAND incbin-tool "${CMAKE_CURRENT_SOURCE_DIR}/src/resource.cpp"
-            -I "${CMAKE_CURRENT_SOURCE_DIR}/third-party/incbin"
+            "-I${CMAKE_CURRENT_SOURCE_DIR}/third-party/incbin"
             -o "${_incbin_data}"
     DEPENDS "${LUASCRIPT_LUAC}" incbin-tool
     WORKING_DIRECTORY "${CMAKE_BINARY_DIR}"

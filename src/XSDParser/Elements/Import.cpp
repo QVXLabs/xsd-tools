@@ -1,9 +1,9 @@
 /*
- * Include.cpp
+ * Import.cpp
  *
- *  Created on: Aug 10, 2011
+ *  Created on: Jun 25, 2026
  *      Author: QVXLabs LLC
- *   Copyright: (c)2011 QVXLabs LLC
+ *   Copyright: (c)2026 QVXLabs LLC
  *
  *  This file is part of xsd-tools.
  *
@@ -23,7 +23,7 @@
 
 #include <memory>
 #include <unistd.h>
-#include "./src/XSDParser/Elements/Include.hpp"
+#include "./src/XSDParser/Elements/Import.hpp"
 #include "./src/XSDParser/Elements/Element.hpp"
 #include "./src/XSDParser/Elements/Schema.hpp"
 #include "./src/XSDParser/Elements/Annotation.hpp"
@@ -32,33 +32,42 @@
 using namespace XSD;
 using namespace XSD::Elements;
 
-Include::Include(const TiXmlElement& elm, const Parser& rParser)
+Import::Import(const TiXmlElement& elm, const Parser& rParser)
 	: Node(elm, rParser), pSchema_(NULL)
 { }
 
-Include::Include(const Include& rCpy)
+Import::Import(const Import& rCpy)
 	: Node(rCpy), pSchema_(rCpy.pSchema_)
 { }
 
 /* virtual */
-Include::~Include() {
+Import::~Import() {
 	delete pSchema_;
 }
 
 void
-Include::ParseChildren(BaseProcessor& rProcessor) const noexcept(false) {
+Import::ParseChildren(BaseProcessor& rProcessor) const noexcept(false) {
 	/* does nothing, doesn't have child elements */
 }
 
 void
-Include::ParseElement(BaseProcessor& rProcessor) const noexcept(false) {
-	rProcessor.ProcessInclude(this);
+Import::ParseElement(BaseProcessor& rProcessor) const noexcept(false) {
+	rProcessor.ProcessImport(this);
 }
 
 const Schema*
-Include::QuerySchema() const noexcept(false) {
-	if (NULL == pSchema_) {
-		pSchema_ = Node::GetParser().Parse(resolveSchemaURI_("schemaLocation"));
+Import::QuerySchema() const noexcept(false) {
+	if (NULL == pSchema_ && HasSchema()) {
+		std::string uri = resolveSchemaURI_("schemaLocation");
+		pSchema_ = Node::GetParser().Parse(uri);
+		/* index the imported namespace so cross-doc refs resolve by URI */
+		Node::GetParser().RegisterNamespace(pSchema_->TargetNamespace(), uri);
 	}
 	return pSchema_;
+}
+
+std::string
+Import::ImportNamespace() const noexcept {
+	return HasNamespace()
+		? std::string(GetXMLElm().Attribute("namespace")) : std::string("");
 }
