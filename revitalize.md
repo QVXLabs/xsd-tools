@@ -65,6 +65,14 @@ suite green. This is a gate, not optional.
   `-static-libstdc++ -static-libgcc` on Linux; macOS deployment target.
 - **A3. Packages:** Homebrew formula (download release tarball) → Docker/GHCR
   image → RPM last.
+- **AQ. Quality gates (before A4 docs):**
+  - **Coverage report** — build with `--coverage` (llvm-cov/gcov), run the gtest
+    suite, produce an HTML/summary report to find untested code paths and
+    test-case holes; feed the gaps back as new fixtures/tests.
+  - **Perf analysis** — profile the generator on large/representative schemas
+    (the parser is recursive post-F; the C→JSON/templates path); find hot spots
+    before publishing. Frame pointers are kept on Debug for this.
+  Both run **before** A4 docs (user-requested ordering).
 - **A4. Docs:** README install quickstart, fix dead wiki link, `examples/`.
 
 ## Workstream B — Three new output targets (template-only)
@@ -73,6 +81,19 @@ Java→JSON). **Binding design principle:** copy the closest existing analogue a
 adapt only format-specific bodies; reuse the `/* FILE: */` markers, `shared/
 schemaEx` helpers, the `*_type_info` dispatch-table shape, and the `*-test`
 driver; match the analogue's schema model.
+
+**Cross-cutting codegen requirement — overridable type factories.** Every
+template (the three new targets **and** the existing C/Python/Java ones) must
+construct schema types through **overloadable/overridable factory methods**
+(e.g. an `xsd::element`-style `createElement()` per type) rather than inline/
+direct construction, so consumers can override a factory to inject a custom
+subtype or construction logic. The generated marshal/unmarshal code and the
+`*-test` drivers must build instances *only* through these factories (the
+round-trip tests then exercise the factory path). Per-language shape: C → a
+function-pointer / struct-of-constructors table the caller can override; Python
+→ overridable classmethods/factory functions; Java → overridable factory
+methods (protected, subclassable). Add this to the `*_type_info` contract so all
+targets emit it uniformly, and document it per target in README.
 - **B0. Python → JSON** (mirror `python-sax`, stdlib `json`, no dep):
   `templates/python-json/` + `python-json.tmpl` (+`-test`). Cheapest; `python3`-only.
 - **B1. C → JSON** (mirror `c-xml-expat`, lib json-c): `templates/c-json-jsonc/`
@@ -107,10 +128,25 @@ facets**; base facet callbacks are no-ops (`LuaProcessorBase.cpp:154-209`).
 - **D2. Per-target emission:** uniform `validate(varName, facets)` member on each
   `*_type_info` type; driver calls it after unmarshal. C → error/NULL, Python →
   `ValueError`, Java → exception. Shared emitter helper in `templates/shared/`.
+- **D2b. Facet-driven smallest-type selection:** the `*_type_info` dispatch must
+  pick the **narrowest representation the facets allow**, not just the XSD base
+  type — e.g. an integer constrained `minInclusive=0 maxInclusive=255` → `uint8_t`
+  (C already ships int8/uint8/16/32/64 type files); `[-128,127]` → `int8_t`, etc.
+  A facet→type narrowing helper maps base type + numeric bounds (and length where
+  it applies) to the concrete sized type; analogous per language (C fixed-width;
+  Java byte/short/int/long; Python keeps int but still validates). Marshal/
+  unmarshal follow the chosen type.
 - **D3. Phased facets:** P1 numeric range + length + enumeration (no deps); P2
   totalDigits/fractionDigits/whiteSpace; P3 `pattern` (free in Python/Java, vendor
   engine or flag-gate in C).
-- **D4. Tests:** valid-schema/invalid-instance fixtures; negative round-trip cases.
+- **D4. Tests (dedicated fixtures):** `test/xsd-facets/` schemas (created) —
+  `facet_uint8`/`int16`/`range`/`enum`/`strlen`/`pattern`. Two gtest checks per
+  target: (a) **smallest-type** — generated field uses the narrowest type the
+  bounds allow (e.g. assert `uint8_t` in the C output); (b) **validation** —
+  feed an out-of-bounds/non-member/pattern-mismatch instance and assert unmarshal
+  rejects it (C error/NULL, Python `ValueError`, Java exception), while a valid
+  instance round-trips. Kept out of `xsd-positive/` so the generic round-trip
+  globs don't run them with facet-violating random values.
 
 ## Workstream E — Namespace awareness (+ xs:import) — core parser
 Today resolution is local-name only; `Schema::Namespace()` returns the *XSD-lang*
