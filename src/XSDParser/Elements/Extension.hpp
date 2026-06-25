@@ -36,8 +36,8 @@ namespace XSD {
 			XSD_ELEMENT_TAG("extension")
 		private:
 			Extension();
-			static bool _checkForDuplicateNamedParticles(const TiXmlElement* pTreeBase, const TiXmlElement* pBase);
-			static bool _find(const char* pName, const TiXmlElement* pBase);
+			static bool checkForDuplicateNamedParticles_(const TiXmlElement* pTreeBase, const TiXmlElement* pBase);
+			static bool find_(const char* pName, const TiXmlElement* pBase);
 		public:
 			Extension(const TiXmlElement& elm, const Parser& rParser);
 			Extension(const Extension& rType);

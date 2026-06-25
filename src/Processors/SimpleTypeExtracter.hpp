@@ -40,7 +40,7 @@ namespace Processors {
 		virtual void ProcessInclude(const XSD::Elements::Include* pNode);
 	private:
 		XSD::Types::BaseType* m_pType;
-		void _parseType(const XSD::Types::BaseType& rXSDType);
+		void parseType_(const XSD::Types::BaseType& rXSDType);
 	};
 }
 #endif /* SIMPLETYPEEXTRACTER_HPP_ */

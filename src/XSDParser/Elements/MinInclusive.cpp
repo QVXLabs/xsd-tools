@@ -35,42 +35,14 @@ using namespace XSD;
 using namespace XSD::Elements;
 
 MinInclusive::MinInclusive(const TiXmlElement& elm, const Parser& rParser)
-	: Node(elm, rParser)
+	: FacetNode(elm, rParser)
 { }
 
 MinInclusive::MinInclusive(const MinInclusive& cpy)
-	: Node(cpy)
+	: FacetNode(cpy)
 { }
-
-void
-MinInclusive::ParseChildren(BaseProcessor& rProcessor) const noexcept(false) {
-	/* no children allowed */
-	std::unique_ptr<Node> pNode(Node::FirstChild());
-	if (NULL != pNode.get()) {
-		if (XSD_ISELEMENT(pNode.get(), Annotation))
-			pNode->ParseElement(rProcessor);
-		else
-			throw XMLException(pNode->GetXMLElm(), XMLException::InvallidChildXMLElement);
-	}
-}
 
 void
 MinInclusive::ParseElement(BaseProcessor& rProcessor) const noexcept(false) {
 	rProcessor.ProcessMinInclusive(this);
-}
-
-Types::BaseType * 
-MinInclusive::GetParentType() const noexcept(false) {
-	std::unique_ptr<Node> pParent(Node::Parent());
-	return pParent->GetParentType();
-}
-
-long double
-MinInclusive::Value() const noexcept(false) {
-	return Node::GetAttribute<long double>("value");
-}
-
-bool
-MinInclusive::HasValue() const {
-	return Node::HasAttribute("value");
 }

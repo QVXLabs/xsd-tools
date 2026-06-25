@@ -48,7 +48,7 @@ Element::Element(const Element& elm)
 void
 Element::ParseChildren(BaseProcessor& rProcessor) const noexcept(false) {
 	/* process children */
-	_eachChild([&rProcessor](const Node& rNode) {
+	eachChild_([&rProcessor](const Node& rNode) {
 		if (XSD_ISELEMENT(&rNode, SimpleType) ||
 			XSD_ISELEMENT(&rNode, Annotation) ||
 			XSD_ISELEMENT(&rNode, ComplexType)) {
@@ -109,7 +109,7 @@ Element::Abstract() const {
 
 std::string
 Element::Name() const noexcept(false) {
-	return std::string(Node::GetAttribute<const char*>("name"));
+	return Node::name_();
 }
 
 Element*
@@ -129,9 +129,9 @@ Types::BaseType*
 Element::Type() const noexcept(false) {
 	if (HasRef()) {
 		std::unique_ptr<XSD::Elements::Element> pRefElm(RefElement());
-		return _ParseType(*pRefElm.get());
+		return ParseType_(*pRefElm.get());
 	} else {
-		return _ParseType(*this);
+		return ParseType_(*this);
 	}
 }
 
@@ -189,7 +189,7 @@ Element::HasMinOccurs() const {
 }
 
 Types::BaseType*
-Element::_Type() const noexcept(false) {
+Element::Type_() const noexcept(false) {
 	Types::BaseType* pRetType = Node::GetAttribute<Types::BaseType*>("type");
 	if (XSD_ISTYPE(pRetType, Types::Unknown)) {
 		delete pRetType;
@@ -200,7 +200,7 @@ Element::_Type() const noexcept(false) {
 }
 
 /* static */ Types::BaseType*
-Element::_ParseType(const Element& rElm) noexcept(false) {
+Element::ParseType_(const Element& rElm) noexcept(false) {
 	if (rElm.HasChildType() &&
 		(rElm.HasContent(SimpleType::XSDTag()) || rElm.HasContent(ComplexType::XSDTag()))) {
 		if (rElm.HasContent(SimpleType::XSDTag())) {
@@ -209,10 +209,10 @@ Element::_ParseType(const Element& rElm) noexcept(false) {
 			return new Types::ComplexType(rElm.FindXSDChildElm<ComplexType>());
 		}
 	} else if (rElm.HasType()) {
-		return rElm._Type();
+		return rElm.Type_();
 	} else if (rElm.HasSubstitutionGroup()) {
 		std::unique_ptr<Element> pElm(rElm.SubstitutionGroup());
-		return _ParseType(*(pElm.get()));
+		return ParseType_(*(pElm.get()));
 	} else {
 		return new Types::String();
 	}

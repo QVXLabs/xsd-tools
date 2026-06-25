@@ -42,7 +42,6 @@ namespace XSD {
 			Choice(const Choice& rCpy);
 			void ParseChildren(BaseProcessor& rProcessor) const noexcept(false);;
 			void ParseElement(BaseProcessor& rProcessor) const noexcept(false);;
-			Types::BaseType * GetParentType() const noexcept(false);;
 			int MaxOccurs() const;
 			int MinOccurs() const;
 			bool HasElements() const noexcept(false);;

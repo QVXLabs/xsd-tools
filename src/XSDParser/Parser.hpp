@@ -47,6 +47,8 @@ namespace XSD {
 		typedef std::vector<DocumentRecord *> XmlDocList;
 		Types::TypesDB 		m_typesDb;
 	    mutable XmlDocList	m_docLst;
+		DocumentRecord* findByUri_(const std::string& rUri) const;
+		DocumentRecord* findByDoc_(const TiXmlDocument& document) const;
 	public:
 		Parser();
 		virtual ~Parser();

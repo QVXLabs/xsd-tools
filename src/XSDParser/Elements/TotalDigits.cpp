@@ -36,42 +36,15 @@ using namespace XSD;
 using namespace XSD::Elements;
 
 TotalDigits::TotalDigits(const TiXmlElement& elm, const Parser& rParser)
-	: Node(elm, rParser)
+	: FacetNode(elm, rParser)
 { }
 
 TotalDigits::TotalDigits(const TotalDigits& cpy)
-	: Node(cpy)
+	: FacetNode(cpy)
 { }
-
-void
-TotalDigits::ParseChildren(BaseProcessor& rProcessor) const noexcept(false) {
-	/* no children allowed */
-	std::unique_ptr<Node> pNode(Node::FirstChild());
-	if (NULL != pNode.get()) {
-		if (XSD_ISELEMENT(pNode.get(), Annotation))
-			pNode->ParseElement(rProcessor);
-		else
-			throw XMLException(pNode->GetXMLElm(), XMLException::InvallidChildXMLElement);
-	}
-}
 
 void
 TotalDigits::ParseElement(BaseProcessor& rProcessor) const noexcept(false) {
 	rProcessor.ProcessTotalDigits(this);
 }
 
-Types::BaseType * 
-TotalDigits::GetParentType() const noexcept(false) {
-	std::unique_ptr<Node> pParent(Node::Parent());
-	return pParent->GetParentType();
-}
-
-uint64_t
-TotalDigits::Value() const noexcept(false) {
-	return Node::GetAttribute<uint64_t>("value");
-}
-
-bool
-TotalDigits::HasValue() const {
-	return Node::HasAttribute("value");
-}

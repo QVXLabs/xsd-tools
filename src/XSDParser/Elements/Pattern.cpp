@@ -35,42 +35,19 @@ using namespace XSD;
 using namespace XSD::Elements;
 
 Pattern::Pattern(const TiXmlElement& elm, const Parser& rParser)
-	: Node(elm, rParser)
+	: FacetNode(elm, rParser)
 { }
 
 Pattern::Pattern(const Pattern& cpy)
-	: Node(cpy)
+	: FacetNode(cpy)
 { }
-
-void
-Pattern::ParseChildren(BaseProcessor& rProcessor) const noexcept(false) {
-	/* no children allowed */
-	std::unique_ptr<Node> pNode(Node::FirstChild());
-	if (NULL != pNode.get()) {
-		if (XSD_ISELEMENT(pNode.get(), Annotation))
-			pNode->ParseElement(rProcessor);
-		else
-			throw XMLException(pNode->GetXMLElm(), XMLException::InvallidChildXMLElement);
-	}
-}
 
 void
 Pattern::ParseElement(BaseProcessor& rProcessor) const noexcept(false) {
 	rProcessor.ProcessPattern(this);
 }
 
-Types::BaseType * 
-Pattern::GetParentType() const noexcept(false) {
-	std::unique_ptr<Node> pParent(Node::Parent());
-	return pParent->GetParentType();
-}
-
 std::string
 Pattern::Value() const noexcept(false) {
 	return std::string(Node::GetAttribute<const char*>("value"));
-}
-
-bool
-Pattern::HasValue() const {
-	return Node::HasAttribute("value");
 }

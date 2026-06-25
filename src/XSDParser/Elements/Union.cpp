@@ -48,7 +48,7 @@ Union::Union(const Union& rCpy)
 void
 Union::ParseChildren(BaseProcessor& rProcessor) const noexcept(false) {
 	/* process children */
-	_eachChild([&rProcessor](const Node& rNode) {
+	eachChild_([&rProcessor](const Node& rNode) {
 		if (XSD_ISELEMENT(&rNode, SimpleType) ||
 			XSD_ISELEMENT(&rNode, Annotation)) {
 			rNode.ParseElement(rProcessor);

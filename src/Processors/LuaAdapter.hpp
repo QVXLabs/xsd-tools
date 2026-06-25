@@ -67,8 +67,8 @@ namespace Processors {
 		virtual ~LuaAdapter();
 		LuaSchema * Schema();
 	protected:
-		lua_State * _getLuaState();
-		void _setLuaState(lua_State * pLuaState);
+		lua_State * getLuaState_();
+		void setLuaState_(lua_State * pLuaState);
 	private:
 		lua_State *	m_pLuaState;
 		LuaAdapter(const LuaAdapter&);

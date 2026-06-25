@@ -37,8 +37,8 @@ namespace XSD {
 			XSD_ELEMENT_TAG("attribute")
 		private:
 			Attribute();
-			Types::BaseType* _type() const noexcept(false);;
-			static Types::BaseType* _parseType(const Attribute& rAttrib) noexcept(false);;
+			Types::BaseType* type_() const noexcept(false);;
+			static Types::BaseType* parseType_(const Attribute& rAttrib) noexcept(false);;
 		public:
 			typedef enum {
 				OPTIONAL,
@@ -49,7 +49,6 @@ namespace XSD {
 			Attribute(const Attribute& rAttrib);
 			void ParseChildren(BaseProcessor& rProcessor) const noexcept(false);;
 			void ParseElement(BaseProcessor& rProcessor) const noexcept(false);;
-			Types::BaseType * GetParentType() const noexcept(false);;
 			std::string Name() const noexcept(false);;
 			Attribute* RefAttribute() const noexcept(false);;
 			Types::BaseType* Type() const noexcept(false);;

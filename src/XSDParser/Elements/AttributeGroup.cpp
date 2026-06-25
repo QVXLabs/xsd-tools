@@ -43,7 +43,7 @@ AttributeGroup::AttributeGroup(const AttributeGroup& cpy)
 void
 AttributeGroup::ParseChildren(BaseProcessor& rProcessor) const noexcept(false) {
 	/* process children */
-	_eachChild([&rProcessor](const Node& rNode) {
+	eachChild_([&rProcessor](const Node& rNode) {
 		if (XSD_ISELEMENT(&rNode, Attribute) ||
 			XSD_ISELEMENT(&rNode, Annotation)) {
 			rNode.ParseElement(rProcessor);
@@ -71,15 +71,9 @@ AttributeGroup::ParseElement(BaseProcessor& rProcessor) const noexcept(false) {
 	rProcessor.ProcessAttributeGroup(this);
 }
 
-Types::BaseType * 
-AttributeGroup::GetParentType() const noexcept(false) {
-	std::unique_ptr<Node> pParent(Node::Parent());
-	return pParent->GetParentType();
-}
-
 std::string
 AttributeGroup::Name() const noexcept(false) {
-	return std::string(Node::GetAttribute<const char*>("name"));
+	return Node::name_();
 }
 
 AttributeGroup*

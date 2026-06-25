@@ -47,7 +47,7 @@ Attribute::Attribute(const Attribute& rAttrib)
 void
 Attribute::ParseChildren(BaseProcessor& rProcessor) const noexcept(false) {
 	/* process children */
-	_eachChild([&rProcessor](const Node& rNode) {
+	eachChild_([&rProcessor](const Node& rNode) {
 		if (XSD_ISELEMENT(&rNode, SimpleType) ||
 			XSD_ISELEMENT(&rNode, Annotation)) {
 			rProcessor.ProcessSimpleType(static_cast<const SimpleType*>(&rNode));
@@ -88,15 +88,9 @@ Attribute::ParseElement(BaseProcessor& rProcessor) const noexcept(false) {
 	}
 }
 
-Types::BaseType * 
-Attribute::GetParentType() const noexcept(false) {
-	std::unique_ptr<Node> pParent(Node::Parent());
-	return pParent->GetParentType();
-}
-
 std::string
 Attribute::Name() const noexcept(false) {
-	return std::string(Node::GetAttribute<const char*>("name"));
+	return Node::name_();
 }
 
 Attribute*
@@ -108,9 +102,9 @@ Types::BaseType*
 Attribute::Type() const noexcept(false) {
 	if (HasRef()) {
 		std::unique_ptr<XSD::Elements::Attribute> pRefAttrib(RefAttribute());
-		return _parseType(*pRefAttrib);
+		return parseType_(*pRefAttrib);
 	} else {
-		return _parseType(*this);
+		return parseType_(*this);
 	}
 }
 
@@ -171,7 +165,7 @@ Attribute::HasUse() const {
 }
 			
 Types::BaseType*
-Attribute::_type() const noexcept(false) {
+Attribute::type_() const noexcept(false) {
 	Types::BaseType* pType = Node::GetAttribute<Types::BaseType*>("type");
 	if (XSD_ISTYPE(pType, Types::Unknown)) {
 		delete pType;
@@ -183,9 +177,9 @@ Attribute::_type() const noexcept(false) {
 }
 
 /* static */ Types::BaseType*
-Attribute::_parseType(const Attribute& rAttrib) noexcept(false) {
+Attribute::parseType_(const Attribute& rAttrib) noexcept(false) {
 	if (rAttrib.HasContent(SimpleType::XSDTag()))
 		return new Types::SimpleType(rAttrib.FindXSDChildElm<SimpleType>());
 	else
-		return rAttrib._type();
+		return rAttrib.type_();
 }

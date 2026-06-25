@@ -35,42 +35,15 @@ using namespace XSD;
 using namespace XSD::Elements;
 
 MaxInclusive::MaxInclusive(const TiXmlElement& elm, const Parser& rParser)
-	: Node(elm, rParser)
+	: FacetNode(elm, rParser)
 { }
 
 MaxInclusive::MaxInclusive(const MaxInclusive& cpy)
-	: Node(cpy)
+	: FacetNode(cpy)
 { }
-
-void
-MaxInclusive::ParseChildren(BaseProcessor& rProcessor) const noexcept(false) {
-	/* no children allowed */
-	std::unique_ptr<Node> pNode(Node::FirstChild());
-	if (NULL != pNode.get()) {
-		if (XSD_ISELEMENT(pNode.get(), Annotation))
-			pNode->ParseElement(rProcessor);
-		else
-			throw XMLException(pNode->GetXMLElm(), XMLException::InvallidChildXMLElement);
-	}
-}
 
 void
 MaxInclusive::ParseElement(BaseProcessor& rProcessor) const noexcept(false) {
 	rProcessor.ProcessMaxInclusive(this);
 }
 
-Types::BaseType * 
-MaxInclusive::GetParentType() const noexcept(false) {
-	std::unique_ptr<Node> pParent(Node::Parent());
-	return pParent->GetParentType();
-}
-
-long double
-MaxInclusive::Value() const noexcept(false) {
-	return Node::GetAttribute<long double>("value");
-}
-
-bool
-MaxInclusive::HasValue() const {
-	return Node::HasAttribute("value");
-}

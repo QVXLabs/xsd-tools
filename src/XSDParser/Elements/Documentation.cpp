@@ -55,12 +55,6 @@ Documentation::ParseElement(BaseProcessor& rProcessor) const noexcept(false) {
 	rProcessor.ProcessDocumentation(this);
 }
 
-Types::BaseType * 
-Documentation::GetParentType() const noexcept(false) {
-	std::unique_ptr<Node> pParent(Node::Parent());
-	return pParent->GetParentType();
-}
-
 std::string
 Documentation::DocumentationStr() const noexcept(false) {
 	if (Node::HasContent()) {

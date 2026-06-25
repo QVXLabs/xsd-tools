@@ -47,7 +47,7 @@ Choice::Choice(const Choice& rCpy)
 void
 Choice::ParseChildren(BaseProcessor& rProcessor) const noexcept(false) {
 	/* process children */
-	_eachChild([&rProcessor](const Node& rNode) {
+	eachChild_([&rProcessor](const Node& rNode) {
 		if (XSD_ISELEMENT(&rNode, Element) ||
 			XSD_ISELEMENT(&rNode, Choice) ||
 			XSD_ISELEMENT(&rNode, Annotation) ||
@@ -71,29 +71,14 @@ Choice::ParseElement(BaseProcessor& rProcessor) const noexcept(false) {
 	rProcessor.ProcessChoice(this);
 }
 
-Types::BaseType * 
-Choice::GetParentType() const noexcept(false) {
-	std::unique_ptr<Node> pParent(Node::Parent());
-	return pParent->GetParentType();
-}
-
 int
 Choice::MaxOccurs() const {
-	if (HasMaxOccurs()) {
-		if (strcmp(Node::GetAttribute<const char*>("maxOccurs"), "unbounded"))
-			return Node::GetAttribute<int>("maxOccurs");
-		else
-			return -1;
-	}
-	return 1;
+	return Node::maxOccurs_(1);
 }
 
 int
 Choice::MinOccurs() const {
-	if (HasMinOccurs()) {
-		return Node::GetAttribute<int>("minOccurs");
-	}
-	return 1;
+	return Node::minOccurs_(1);
 }
 
 bool

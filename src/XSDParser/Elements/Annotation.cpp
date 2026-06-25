@@ -60,8 +60,3 @@ Annotation::ParseElement(BaseProcessor& rProcessor) const noexcept(false) {
 	rProcessor.ProcessAnnotation(this);
 }
 
-Types::BaseType * 
-Annotation::GetParentType() const noexcept(false) {
-	std::unique_ptr<Node> pParent(Node::Parent());
-	return pParent->GetParentType();
-}

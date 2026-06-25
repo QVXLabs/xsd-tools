@@ -86,7 +86,7 @@ LuaProcessor::~LuaProcessor() {
 LuaProcessor::ProcessSchema(const XSD::Elements::Schema* pNode) {
 	if (pNode->isRootSchema()) {
 		/* create root schema table and append it to stack */
-		LuaProcessor processor(_luaAdapter()->Schema());
+		LuaProcessor processor(luaAdapter_()->Schema());
 		pNode->ParseChildren(processor);
 	} else {
 		/* parse schema children */
@@ -104,10 +104,10 @@ LuaProcessor::ProcessElement(const XSD::Elements::Element* pNode) {
 		unique_ptr<XSD::Types::BaseType> pElmType(pNode->Type());
 		/* process element type */
 		/* inserts basic type. Handle array types the same as basic types */
-		LuaContent * pLuaContent = dynamic_cast<LuaContent*>(_luaAdapter());
+		LuaContent * pLuaContent = dynamic_cast<LuaContent*>(luaAdapter_());
 		if (NULL == pLuaContent) {
 			/* enter the type content table & add elements, then leave */
-			LuaType * pLuaType = dynamic_cast<LuaType*>(_luaAdapter());
+			LuaType * pLuaType = dynamic_cast<LuaType*>(luaAdapter_());
 			LuaProcessor processor(pLuaType->Content());
 			processor.ProcessElement(pNode);
 		} else {
@@ -116,7 +116,7 @@ LuaProcessor::ProcessElement(const XSD::Elements::Element* pNode) {
 			int minOccurs = pNode->HasMinOccurs() ?	pNode->MinOccurs() : 1;
 			LuaProcessor luaPrcssr(
 				pLuaContent->Type(pNode->Name(), maxOccurs, minOccurs));
-			luaPrcssr._parseType(*pElmType);
+			luaPrcssr.parseType_(*pElmType);
 		}
 	} else {
 		unique_ptr<XSD::Elements::Element> pRefElm(pNode->RefElement());
@@ -126,7 +126,7 @@ LuaProcessor::ProcessElement(const XSD::Elements::Element* pNode) {
 
 /* virtual */ void
 LuaProcessor::ProcessUnion(const XSD::Elements::Union* pNode) {
-	_parseType(XSD::Types::String());
+	parseType_(XSD::Types::String());
 }
 
 /* virtual */ void
@@ -137,25 +137,25 @@ LuaProcessor::ProcessRestriction(const XSD::Elements::Restriction* pNode ) {
 	} else if (pNode->isParentSimpleContent()) {
 		pNode->ParseChildren(*this);
 		unique_ptr<XSD::Types::BaseType> pType(pNode->Base());
-		_parseType(*pType);
+		parseType_(*pType);
 	} else {
 		/* Walk facet children directly (accumulating onto m_facets across
 		   the derivation chain) before resolving the base type. Bypasses
 		   Restriction::ParseChildren, whose numeric-base verification
-		   rejects valid facets on integer-derived types. _parseType
+		   rejects valid facets on integer-derived types. parseType_
 		   recurses through nested restrictions on this same processor, so
 		   facets from every level land on the leaf type. */
-		_walkFacets(pNode);
+		walkFacets_(pNode);
 		unique_ptr<XSD::Types::BaseType> pType(pNode->Base());
-		_parseType(*pType);
+		parseType_(*pType);
 	}
 }
 
 /* Dispatch each facet child of a simpleType restriction to this processor,
    so the ProcessXxx facet overrides record their values. */
 void
-LuaProcessor::_walkFacets(const XSD::Elements::Node* pNode) {
-	pNode->_eachChild([this](const XSD::Elements::Node& rChild) {
+LuaProcessor::walkFacets_(const XSD::Elements::Node* pNode) {
+	pNode->eachChild_([this](const XSD::Elements::Node& rChild) {
 		if (XSD_ISELEMENT(&rChild, XSD::Elements::MinExclusive) ||
 			XSD_ISELEMENT(&rChild, XSD::Elements::MaxExclusive) ||
 			XSD_ISELEMENT(&rChild, XSD::Elements::MinInclusive) ||
@@ -179,7 +179,7 @@ LuaProcessor::ProcessList(const XSD::Elements::List* pNode) {
 	/* extract xsd native type from simple type */
 	SimpleTypeExtracter typeXtr;
 	/* create array type */
-	_parseType(Types::ArrayType(typeXtr.Extract(*pTypeLst)));
+	parseType_(Types::ArrayType(typeXtr.Extract(*pTypeLst)));
 }
 
 /* virtual */ void 
@@ -201,7 +201,7 @@ LuaProcessor::ProcessAttribute(const XSD::Elements::Attribute* pNode) {
 		/* extract xsd native type from simple type and add it */
 		SimpleTypeExtracter typeXtr;
 		unique_ptr<XSD::Types::BaseType> pType(pNode->Type());
-		LuaType * pLuaType = dynamic_cast<LuaType*>(_luaAdapter());
+		LuaType * pLuaType = dynamic_cast<LuaType*>(luaAdapter_());
 		unique_ptr<string> pDefault(nullptr);
 		unique_ptr<string> pFixed(nullptr);
 		unique_ptr<string> pUse(new string("optional"));
@@ -239,7 +239,7 @@ LuaProcessor::ProcessAttribute(const XSD::Elements::Attribute* pNode) {
 		/* bridge the attribute's restriction facets (clear first so prior
 		   content facets don't leak in), then attach to the attribute */
 		m_facets.clear();
-		_walkAttributeFacets(pType.get());
+		walkAttributeFacets_(pType.get());
 		pAttribute->Facets(m_facets);
 		m_facets.clear();
 	}
@@ -250,7 +250,7 @@ LuaProcessor::ProcessAttribute(const XSD::Elements::Attribute* pNode) {
    itself a user-defined simpleType (covers inline and named-type
    attributes uniformly: both resolve to a Types::SimpleType). */
 void
-LuaProcessor::_walkAttributeFacets(const XSD::Types::BaseType* pType) {
+LuaProcessor::walkAttributeFacets_(const XSD::Types::BaseType* pType) {
 	if (!(XSD_ISTYPE(pType, XSD::Types::SimpleType)))
 		return;
 	const XSD::Types::SimpleType* pSimpleType =
@@ -259,11 +259,11 @@ LuaProcessor::_walkAttributeFacets(const XSD::Types::BaseType* pType) {
 	unique_ptr<XSD::Elements::Restriction> pRestriction(pElm->GetRestriction());
 	if (NULL == pRestriction.get())
 		return;
-	_walkFacets(pRestriction.get());
+	walkFacets_(pRestriction.get());
 	/* follow the chain when the base is another user-defined simpleType */
 	unique_ptr<XSD::Types::BaseType> pBase(pRestriction->Base());
 	if (XSD_ISTYPE(pBase.get(), XSD::Types::SimpleType))
-		_walkAttributeFacets(pBase.get());
+		walkAttributeFacets_(pBase.get());
 }
 
 /* virtual */ void 
@@ -271,10 +271,10 @@ LuaProcessor::ProcessComplexType(const XSD::Elements::ComplexType* pNode) {
 	/* add a string to the content type if it is mixed mode */
 	if (pNode->Mixed()) {
 		/* inserts basic type. Handle array types the same as basic types */
-		LuaContent * pLuaContent = dynamic_cast<LuaContent*>(_luaAdapter());
+		LuaContent * pLuaContent = dynamic_cast<LuaContent*>(luaAdapter_());
 		if (NULL == pLuaContent) {
 			/* enter the type content table & add elements, then leave */
-			LuaType * pLuaType = dynamic_cast<LuaType*>(_luaAdapter());
+			LuaType * pLuaType = dynamic_cast<LuaType*>(luaAdapter_());
 			LuaProcessor processor(pLuaType->Content());
 			processor.ProcessComplexType(pNode);
 		} else {
@@ -315,7 +315,7 @@ LuaProcessor::ProcessAny(const XSD::Elements::Any* pNode) {
 /* virtual */ void
 LuaProcessor::ProcessExtension(const XSD::Elements::Extension* pNode) {
 	unique_ptr<XSD::Types::BaseType> pBase(pNode->Base());
-	_parseType(*pBase);
+	parseType_(*pBase);
 	pNode->ParseChildren(*this);
 }
 
@@ -342,7 +342,7 @@ LuaProcessor::ProcessAll(const XSD::Elements::All * pNode) {
 namespace {
 	/* stringify a numeric facet value (ostream drops trailing zeros) */
 	template <typename T>
-	string _numStr(T val) {
+	string numStr_(T val) {
 		ostringstream ss;
 		ss << val;
 		return ss.str();
@@ -352,55 +352,55 @@ namespace {
 /* virtual */ void
 LuaProcessor::ProcessMinExclusive(const XSD::Elements::MinExclusive* pNode) {
 	if (pNode->HasValue())
-		m_facets.addScalar("minExclusive", _numStr(pNode->Value()));
+		m_facets.addScalar("minExclusive", numStr_(pNode->Value()));
 }
 
 /* virtual */ void
 LuaProcessor::ProcessMaxExclusive(const XSD::Elements::MaxExclusive* pNode) {
 	if (pNode->HasValue())
-		m_facets.addScalar("maxExclusive", _numStr(pNode->Value()));
+		m_facets.addScalar("maxExclusive", numStr_(pNode->Value()));
 }
 
 /* virtual */ void
 LuaProcessor::ProcessMinInclusive(const XSD::Elements::MinInclusive* pNode) {
 	if (pNode->HasValue())
-		m_facets.addScalar("minInclusive", _numStr(pNode->Value()));
+		m_facets.addScalar("minInclusive", numStr_(pNode->Value()));
 }
 
 /* virtual */ void
 LuaProcessor::ProcessMaxInclusive(const XSD::Elements::MaxInclusive* pNode) {
 	if (pNode->HasValue())
-		m_facets.addScalar("maxInclusive", _numStr(pNode->Value()));
+		m_facets.addScalar("maxInclusive", numStr_(pNode->Value()));
 }
 
 /* virtual */ void
 LuaProcessor::ProcessMinLength(const XSD::Elements::MinLength* pNode) {
 	if (pNode->HasValue())
-		m_facets.addScalar("minLength", _numStr(pNode->Value()));
+		m_facets.addScalar("minLength", numStr_(pNode->Value()));
 }
 
 /* virtual */ void
 LuaProcessor::ProcessMaxLength(const XSD::Elements::MaxLength* pNode) {
 	if (pNode->HasValue())
-		m_facets.addScalar("maxLength", _numStr(pNode->Value()));
+		m_facets.addScalar("maxLength", numStr_(pNode->Value()));
 }
 
 /* virtual */ void
 LuaProcessor::ProcessLength(const XSD::Elements::Length* pNode) {
 	if (pNode->HasValue())
-		m_facets.addScalar("length", _numStr(pNode->Value()));
+		m_facets.addScalar("length", numStr_(pNode->Value()));
 }
 
 /* virtual */ void
 LuaProcessor::ProcessTotalDigits(const XSD::Elements::TotalDigits* pNode) {
 	if (pNode->HasValue())
-		m_facets.addScalar("totalDigits", _numStr(pNode->Value()));
+		m_facets.addScalar("totalDigits", numStr_(pNode->Value()));
 }
 
 /* virtual */ void
 LuaProcessor::ProcessFractionDigits(const XSD::Elements::FractionDigits* pNode) {
 	if (pNode->HasValue())
-		m_facets.addScalar("fractionDigits", _numStr(pNode->Value()));
+		m_facets.addScalar("fractionDigits", numStr_(pNode->Value()));
 }
 
 /* virtual */ void
@@ -429,7 +429,7 @@ LuaProcessor::ProcessPattern(const XSD::Elements::Pattern* pNode) {
 }
 
 /* virtual */ void
-LuaProcessor::_parseType(const XSD::Types::BaseType& rXSDType) {
+LuaProcessor::parseType_(const XSD::Types::BaseType& rXSDType) {
 	if(XSD_ISTYPE(&rXSDType, XSD::Types::SimpleType)) {
 		const XSD::Types::SimpleType* pSimpleType = 
 			dynamic_cast<const XSD::Types::SimpleType*>(&rXSDType);
@@ -440,7 +440,7 @@ LuaProcessor::_parseType(const XSD::Types::BaseType& rXSDType) {
 		pComplexType->m_pValue->ParseElement(*this);
 	} else {
 		/* inserts basic type. Handles array types the same as basic types */
-		LuaType * pLuaType = dynamic_cast<LuaType*>(_luaAdapter());
+		LuaType * pLuaType = dynamic_cast<LuaType*>(luaAdapter_());
 		unique_ptr<LuaContent> pLuaContent(pLuaType->Content());
 		unique_ptr<LuaType> pLeaf(pLuaContent->Type(rXSDType.Name(), 1));
 		/* attach facets accumulated over the restriction chain, then reset */

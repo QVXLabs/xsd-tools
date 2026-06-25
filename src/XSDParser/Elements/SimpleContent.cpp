@@ -46,7 +46,7 @@ SimpleContent::SimpleContent(const SimpleContent& rType)
 void
 SimpleContent::ParseChildren(BaseProcessor& rProcessor) const noexcept(false) {
 	/* process children */
-	_eachChild([&rProcessor](const Node& rNode) {
+	eachChild_([&rProcessor](const Node& rNode) {
 		if (XSD_ISELEMENT(&rNode, Restriction) ||
 			XSD_ISELEMENT(&rNode, Annotation) ||
 			XSD_ISELEMENT(&rNode, Extension)) {
@@ -63,12 +63,5 @@ SimpleContent::ParseElement(BaseProcessor& rProcessor) const noexcept(false) {
 
 Types::BaseType *
 SimpleContent::GetParentType() const noexcept(false) {
-	std::unique_ptr<Restriction> pRestriction(Node::SearchXSDChildElm<Restriction>());
-	std::unique_ptr<Extension> pExtension(Node::SearchXSDChildElm<Extension>());
-	if ((NULL != pRestriction.get()) && (NULL == pExtension.get())) {
-		return pRestriction->GetParentType();
-	} else if ((NULL == pRestriction.get()) && (NULL != pExtension.get())) {
-		return pExtension->GetParentType();
-	} else /* simple content can't have multiple child modifiers */
-		throw XMLException(Node::GetXMLElm(), XMLException::InvallidChildXMLElement);
+	return Node::delegateToSoleChild_();
 }

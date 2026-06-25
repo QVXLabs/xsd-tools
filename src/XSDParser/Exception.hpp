@@ -67,7 +67,7 @@ namespace XSD {
 		const ErrorInfo	m_errorInfo;
 		XMLException();
 		XMLException& operator= (const XMLException&) throw();
-		void _createErrorString() throw();
+		void createErrorString_() throw();
 	};
 }	/* namespace XSD */
 #endif /* XSDEXCEPTION_HPP_ */

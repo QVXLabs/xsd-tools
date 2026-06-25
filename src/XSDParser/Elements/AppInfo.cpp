@@ -51,8 +51,3 @@ AppInfo::ParseElement(BaseProcessor& rProcessor) const noexcept(false) {
 	rProcessor.ProcessAppInfo(this);
 }
 
-Types::BaseType * 
-AppInfo::GetParentType() const noexcept(false) {
-	std::unique_ptr<Node> pParent(Node::Parent());
-	return pParent->GetParentType();
-}

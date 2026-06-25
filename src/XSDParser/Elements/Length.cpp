@@ -35,42 +35,15 @@ using namespace XSD;
 using namespace XSD::Elements;
 
 Length::Length(const TiXmlElement& elm, const Parser& rParser)
-	: Node(elm, rParser)
+	: FacetNode(elm, rParser)
 { }
 
 Length::Length(const Length& cpy)
-	: Node(cpy)
+	: FacetNode(cpy)
 { }
-
-void
-Length::ParseChildren(BaseProcessor& rProcessor) const noexcept(false) {
-	/* no children allowed */
-	std::unique_ptr<Node> pNode(Node::FirstChild());
-	if (NULL != pNode.get()) {
-		if (XSD_ISELEMENT(pNode.get(), Annotation))
-			pNode->ParseElement(rProcessor);
-		else
-			throw XMLException(pNode->GetXMLElm(), XMLException::InvallidChildXMLElement);
-	}
-}
 
 void
 Length::ParseElement(BaseProcessor& rProcessor) const noexcept(false) {
 	rProcessor.ProcessLength(this);
 }
 
-Types::BaseType * 
-Length::GetParentType() const noexcept(false) {
-	std::unique_ptr<Node> pParent(Node::Parent());
-	return pParent->GetParentType();
-}
-
-int64_t
-Length::Value() const noexcept(false) {
-	return Node::GetAttribute<int64_t>("value");
-}
-
-bool
-Length::HasValue() const {
-	return Node::HasAttribute("value");
-}

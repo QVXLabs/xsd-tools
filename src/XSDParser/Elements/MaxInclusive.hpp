@@ -29,20 +29,18 @@
 #endif /* TIXML_USE_STL */
 #include <tinyxml.h>
 #include "./src/XSDParser/Elements/Node.hpp"
+#include "./src/XSDParser/Elements/FacetNode.hpp"
 namespace XSD {
 	namespace Elements {
-		class MaxInclusive : public Node {
+		class MaxInclusive
+				: public FacetNode<MaxInclusive, long double> {
 			XSD_ELEMENT_TAG("maxInclusive")
 		private:
 			MaxInclusive();
 		public:
 			MaxInclusive(const TiXmlElement& elm, const Parser& rParser);
 			MaxInclusive(const MaxInclusive& cpy);
-			void ParseChildren(BaseProcessor& rProcessor) const noexcept(false);;
-			void ParseElement(BaseProcessor& rProcessor) const noexcept(false);;
-			Types::BaseType * GetParentType() const noexcept(false);;
-			long double Value() const noexcept(false);;
-			bool HasValue() const;
+			void ParseElement(BaseProcessor& rProcessor) const noexcept(false);
 		};
 	}	/* namespace Elements */
 }	/* namespace XSD */

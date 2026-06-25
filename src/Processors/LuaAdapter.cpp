@@ -51,9 +51,9 @@ LuaFacets::addToList(const std::string& rName, const std::string& rValue) {
 }
 
 /* helper functions */
-static void _luaStackDump(lua_State * pLuaState);
+static void luaStackDump_(lua_State * pLuaState);
 #if (DEBUG_LUASTACK)
-static void _luaStackDumpRec(lua_State * pLuaState, int stackIndex = 0);
+static void luaStackDumpRec_(lua_State * pLuaState, int stackIndex = 0);
 #endif
 /* Class method definitions */
 /* Class LuaAdapter */
@@ -71,12 +71,12 @@ LuaAdapter::Schema() {
 }
 
 lua_State *
-LuaAdapter::_getLuaState() {
+LuaAdapter::getLuaState_() {
   return m_pLuaState;
 }
 
 void
-LuaAdapter::_setLuaState(lua_State * pLuaState) {
+LuaAdapter::setLuaState_(lua_State * pLuaState) {
 	m_pLuaState = pLuaState;
 }
 
@@ -93,19 +93,19 @@ LuaContent::LuaContent(lua_State* pLuaState)
 
 /* virtual */
 LuaContent::~LuaContent() {  
-	lua_pop(_getLuaState(), 1);
+	lua_pop(getLuaState_(), 1);
 }
 
 LuaType *
 LuaContent::Type(const std::string& rTypeName, const int maxOccurs,
                  const int minOccurs) {
-	return new LuaType(_getLuaState(), rTypeName, maxOccurs, minOccurs);
+	return new LuaType(getLuaState_(), rTypeName, maxOccurs, minOccurs);
 }
 
 /* Class LuaSchema */
 LuaSchema::LuaSchema(lua_State* pLuaState) {
 	/* set the lua state without calling the content constructor */
-	_setLuaState(pLuaState);
+	setLuaState_(pLuaState);
 	/* test if global table has been made & make it if not */
 	lua_getglobal(pLuaState, SCHEMA_TAG);
 	if (lua_isnil(pLuaState, -1)) {
@@ -115,7 +115,7 @@ LuaSchema::LuaSchema(lua_State* pLuaState) {
 		lua_getglobal(pLuaState, SCHEMA_TAG);
 	}
 	/* debug */
-	_luaStackDump(pLuaState);
+	luaStackDump_(pLuaState);
 }
 
 /* virtual */
@@ -143,12 +143,12 @@ LuaType::LuaType(lua_State* pLuaState, const std::string& rTypeName,
 	lua_pushnumber(pLuaState, minOccurs);
 	lua_setfield(pLuaState, -2, MINOCCURS_TAG);
 	/* debug */
-	_luaStackDump(pLuaState);
+	luaStackDump_(pLuaState);
 }
 
 /* virtual */
 LuaType::~LuaType() { 
-	lua_pop(_getLuaState(), 1);
+	lua_pop(getLuaState_(), 1);
 }
 
 LuaAttribute *
@@ -157,12 +157,12 @@ LuaType::Attribute(	const string& rName,
 					const std::string * pDefault,
 					const std::string * pFixed,
 					const std::string * pUse) {
-	return new LuaAttribute(_getLuaState(), rName, rType, pDefault, pFixed, pUse);
+	return new LuaAttribute(getLuaState_(), rName, rType, pDefault, pFixed, pUse);
 }
 
 LuaContent *
 LuaType::Content() {
-	return new LuaContent(_getLuaState());
+	return new LuaContent(getLuaState_());
 }
 
 void
@@ -170,7 +170,7 @@ LuaType::Facets(const LuaFacets& rFacets) {
 	/* only emit a `facets` block when there is something to emit */
 	if (rFacets.empty())
 		return;
-	lua_State * pLuaState = _getLuaState();
+	lua_State * pLuaState = getLuaState_();
 	/* type table is at stack top; build facets sub-table */
 	lua_newtable(pLuaState);
 	for (size_t i = 0; i < rFacets.scalars.size(); ++i) {
@@ -188,7 +188,7 @@ LuaType::Facets(const LuaFacets& rFacets) {
 	}
 	lua_setfield(pLuaState, -2, FACETS_TAG);
 	/* debug */
-	_luaStackDump(pLuaState);
+	luaStackDump_(pLuaState);
 }
 
 /* Class LuaAttribute */
@@ -224,7 +224,7 @@ LuaAttribute::LuaAttribute(	lua_State * pLuaState,
 	/* append attribute to attribute table */
 	lua_setfield(pLuaState, -2, rName.c_str());
 	/* debug */
-	_luaStackDump(pLuaState);
+	luaStackDump_(pLuaState);
 }
 
 void
@@ -232,7 +232,7 @@ LuaAttribute::Facets(const LuaFacets& rFacets) {
 	/* only emit a `facets` block when there is something to emit */
 	if (rFacets.empty())
 		return;
-	lua_State * pLuaState = _getLuaState();
+	lua_State * pLuaState = getLuaState_();
 	/* the ATTRIBUTE_TAG table is at stack top; descend attributes[name] ->
 	   [typeName] so facets land on the type sub-table (where targets read
 	   attr.<type>.facets, mirroring content-type facets) */
@@ -256,24 +256,24 @@ LuaAttribute::Facets(const LuaFacets& rFacets) {
 	/* pop the type + attribute tables, restoring ATTRIBUTE_TAG at top */
 	lua_pop(pLuaState, 2);
 	/* debug */
-	_luaStackDump(pLuaState);
+	luaStackDump_(pLuaState);
 }
 
 /* virtual */
 LuaAttribute::~LuaAttribute() {
-	lua_pop(_getLuaState(), 1);
+	lua_pop(getLuaState_(), 1);
 }
 
-static void _luaStackDump(lua_State * pLuaState) {
+static void luaStackDump_(lua_State * pLuaState) {
 #if (DEBUG_LUASTACK)
 	cout << "LStack:[";
-	_luaStackDumpRec(pLuaState, 0);
+	luaStackDumpRec_(pLuaState, 0);
 	cout << "]" << endl;
 #endif
 }
 
 #if (DEBUG_LUASTACK)
-static void _luaStackDumpRec(lua_State * pLuaState, int stackIndex) {
+static void luaStackDumpRec_(lua_State * pLuaState, int stackIndex) {
 	const int stkTop = lua_gettop(pLuaState);
 	/* base case */
 	if (stackIndex == stkTop) 
@@ -317,6 +317,6 @@ static void _luaStackDumpRec(lua_State * pLuaState, int stackIndex) {
 		break;
 	}
 	cout << " ";
-	_luaStackDumpRec(pLuaState, stackIndex + 1);
+	luaStackDumpRec_(pLuaState, stackIndex + 1);
 }
 #endif

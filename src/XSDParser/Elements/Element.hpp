@@ -37,8 +37,8 @@ namespace XSD {
 			XSD_ELEMENT_TAG("element")
 		private:
 			Element();
-			Types::BaseType* _Type() const noexcept(false);;
-			static Types::BaseType* _ParseType(const Element& rElm) noexcept(false);;
+			Types::BaseType* Type_() const noexcept(false);;
+			static Types::BaseType* ParseType_(const Element& rElm) noexcept(false);;
 		public:
 			Element(const TiXmlElement& elm, const Parser& rParser);
 			Element( const Element& elm);

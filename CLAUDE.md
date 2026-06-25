@@ -37,7 +37,7 @@ per XSD construct in `Elements/*.cpp`. **Visitor:** `BaseProcessor`
 calls the matching `p.ProcessXxx(this)`, `ParseChildren(p)` recurses — compile-time
 dispatch, no RTTI. **Types:** `TypesDB` (builtin XSD primitives, keyed by **local
 name only — no namespace**) + a `Types::BaseType` hierarchy; refs resolve
-structurally in `Node::_Type`/`_FindXSDElm`, scoped to the current doc +
+structurally in `Node::Type_`/`FindXSDElm_`, scoped to the current doc +
 `xs:include`s.
 
 **Processors** (`src/Processors/`): `LuaProcessorBase` (BaseProcessor impl, most
@@ -61,7 +61,7 @@ Multi-file output uses `/* FILE: name */` markers.
 - **Match the existing spacing and naming of the file/area you edit; don't
   reformat surrounding code.** C++ uses **tab indentation**; pointers are `p`-
   prefixed (`pNode`), references `r`-prefixed (`rProcessor`), members `m_`,
-  private helpers `_`-prefixed (`_FindXSDElm`), methods PascalCase
+  private helpers `_`-**suffixed** (`FindXSDElm_`), methods PascalCase
   (`ParseElement`), macros UPPER_CASE. CMake uses 2-space indent; Lua templates
   follow their existing local style. New files mirror their closest neighbor.
 - **Output targets are template-only** — copy the closest existing target and

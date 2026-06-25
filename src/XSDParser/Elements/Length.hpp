@@ -30,20 +30,18 @@
 #include <tinyxml.h>
 #include <stdint.h>
 #include "./src/XSDParser/Elements/Node.hpp"
+#include "./src/XSDParser/Elements/FacetNode.hpp"
 namespace XSD {
 	namespace Elements {
-		class Length : public Node {
+		class Length
+				: public FacetNode<Length, int64_t> {
 			XSD_ELEMENT_TAG("length")
 		private:
 			Length();
 		public:
 			Length(const TiXmlElement& elm, const Parser& rParser);
 			Length(const Length& cpy);
-			void ParseChildren(BaseProcessor& rProcessor) const noexcept(false);;
-			void ParseElement(BaseProcessor& rProcessor) const noexcept(false);;
-			Types::BaseType * GetParentType() const noexcept(false);;
-			int64_t Value() const noexcept(false);;
-			bool HasValue() const;
+			void ParseElement(BaseProcessor& rProcessor) const noexcept(false);
 		};
 	}	/* namespace Elements */
 }	/* namespace XSD */

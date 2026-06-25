@@ -32,73 +32,38 @@
 
 using namespace XSD;
 using namespace XSD::Types;
-/*
- * XSDSimpleTypeType - XSD type object for XSD simple types
- */
-/* virtual */ BaseType*
-SimpleType::clone() const {
-	return new SimpleType(this->m_pValue);
-}
 
-/* virtual */ bool
-SimpleType::isTypeRelated(const BaseType* pType) const {
-	/* check if pType is the same type as this */
-	if (XSD_ISTYPE(pType, SimpleType)) {
-		const SimpleType *pCmpSimpleType = static_cast<const SimpleType*>(pType);
-		if (*m_pValue == *pCmpSimpleType->m_pValue)
-				return true;
+/* The two XSD-element-backed wrapper types share identical bodies (only the
+ * wrapper type name differs). isTypeRelated checks identity then walks the
+ * value's parent type. */
+#define WRAPPED_TYPE_DEFN(TYPE) \
+	/* virtual */ BaseType* \
+	TYPE::clone() const { \
+		return new TYPE(this->m_pValue); \
+	} \
+	/* virtual */ bool \
+	TYPE::isTypeRelated(const BaseType* pType) const { \
+		if (typeid(*pType) == typeid(TYPE)) { \
+			const TYPE* pCmp = static_cast<const TYPE*>(pType); \
+			if (*m_pValue == *pCmp->m_pValue) \
+				return true; \
+		} \
+		std::unique_ptr<BaseType> pBaseType(m_pValue->GetParentType()); \
+		if (NULL == pBaseType.get()) \
+			return false; \
+		else \
+			return pBaseType->isTypeRelated(pType); \
+	} \
+	/* virtual */ const char* \
+	TYPE::Name() const { \
+		m_name = (m_pValue->HasName()) ? m_pValue->Name() : "Unnamed"; \
+		return m_name.c_str(); \
+	} \
+	/* virtual */ \
+	TYPE::~TYPE() { \
+		delete m_pValue; \
 	}
-	/* break down this simpleType to its parent type */
-	std::unique_ptr<BaseType> pBaseType(m_pValue->GetParentType());
-	if (NULL == pBaseType.get())
-		return false;
-	else
-		return pBaseType->isTypeRelated(pType);
-}
 
-/* virtual */ const char*
-SimpleType::Name() const {
-  m_name = (m_pValue->HasName()) ? m_pValue->Name() : "Unnamed";
-  return m_name.c_str();
-}
-
-/* virtual */
-SimpleType::~SimpleType() {
-	delete m_pValue;
-}
-
-/*
- * XSDComplexTypeType - XSD type object for XSD complex types
- */
-/* virtual */ BaseType*
-ComplexType::clone() const {
-	return new ComplexType(this->m_pValue);
-}
-
-/* virtual */ bool
-ComplexType::isTypeRelated(const BaseType* pType) const {
-	/* check if pType is the same type as this */
-	if (typeid(*pType) == typeid(ComplexType)) {
-		const ComplexType *pCmpCmplxType = static_cast<const ComplexType*>(pType);
-		if (*m_pValue == *pCmpCmplxType->m_pValue)
-				return true;
-	}
-	/* break down complexType to its parent type */
-	std::unique_ptr<BaseType> pBaseType(m_pValue->GetParentType());
-	if (NULL == pBaseType.get())
-		return false;
-	else
-		return pBaseType->isTypeRelated(pType);
-}
-
-/* virtual */ const char*
-ComplexType::Name() const {
-  m_name = (m_pValue->HasName())
-    ? m_pValue->Name() : "Unnamed";
-  return m_name.c_str();
-}
-
-/* virtual */
-ComplexType::~ComplexType() {
-	delete m_pValue;
-}
+WRAPPED_TYPE_DEFN(SimpleType)
+WRAPPED_TYPE_DEFN(ComplexType)
+#undef WRAPPED_TYPE_DEFN
