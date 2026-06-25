@@ -1,0 +1,25 @@
+<?xml version="1.0"?>
+<!-- faceted ATTRIBUTE (enum) on a non-root element -> exercises attribute-
+     validation emission (the element needs a validate() method, so it must
+     not be the schema root). -->
+<schema>
+	<element name="catalog">
+		<complexType>
+			<sequence>
+				<element ref="widget"/>
+			</sequence>
+		</complexType>
+	</element>
+	<element name="widget">
+		<complexType>
+			<attribute name="size" use="required">
+				<simpleType>
+					<restriction base="string">
+						<enumeration value="small"/>
+						<enumeration value="large"/>
+					</restriction>
+				</simpleType>
+			</attribute>
+		</complexType>
+	</element>
+</schema>

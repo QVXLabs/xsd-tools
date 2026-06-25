@@ -1,0 +1,11 @@
+<?xml version="1.0"?>
+<!-- string length bounds -> unmarshal must reject too-short / too-long values -->
+<schema>
+	<element name="code" type="codeType" />
+	<simpleType name="codeType">
+		<restriction base="string">
+			<minLength value="2"/>
+			<maxLength value="4"/>
+		</restriction>
+	</simpleType>
+</schema>

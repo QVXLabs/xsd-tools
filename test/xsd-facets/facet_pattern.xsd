@@ -1,0 +1,10 @@
+<?xml version="1.0"?>
+<!-- string pattern (5 digits) -> validate via regex (P3: Python/Java now, C later) -->
+<schema>
+	<element name="zip" type="zipType" />
+	<simpleType name="zipType">
+		<restriction base="string">
+			<pattern value="[0-9]{5}"/>
+		</restriction>
+	</simpleType>
+</schema>

@@ -1,0 +1,11 @@
+<?xml version="1.0"?>
+<!-- integer constrained to 0..255 -> smallest type uint8_t; rejects <0 or >255 -->
+<schema>
+	<element name="age" type="uint8Type" />
+	<simpleType name="uint8Type">
+		<restriction base="integer">
+			<minInclusive value="0"/>
+			<maxInclusive value="255"/>
+		</restriction>
+	</simpleType>
+</schema>

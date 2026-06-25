@@ -1,0 +1,11 @@
+<?xml version="1.0"?>
+<!-- integer 0..256 just exceeds uint8_t (255) -> narrows to uint16_t -->
+<schema>
+	<element name="level" type="levelType" />
+	<simpleType name="levelType">
+		<restriction base="integer">
+			<minInclusive value="0"/>
+			<maxInclusive value="256"/>
+		</restriction>
+	</simpleType>
+</schema>

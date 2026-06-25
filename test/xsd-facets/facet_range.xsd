@@ -1,0 +1,11 @@
+<?xml version="1.0"?>
+<!-- integer range 1..5 (e.g. a rating) -> validate bounds; narrows to uint8_t -->
+<schema>
+	<element name="rating" type="ratingType" />
+	<simpleType name="ratingType">
+		<restriction base="integer">
+			<minInclusive value="1"/>
+			<maxInclusive value="5"/>
+		</restriction>
+	</simpleType>
+</schema>

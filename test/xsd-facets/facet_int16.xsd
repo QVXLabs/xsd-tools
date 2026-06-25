@@ -1,0 +1,11 @@
+<?xml version="1.0"?>
+<!-- integer constrained to -32768..32767 -> smallest type int16_t -->
+<schema>
+	<element name="offset" type="int16Type" />
+	<simpleType name="int16Type">
+		<restriction base="integer">
+			<minInclusive value="-32768"/>
+			<maxInclusive value="32767"/>
+		</restriction>
+	</simpleType>
+</schema>
