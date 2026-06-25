@@ -6,25 +6,29 @@ xsd-tools is a set of tools for generating code from xml xsd schema documents, m
 
 It ships output targets covering the C / C++ / Python / Java / TypeScript languages, all round-trip tested:
 
-| Target template      | Language | Format | Library          |
-|----------------------|----------|--------|------------------|
-| `c-xml-expat`        | C        | XML    | expat            |
-| `c-json-jsonc`       | C        | JSON   | json-c           |
-| `cpp-xml-expat`      | C++11    | XML    | expat            |
-| `cpp-json-jsonc`     | C++11    | JSON   | json-c           |
-| `python-sax`         | Python   | XML    | stdlib `xml.sax` |
-| `python-json.tmpl`   | Python   | JSON   | stdlib `json`    |
-| `java-json.org.tmpl` | Java     | JSON   | org.json         |
-| `java-xml-stax.tmpl` | Java     | XML    | JDK StAX         |
-| `ts-xml.tmpl`        | TypeScript | XML  | fast-xml-parser  |
+| Target template      | Language   | Format   | Library          | Guide |
+|----------------------|------------|----------|------------------|-------|
+| `c-xml-expat`        | C          | XML      | expat            | [docs](docs/templates/c-xml-expat.md) |
+| `c-xml-expat-dom`    | C          | XML (DOM)| expat            | [docs](docs/templates/c-xml-expat-dom.md) |
+| `c-json-jsonc`       | C          | JSON     | json-c           | [docs](docs/templates/c-json-jsonc.md) |
+| `cpp-xml-expat`      | C++11      | XML      | expat            | [docs](docs/templates/cpp-xml-expat.md) |
+| `cpp-json-jsonc`     | C++11      | JSON     | json-c           | [docs](docs/templates/cpp-json-jsonc.md) |
+| `python-sax`         | Python     | XML      | stdlib `xml.sax` | [docs](docs/templates/python-sax.md) |
+| `python-json.tmpl`   | Python     | JSON     | stdlib `json`    | [docs](docs/templates/python-json.md) |
+| `java-json.org.tmpl` | Java       | JSON     | org.json         | [docs](docs/templates/java-json.md) |
+| `java-xml-stax.tmpl` | Java       | XML      | JDK StAX         | [docs](docs/templates/java-xml-stax.md) |
+| `ts-xml.tmpl`        | TypeScript | XML      | fast-xml-parser  | [docs](docs/templates/ts-xml.md) |
 
-Generated code constructs schema types through overridable factory methods, so consumers can subclass and inject custom types.
+Per-target guides (generate command, toolchain, generated API, examples) live
+under [`docs/templates/`](docs/templates/).
 
-It processes XSD schema documents and invokes a template file which outputs code. The templates files use Lua for scripting withing the template file. Custom user templates can be easily be created to extend the tool to generate different output code.
+Most targets construct schema types through overridable factory methods, so consumers can subclass and inject custom types (the `java-json.org` target constructs nested types directly) — see each target's guide for the exact mechanism.
+
+It processes XSD schema documents and invokes a template file which outputs code. The templates files use Lua for scripting within the template file. Custom user templates can be easily be created to extend the tool to generate different output code.
 
 ### Features ###
   * XSD schema parsing
-  * Nine built-in output targets across C/C++/Python/Java/TypeScript,
+  * Ten built-in output targets across C/C++/Python/Java/TypeScript,
     easily extendable
   * Generated unmarshallers enforce XSD restriction facets at parse time
     (range, length, enumeration on elements and attributes) — invalid documents
@@ -35,115 +39,16 @@ It processes XSD schema documents and invokes a template file which outputs code
   * Usable as a C++ library (`XsdTools::Generate()`) as well as a CLI.
   * Open Source!
 
-_Look at the Wiki section for more information._
-
 Namespaces are supported: schemas with a `targetNamespace` resolve and the XML
 targets emit the right `xmlns`/prefixes, and `xs:import` brings in types from
 another namespace (`xs:include` continues to merge same-namespace documents).
 
 ### Sample Output ###
-```
-# xsdb python-sax test/xsd-positive/testA002.xsd
+Each [per-target guide](docs/templates/) shows real generated output and a
+marshal/unmarshal example for that target. For a quick look without reading a
+guide, just run the tool — e.g. `xsdb python-sax test/xsd-positive/testA002.xsd`
+prints the generated Python to stdout.
 
-
-import cStringIO
-import xml.sax
-
-class _handler(xml.sax.ContentHandler):
-        _elemTbl = {
-                'myElem':lambda: xml_myElem(),
-                'foo':lambda: xml_foo(),
-        }
-        def __init__(self):
-                xml.sax.ContentHandler.__init__(self)
-                return
-        # methods inherited from xml.sax.ContentHandler
-        def startDocument(self):
-                self._elemStk = [("testA021", {}, [])]
-                return
-        def startElementNS(self, name, qname, SAXAttributes):
-                element = _handler._elemTbl[name[1]]()
-                elementRecord = (element, self._convertToDictionary(SAXAttributes),  [])
-                self._elemStk[-1][2].append(element)    
-                self._elemStk.append(elementRecord)        
-                return
-        def characters(self, content): 
-                if self._elemStk[-1][2] and isinstance(self._elemStk[-1][2][-1], basestring):
-                        self._elemStk[-1][2][-1] = self._elemStk[-1][2][-1] + content;
-                else:
-                        self._elemStk[-1][2].append(content)
-                return
-        def endElementNS(self, name, qname):
-                elementRecord = self._elemStk.pop()
-                elementRecord[0].unmarshall(elementRecord[1], elementRecord[2])
-                return
-        @staticmethod
-        def _convertToDictionary(SAXAttributes):
-                return {k: SAXAttributes.getValueByQName(k) for k in SAXAttributes.getQNames() }
-
-class _xmlelement:
-        def __init__(self):
-                self._content = []
-                return
-        def getContent(self):
-                return self._content
-
-class xml_myElem(_xmlelement):
-        def __init__(self):
-                _xmlelement.__init__(self)
-                return
-        def marshall(self, stream):
-                stream.write('<myElem')
-                stream.write('>')
-                for node in self.getContent():
-                        if isinstance(node, _xmlelement):
-                                node.marshall(stream)
-                        else:
-                                stream.write(str(node))
-                stream.write('</myElem>')
-                return
-        def unmarshall(self, attributes, content):
-                self._content = content
-                return
-
-class xml_foo(_xmlelement):
-        def __init__(self):
-                _xmlelement.__init__(self)
-                return
-        def marshall(self, stream):
-                stream.write('<foo')
-                stream.write('>')
-                for node in self.getContent():
-                        if isinstance(node, _xmlelement):
-                                node.marshall(stream)
-                        else:
-                                stream.write(str(node))
-                stream.write('</foo>')
-                return
-        def unmarshall(self, attributes, content):
-                self._content = content
-                return
-
-
-
-class xml_testA002(_handler, _xmlelement):
-        def __init__(self):
-                _handler.__init__(self)
-                _xmlelement.__init__(self)
-                return
-        def marshall(self, stream):
-                stream.write("<?xml version=\"1.0\" encoding=\"UTF-8\" ?>\n")
-                for elm in self.getContent():
-                        elm.marshall(stream)
-                return
-        def unmarshall(self, stream):
-                parser = xml.sax.make_parser()
-                parser.setFeature(xml.sax.handler.feature_namespaces, 1)
-                parser.setContentHandler(self)
-                parser.parse(stream)
-                self._content = self._elemStk[-1][2]
-                return
-```
 ### Usage Guide ###
 
 To use xsd-tools, invoke xsdb using the following syntax from the console
@@ -190,8 +95,11 @@ the recipe's LNUM patch, so `patch` must be on the host.
   * a C++11 compiler (gcc/clang/MSVC)
   * Lua **5.1** (library + `luac`) — newer Lua will not work
   * tinyxml, expat, boost (system + filesystem)
-  * python3 (build-time test generation; runtime for the python round-trip)
+  * python3 (build-time test generation; runtime for the python round-trips)
   * conan (`pip install 'conan<2'`) for the dependency path below
+  * json-c (the C/JSON target; fetched automatically if not found)
+  * optional test toolchains — the round-trip tests skip when these are
+    absent: a JDK + Maven (Java targets), node + npm (the `ts-xml` target)
 
 On ubuntu the system packages are:
 ```
@@ -216,9 +124,14 @@ Equivalently, by hand:
 config at build time with `--config`.
 
 #### Testing ####
+Run the gtest binary directly (project convention — not ctest):
 ```
-   ctest --test-dir build -C Release --output-on-failure
+   build/test/xsdb-test                                # all tests
+   build/test/xsdb-test --gtest_filter='Parser.*'      # a subset
+   python3 test/run_parallel.py --binary build/test/xsdb-test  # sharded, faster
 ```
+The round-trip tests shell out to each target's toolchain (cc, python3, mvn/java,
+node/tsc) and **skip** cleanly when a toolchain is absent.
 
 #### Installing / Uninstalling ####
 ```
