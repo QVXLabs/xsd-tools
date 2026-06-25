@@ -26,6 +26,9 @@
 
 #include "./src/XSDParser/Types.hpp"
 #include "./src/Processors/LuaProcessorBase.hpp"
+#include "./src/Processors/LuaAdapter.hpp"
+
+namespace XSD { namespace Elements { class Node; } }
 
 namespace Processors {
 	class LuaProcessor : public LuaProcessorBase {
@@ -48,11 +51,28 @@ namespace Processors {
 		virtual void ProcessAttributeGroup(const XSD::Elements::AttributeGroup* pNode);
 		virtual void ProcessInclude(const XSD::Elements::Include* pNode);
 		virtual void ProcessAll(const XSD::Elements::All* pNode);
+		/* facet callbacks: record values into the facet accumulator */
+		virtual void ProcessMinExclusive(const XSD::Elements::MinExclusive* pNode);
+		virtual void ProcessMaxExclusive(const XSD::Elements::MaxExclusive* pNode);
+		virtual void ProcessMinInclusive(const XSD::Elements::MinInclusive* pNode);
+		virtual void ProcessMaxInclusive(const XSD::Elements::MaxInclusive* pNode);
+		virtual void ProcessMinLength(const XSD::Elements::MinLength* pNode);
+		virtual void ProcessMaxLength(const XSD::Elements::MaxLength* pNode);
+		virtual void ProcessLength(const XSD::Elements::Length* pNode);
+		virtual void ProcessEnumeration(const XSD::Elements::Enumeration* pNode);
+		virtual void ProcessPattern(const XSD::Elements::Pattern* pNode);
+		virtual void ProcessTotalDigits(const XSD::Elements::TotalDigits* pNode);
+		virtual void ProcessFractionDigits(const XSD::Elements::FractionDigits* pNode);
+		virtual void ProcessWhiteSpace(const XSD::Elements::WhiteSpace* pNode);
 	protected:
 		LuaProcessor(LuaAdapter * pLuaAdapter);
 		virtual void _parseType(const XSD::Types::BaseType& rXSDType);
 	private:
 		LuaProcessor();
+		/* dispatch a restriction's facet children to this processor */
+		void _walkFacets(const XSD::Elements::Node* pNode);
+		/* facets accumulated across a restriction derivation chain */
+		LuaFacets m_facets;
 	};
 }	/* using namespace Processors */
 #endif /* LUAPROCESSOR_HPP_ */

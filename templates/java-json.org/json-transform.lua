@@ -54,13 +54,18 @@
          -- non-table types can be directly compared
          if ty1 ~= 'table' and ty2 ~= 'table' then return t1 == t2 end
          -- compare table types
+         -- facets don't affect Java type identity (not enforced here)
          for k1,v1 in pairs(typedef1) do
-            local v2 = typedef2[k1]
-            if v2 == nil or not _cmpType(v1,v2) then return false end
+            if k1 ~= 'facets' then
+               local v2 = typedef2[k1]
+               if v2 == nil or not _cmpType(v1,v2) then return false end
+            end
          end
          for k2,v2 in pairs(typedef2) do
-            local v1 = typedef1[k2]
-            if v1 == nil or not _cmpType(v1,v2) then return false end
+            if k2 ~= 'facets' then
+               local v1 = typedef1[k2]
+               if v1 == nil or not _cmpType(v1,v2) then return false end
+            end
          end
          return true
       end

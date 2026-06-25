@@ -44,9 +44,14 @@ root = {
 			maxOccurs = 1
 			content = {
 				int = {
+					attributes = {}
 					maxOccurs = 1
 					content = {}
-					attributes = {}
+					facets = {
+						minExclusive = 0
+						enumeration = { 1, 2, 3, 4 }
+						maxInclusive = 10
+					}
 				}
 			}
 			attributes = {}
@@ -97,9 +102,14 @@ s-a = {
 	maxOccurs = 1
 	content = {
 		int = {
+			attributes = {}
 			maxOccurs = 1
 			content = {}
-			attributes = {}
+			facets = {
+				minExclusive = 0
+				enumeration = { 1, 2, 3, 4 }
+				maxInclusive = 10
+			}
 		}
 	}
 	attributes = {}
@@ -108,9 +118,14 @@ test = {
 	maxOccurs = 1
 	content = {
 		int = {
+			attributes = {}
 			maxOccurs = 1
 			content = {}
-			attributes = {}
+			facets = {
+				minExclusive = 0
+				enumeration = { 1, 2, 3, 4 }
+				maxInclusive = 10
+			}
 		}
 	}
 	attributes = {}

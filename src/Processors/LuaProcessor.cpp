@@ -25,6 +25,7 @@
 #include <memory>
 #include <assert.h>
 #include "./src/XSDParser/Parser.hpp"
+#include "./src/XSDParser/Elements/Node.hpp"
 #include "./src/XSDParser/Elements/Schema.hpp"
 #include "./src/XSDParser/Elements/Element.hpp"
 #include "./src/XSDParser/Elements/Sequence.hpp"
@@ -46,6 +47,8 @@
 #include "./src/XSDParser/Elements/MaxInclusive.hpp"
 #include "./src/XSDParser/Elements/MinLength.hpp"
 #include "./src/XSDParser/Elements/MaxLength.hpp"
+#include "./src/XSDParser/Elements/Length.hpp"
+#include "./src/XSDParser/Elements/Enumeration.hpp"
 #include "./src/XSDParser/Elements/FractionDigits.hpp"
 #include "./src/XSDParser/Elements/Pattern.hpp"
 #include "./src/XSDParser/Elements/TotalDigits.hpp"
@@ -125,8 +128,8 @@ LuaProcessor::ProcessUnion(const XSD::Elements::Union* pNode) {
 }
 
 /* virtual */ void
-LuaProcessor::ProcessRestriction(const XSD::Elements::Restriction* pNode ) { 
-	
+LuaProcessor::ProcessRestriction(const XSD::Elements::Restriction* pNode ) {
+
 	if (pNode->isParentComplexContent()) {
 		pNode->ParseChildren(*this);
 	} else if (pNode->isParentSimpleContent()) {
@@ -134,9 +137,38 @@ LuaProcessor::ProcessRestriction(const XSD::Elements::Restriction* pNode ) {
 		unique_ptr<XSD::Types::BaseType> pType(pNode->Base());
 		_parseType(*pType);
 	} else {
+		/* Walk facet children directly (accumulating onto m_facets across
+		   the derivation chain) before resolving the base type. Bypasses
+		   Restriction::ParseChildren, whose numeric-base verification
+		   rejects valid facets on integer-derived types. _parseType
+		   recurses through nested restrictions on this same processor, so
+		   facets from every level land on the leaf type. */
+		_walkFacets(pNode);
 		unique_ptr<XSD::Types::BaseType> pType(pNode->Base());
 		_parseType(*pType);
 	}
+}
+
+/* Dispatch each facet child of a simpleType restriction to this processor,
+   so the ProcessXxx facet overrides record their values. */
+void
+LuaProcessor::_walkFacets(const XSD::Elements::Node* pNode) {
+	pNode->_eachChild([this](const XSD::Elements::Node& rChild) {
+		if (XSD_ISELEMENT(&rChild, XSD::Elements::MinExclusive) ||
+			XSD_ISELEMENT(&rChild, XSD::Elements::MaxExclusive) ||
+			XSD_ISELEMENT(&rChild, XSD::Elements::MinInclusive) ||
+			XSD_ISELEMENT(&rChild, XSD::Elements::MaxInclusive) ||
+			XSD_ISELEMENT(&rChild, XSD::Elements::MinLength) ||
+			XSD_ISELEMENT(&rChild, XSD::Elements::MaxLength) ||
+			XSD_ISELEMENT(&rChild, XSD::Elements::Length) ||
+			XSD_ISELEMENT(&rChild, XSD::Elements::Enumeration) ||
+			XSD_ISELEMENT(&rChild, XSD::Elements::Pattern) ||
+			XSD_ISELEMENT(&rChild, XSD::Elements::TotalDigits) ||
+			XSD_ISELEMENT(&rChild, XSD::Elements::FractionDigits) ||
+			XSD_ISELEMENT(&rChild, XSD::Elements::WhiteSpace)) {
+			rChild.ParseElement(*this);
+		}
+	});
 }
 
 /* virtual */ void
@@ -278,6 +310,95 @@ LuaProcessor::ProcessAll(const XSD::Elements::All * pNode) {
 	pNode->ParseChildren(*this);
 }
 
+namespace {
+	/* stringify a numeric facet value (ostream drops trailing zeros) */
+	template <typename T>
+	string _numStr(T val) {
+		ostringstream ss;
+		ss << val;
+		return ss.str();
+	}
+}
+
+/* virtual */ void
+LuaProcessor::ProcessMinExclusive(const XSD::Elements::MinExclusive* pNode) {
+	if (pNode->HasValue())
+		m_facets.addScalar("minExclusive", _numStr(pNode->Value()));
+}
+
+/* virtual */ void
+LuaProcessor::ProcessMaxExclusive(const XSD::Elements::MaxExclusive* pNode) {
+	if (pNode->HasValue())
+		m_facets.addScalar("maxExclusive", _numStr(pNode->Value()));
+}
+
+/* virtual */ void
+LuaProcessor::ProcessMinInclusive(const XSD::Elements::MinInclusive* pNode) {
+	if (pNode->HasValue())
+		m_facets.addScalar("minInclusive", _numStr(pNode->Value()));
+}
+
+/* virtual */ void
+LuaProcessor::ProcessMaxInclusive(const XSD::Elements::MaxInclusive* pNode) {
+	if (pNode->HasValue())
+		m_facets.addScalar("maxInclusive", _numStr(pNode->Value()));
+}
+
+/* virtual */ void
+LuaProcessor::ProcessMinLength(const XSD::Elements::MinLength* pNode) {
+	if (pNode->HasValue())
+		m_facets.addScalar("minLength", _numStr(pNode->Value()));
+}
+
+/* virtual */ void
+LuaProcessor::ProcessMaxLength(const XSD::Elements::MaxLength* pNode) {
+	if (pNode->HasValue())
+		m_facets.addScalar("maxLength", _numStr(pNode->Value()));
+}
+
+/* virtual */ void
+LuaProcessor::ProcessLength(const XSD::Elements::Length* pNode) {
+	if (pNode->HasValue())
+		m_facets.addScalar("length", _numStr(pNode->Value()));
+}
+
+/* virtual */ void
+LuaProcessor::ProcessTotalDigits(const XSD::Elements::TotalDigits* pNode) {
+	if (pNode->HasValue())
+		m_facets.addScalar("totalDigits", _numStr(pNode->Value()));
+}
+
+/* virtual */ void
+LuaProcessor::ProcessFractionDigits(const XSD::Elements::FractionDigits* pNode) {
+	if (pNode->HasValue())
+		m_facets.addScalar("fractionDigits", _numStr(pNode->Value()));
+}
+
+/* virtual */ void
+LuaProcessor::ProcessWhiteSpace(const XSD::Elements::WhiteSpace* pNode) {
+	if (!pNode->HasValue())
+		return;
+	const char * pVal = "preserve";
+	switch (pNode->Value()) {
+	case XSD::Elements::WhiteSpace::PRESERVE: pVal = "preserve"; break;
+	case XSD::Elements::WhiteSpace::REPLACE:  pVal = "replace";  break;
+	case XSD::Elements::WhiteSpace::COLLAPSE: pVal = "collapse"; break;
+	}
+	m_facets.addScalar("whiteSpace", pVal);
+}
+
+/* virtual */ void
+LuaProcessor::ProcessEnumeration(const XSD::Elements::Enumeration* pNode) {
+	if (pNode->HasValue())
+		m_facets.addToList("enumeration", pNode->Value());
+}
+
+/* virtual */ void
+LuaProcessor::ProcessPattern(const XSD::Elements::Pattern* pNode) {
+	if (pNode->HasValue())
+		m_facets.addToList("pattern", pNode->Value());
+}
+
 /* virtual */ void
 LuaProcessor::_parseType(const XSD::Types::BaseType& rXSDType) {
 	if(XSD_ISTYPE(&rXSDType, XSD::Types::SimpleType)) {
@@ -292,6 +413,9 @@ LuaProcessor::_parseType(const XSD::Types::BaseType& rXSDType) {
 		/* inserts basic type. Handles array types the same as basic types */
 		LuaType * pLuaType = dynamic_cast<LuaType*>(_luaAdapter());
 		unique_ptr<LuaContent> pLuaContent(pLuaType->Content());
-		delete (pLuaContent->Type(rXSDType.Name(), 1));
+		unique_ptr<LuaType> pLeaf(pLuaContent->Type(rXSDType.Name(), 1));
+		/* attach facets accumulated over the restriction chain, then reset */
+		pLeaf->Facets(m_facets);
+		m_facets.clear();
 	}
 }

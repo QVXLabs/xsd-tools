@@ -2,9 +2,14 @@ test3 = {
 	maxOccurs = 1
 	content = {
 		int = {
+			attributes = {}
 			maxOccurs = 1
 			content = {}
-			attributes = {}
+			facets = {
+				minExclusive = 0
+				enumeration = { 1, 2, 3, 4 }
+				maxInclusive = 10
+			}
 		}
 	}
 	attributes = {}
@@ -13,9 +18,14 @@ test1 = {
 	maxOccurs = 1
 	content = {
 		int = {
+			attributes = {}
 			maxOccurs = 1
 			content = {}
-			attributes = {}
+			facets = {
+				minExclusive = 0
+				enumeration = { 1, 2, 3, 4 }
+				maxInclusive = 10
+			}
 		}
 	}
 	attributes = {}
@@ -24,9 +34,14 @@ test2 = {
 	maxOccurs = 1
 	content = {
 		int = {
+			attributes = {}
 			maxOccurs = 1
 			content = {}
-			attributes = {}
+			facets = {
+				minExclusive = 0
+				enumeration = { 1, 2, 3, 4 }
+				maxInclusive = 10
+			}
 		}
 	}
 	attributes = {}
@@ -38,9 +53,14 @@ root = {
 			maxOccurs = 1
 			content = {
 				int = {
+					attributes = {}
 					maxOccurs = 1
 					content = {}
-					attributes = {}
+					facets = {
+						minExclusive = 0
+						enumeration = { 1, 2, 3, 4 }
+						maxInclusive = 10
+					}
 				}
 			}
 			attributes = {}
@@ -49,9 +69,14 @@ root = {
 			maxOccurs = 1
 			content = {
 				int = {
+					attributes = {}
 					maxOccurs = 1
 					content = {}
-					attributes = {}
+					facets = {
+						minExclusive = 0
+						enumeration = { 1, 2, 3, 4 }
+						maxInclusive = 10
+					}
 				}
 			}
 			attributes = {}
@@ -60,9 +85,14 @@ root = {
 			maxOccurs = 1
 			content = {
 				int = {
+					attributes = {}
 					maxOccurs = 1
 					content = {}
-					attributes = {}
+					facets = {
+						minExclusive = 0
+						enumeration = { 1, 2, 3, 4 }
+						maxInclusive = 10
+					}
 				}
 			}
 			attributes = {}
@@ -130,9 +160,14 @@ sa = {
 	maxOccurs = 1
 	content = {
 		int = {
+			attributes = {}
 			maxOccurs = 1
 			content = {}
-			attributes = {}
+			facets = {
+				minExclusive = 0
+				enumeration = { 1, 2, 3, 4 }
+				maxInclusive = 10
+			}
 		}
 	}
 	attributes = {}

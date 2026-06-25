@@ -30,10 +30,24 @@
 #define FIXED_TAG      "fixed"
 #define USE_TAG        "use"
 #define MAXOCCURS_TAG  "maxOccurs"
+#define FACETS_TAG     "facets"
 #define DEBUG_LUASTACK (0)
 
 using namespace std;
 using namespace Processors;
+
+/* class LuaFacets */
+void
+LuaFacets::addToList(const std::string& rName, const std::string& rValue) {
+	for (size_t i = 0; i < lists.size(); ++i) {
+		if (lists[i].first == rName) {
+			lists[i].second.push_back(rValue);
+			return;
+		}
+	}
+	lists.push_back(
+		std::make_pair(rName, std::vector<std::string>(1, rValue)));
+}
 
 /* helper functions */
 static void _luaStackDump(lua_State * pLuaState);
@@ -143,7 +157,33 @@ LuaType::Attribute(	const string& rName,
 
 LuaContent *
 LuaType::Content() {
-	return new LuaContent(_getLuaState()); 
+	return new LuaContent(_getLuaState());
+}
+
+void
+LuaType::Facets(const LuaFacets& rFacets) {
+	/* only emit a `facets` block when there is something to emit */
+	if (rFacets.empty())
+		return;
+	lua_State * pLuaState = _getLuaState();
+	/* type table is at stack top; build facets sub-table */
+	lua_newtable(pLuaState);
+	for (size_t i = 0; i < rFacets.scalars.size(); ++i) {
+		lua_pushstring(pLuaState, rFacets.scalars[i].second.c_str());
+		lua_setfield(pLuaState, -2, rFacets.scalars[i].first.c_str());
+	}
+	for (size_t i = 0; i < rFacets.lists.size(); ++i) {
+		const std::vector<std::string>& rVals = rFacets.lists[i].second;
+		lua_newtable(pLuaState);
+		for (size_t j = 0; j < rVals.size(); ++j) {
+			lua_pushstring(pLuaState, rVals[j].c_str());
+			lua_rawseti(pLuaState, -2, static_cast<int>(j + 1));
+		}
+		lua_setfield(pLuaState, -2, rFacets.lists[i].first.c_str());
+	}
+	lua_setfield(pLuaState, -2, FACETS_TAG);
+	/* debug */
+	_luaStackDump(pLuaState);
 }
 
 /* Class LuaAttribute */

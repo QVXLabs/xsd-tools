@@ -22,9 +22,12 @@ changeMessage = {
 	maxOccurs = 1
 	content = {
 		string = {
+			attributes = {}
 			maxOccurs = 1
 			content = {}
-			attributes = {}
+			facets = {
+				length = 256
+			}
 		}
 	}
 	attributes = {}
