@@ -18,8 +18,12 @@
  *  You should have received a copy of the GNU General Public License
  *  along with xsd-tools.  If not, see <http://www.gnu.org/licenses/>.
  */
-#include <sys/stat.h>
-#include <sys/types.h>
+#if defined(_WIN32)
+#	include <direct.h>
+#else
+#	include <sys/stat.h>
+#	include <sys/types.h>
+#endif
 #include <cerrno>
 #include <fstream>
 #include <iostream>
@@ -140,7 +144,11 @@ namespace XsdTools {
 
 	std::vector<std::string> SplitMarkedFiles(const std::string& blob,
 	                                          const std::string& outDir) {
+#if defined(_WIN32)
+		if (0 != _mkdir(outDir.c_str()) && EEXIST != errno)
+#else
 		if (0 != mkdir(outDir.c_str(), 0755) && EEXIST != errno)
+#endif
 			throw Core::ResourceException(
 				"Could not create output directory " + outDir);
 		std::vector<std::string> files;
