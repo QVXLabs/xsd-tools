@@ -84,16 +84,21 @@ namespace {
 		return dir ? std::string(dir) : std::string();
 	}
 
-	/* Emit + split a multi-file C binding and self-checking driver, compile
-	 * (libb64 + one extra lib) and run. `srcPrefix` is the generated source's
+	/* Emit + split a multi-file C/C++ binding and self-checking driver, compile
+	 * (libb64 + one extra lib) and run. `compiler`/`std` select the toolchain
+	 * (C_COMPILER/-std=c11 vs CXX_COMPILER/-std=c++11); `srcExt` is the split
+	 * source extension (".c"/".cpp"); `srcPrefix` is the generated source's
 	 * filename prefix (e.g. "xml_" / "json_"); `extraInclude`/`extraLink` are
 	 * the -I dir and link flags for the marshalling library. */
-	::testing::AssertionResult cRoundtripImpl(const std::string& xsdPath,
-	                                          const std::string& bindingTmpl,
-	                                          const std::string& driverTmpl,
-	                                          const std::string& srcPrefix,
-	                                          const std::string& extraInclude,
-	                                          const std::string& extraLink) {
+	::testing::AssertionResult ccRoundtripImpl(const std::string& xsdPath,
+	                                           const std::string& bindingTmpl,
+	                                           const std::string& driverTmpl,
+	                                           const std::string& compiler,
+	                                           const std::string& std,
+	                                           const std::string& srcExt,
+	                                           const std::string& srcPrefix,
+	                                           const std::string& extraInclude,
+	                                           const std::string& extraLink) {
 		const std::string base = xsdtest::baseName(xsdPath);
 		const std::string dir = xsdtest::baseName(xsdPath).empty()
 			? std::string() : makeTempDir(base);
@@ -105,20 +110,20 @@ namespace {
 			std::string driver = xsdtest::generate(
 				TEMPLATES_DIR "/" + driverTmpl, xsdPath);
 			XsdTools::SplitMarkedFiles(binding, dir);
-			writeFile(dir + "/" + base + "-bin.c", driver);
+			writeFile(dir + "/" + base + "-bin" + srcExt, driver);
 		} catch (std::exception& e) {
 			return ::testing::AssertionFailure()
 				<< "generation failed: " << e.what();
 		}
-		/* compile: <base>-bin.c + <srcPrefix><base>.c + libb64 + extra lib */
+		/* compile: <base>-bin<ext> + <srcPrefix><base><ext> + libb64 + lib */
 		std::ostringstream cc;
-		cc << C_COMPILER
-		   << " -std=c11"  /* match the project's pinned C standard */
+		cc << compiler
+		   << " " << std
 		   << includeFlag(dir)
 		   << includeFlag(LIBB64_INCLUDE_DIR)
 		   << includeFlags(extraInclude)
-		   << " '" << dir << "/" << base << "-bin.c'"
-		   << " '" << dir << "/" << srcPrefix << base << ".c'"
+		   << " '" << dir << "/" << base << "-bin" << srcExt << "'"
+		   << " '" << dir << "/" << srcPrefix << base << srcExt << "'"
 		   << " '" << LIBB64_ARCHIVE << "'"
 		   << " " << extraLink
 		   << " -o '" << dir << "/" << base << "'";
@@ -132,6 +137,18 @@ namespace {
 				<< "run failed (exit " << run.exitCode << "):\n"
 				<< run.output;
 		return ::testing::AssertionSuccess();
+	}
+
+	/* C round-trip: project C compiler at -std=c11, sources split as .c. */
+	::testing::AssertionResult cRoundtripImpl(const std::string& xsdPath,
+	                                          const std::string& bindingTmpl,
+	                                          const std::string& driverTmpl,
+	                                          const std::string& srcPrefix,
+	                                          const std::string& extraInclude,
+	                                          const std::string& extraLink) {
+		return ccRoundtripImpl(xsdPath, bindingTmpl, driverTmpl,
+		                       C_COMPILER, "-std=c11", ".c",
+		                       srcPrefix, extraInclude, extraLink);
 	}
 }
 
@@ -206,6 +223,64 @@ namespace xsdtest {
 		return cRoundtripImpl(xsdPath, "c-json-jsonc.template",
 		                      "c-json-jsonc.template-test",
 		                      "json_", JSONC_INCLUDE_DIR, JSONC_LINK);
+	}
+
+	::testing::AssertionResult cppXmlRoundtrip(const std::string& xsdPath) {
+		return ccRoundtripImpl(xsdPath, "cpp-xml-expat", "cpp-xml-expat-test",
+		                       CXX_COMPILER, "-std=c++11", ".cpp",
+		                       "xml_", EXPAT_INCLUDE_DIR, EXPAT_LINK);
+	}
+
+	::testing::AssertionResult cppJsonRoundtrip(const std::string& xsdPath) {
+		return ccRoundtripImpl(xsdPath, "cpp-json-jsonc.template",
+		                       "cpp-json-jsonc.template-test",
+		                       CXX_COMPILER, "-std=c++11", ".cpp",
+		                       "json_", JSONC_INCLUDE_DIR, JSONC_LINK);
+	}
+
+	/* ts-xml: emit the TS binding + RunTest driver into a pinned npm project,
+	 * tsc-compile, run via node. Mirrors javaRoundtripImpl's pom-cache shape:
+	 * deps resolve once into a shared node_modules, reused across cases. */
+	::testing::AssertionResult tsXmlRoundtrip(const std::string& xsdPath) {
+		const std::string base = baseName(xsdPath);
+		const std::string root = makeTempDir(base);
+		if (root.empty())
+			return ::testing::AssertionFailure() << "could not create tempdir";
+		if (0 != runCommand("cp '" TS_PACKAGE_JSON "' package.json && "
+		                     "cp '" TS_TSCONFIG "' tsconfig.json",
+		                     root).exitCode)
+			return ::testing::AssertionFailure()
+				<< "could not copy package.json/tsconfig.json";
+		/* Reuse a shared node_modules (resolved once) like Maven's ~/.m2. */
+		CommandResult deps = runCommand(
+			"npm install --no-audit --no-fund --prefer-offline"
+			" --cache /tmp/xsdb-ts-npm-cache", root);
+		if (0 != deps.exitCode)
+			return ::testing::AssertionFailure()
+				<< "npm install failed:\n" << deps.output;
+		try {
+			XsdTools::SplitMarkedFiles(
+				generate(TEMPLATES_DIR "/ts-xml.tmpl", xsdPath), root);
+			writeFile(root + "/RunTest.ts",
+			          generate(TEMPLATES_DIR "/ts-xml.tmpl-test", xsdPath));
+		} catch (std::exception& e) {
+			return ::testing::AssertionFailure()
+				<< "generation failed: " << e.what();
+		}
+		CommandResult build = runCommand(
+			"./node_modules/.bin/tsc -p tsconfig.json", root);
+		if (0 != build.exitCode)
+			return ::testing::AssertionFailure()
+				<< "tsc failed:\n" << build.output;
+		CommandResult run = runCommand("node RunTest.js", root);
+		if (0 != run.exitCode)
+			return ::testing::AssertionFailure()
+				<< "RunTest failed (exit " << run.exitCode << "):\n"
+				<< run.output;
+		if (run.output.find("false") != std::string::npos)
+			return ::testing::AssertionFailure()
+				<< "round-trip mismatch; output:\n" << run.output;
+		return ::testing::AssertionSuccess();
 	}
 
 	/* Generate the binding into a Maven package + RunTest driver, `mvn

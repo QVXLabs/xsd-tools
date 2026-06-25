@@ -29,6 +29,13 @@ TARGETS = [
      "roundtrip_java_json.cpp"),
     ("JavaXmlRoundtrip", "javaXmlRoundtrip", ["mvn", "java"],
      "roundtrip_java_xml.cpp"),
+    # Workstream I targets — enable once their templates land (integrate step).
+    ("CppXmlRoundtrip", "cppXmlRoundtrip", ["c++"],
+     "roundtrip_cpp_xml.cpp"),
+    ("CppJsonRoundtrip", "cppJsonRoundtrip", ["c++"],
+     "roundtrip_cpp_json.cpp"),
+    ("TsXmlRoundtrip", "tsXmlRoundtrip", ["node", "tsc"],
+     "roundtrip_ts_xml.cpp"),
 ]
 
 # Targets emitted by default.

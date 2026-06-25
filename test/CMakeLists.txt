@@ -149,7 +149,18 @@ set(GENERATED_ROUNDTRIP_SOURCES
   "${GEN_DIR}/roundtrip_c_xml_expat_dom.cpp"
   "${GEN_DIR}/roundtrip_c_json.cpp"
   "${GEN_DIR}/roundtrip_java_json.cpp"
-  "${GEN_DIR}/roundtrip_java_xml.cpp")
+  "${GEN_DIR}/roundtrip_java_xml.cpp"
+  "${GEN_DIR}/roundtrip_cpp_xml.cpp"
+  "${GEN_DIR}/roundtrip_cpp_json.cpp"
+  "${GEN_DIR}/roundtrip_ts_xml.cpp")
+
+# node/tsc are probed at run time (programAvailable) so cases SKIP cleanly when
+# absent; detect at configure too for an informative status line.
+find_program(NODE_EXECUTABLE node)
+find_program(NPM_EXECUTABLE npm)
+if(NOT NODE_EXECUTABLE OR NOT NPM_EXECUTABLE)
+  message(STATUS "ts-xml round-trip: node/npm not found; cases will SKIP")
+endif()
 
 add_executable(xsdb-test
   roundtrip_util.cpp
@@ -168,6 +179,7 @@ target_compile_definitions(xsdb-test PRIVATE
   XSD_NEGATIVE_DIR="${NEGATIVE_DIR}"
   XSDPARSE_DIR="${XSDPARSE_DIR}"
   C_COMPILER="${CMAKE_C_COMPILER}"
+  CXX_COMPILER="${CMAKE_CXX_COMPILER}"
   LIBB64_INCLUDE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/libb64/include"
   LIBB64_ARCHIVE="$<TARGET_FILE:b64>"
   EXPAT_INCLUDE_DIR="${EXPAT_INCLUDE_DIR_VAL}"
@@ -175,7 +187,9 @@ target_compile_definitions(xsdb-test PRIVATE
   JSONC_INCLUDE_DIR="${JSONC_INCLUDE_DIR_VAL}"
   JSONC_LINK="${JSONC_LINK_VAL}"
   JAVA_POM="${CMAKE_CURRENT_SOURCE_DIR}/java-json.org.tmpl/pom.xml"
-  JAVA_XML_POM="${CMAKE_CURRENT_SOURCE_DIR}/java-xml-stax.tmpl/pom.xml")
+  JAVA_XML_POM="${CMAKE_CURRENT_SOURCE_DIR}/java-xml-stax.tmpl/pom.xml"
+  TS_PACKAGE_JSON="${CMAKE_CURRENT_SOURCE_DIR}/ts-xml/package.json"
+  TS_TSCONFIG="${CMAKE_CURRENT_SOURCE_DIR}/ts-xml/tsconfig.json")
 
 include(GoogleTest)
 gtest_discover_tests(xsdb-test)

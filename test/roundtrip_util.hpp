@@ -43,6 +43,18 @@ namespace xsdtest {
 	 * (libb64 + json-c) and run. */
 	::testing::AssertionResult cJsonRoundtrip(const std::string& xsdPath);
 
+	/* cpp-xml-expat: emit + split multi-file C++11 binding and driver,
+	 * compile (libb64 + expat) at -std=c++11 and run. */
+	::testing::AssertionResult cppXmlRoundtrip(const std::string& xsdPath);
+
+	/* cpp-json-jsonc: emit + split multi-file C++11 binding and driver,
+	 * compile (libb64 + json-c) at -std=c++11 and run. */
+	::testing::AssertionResult cppJsonRoundtrip(const std::string& xsdPath);
+
+	/* ts-xml: emit TS binding + driver into a pinned npm project (fast-xml-
+	 * parser), tsc + node and run. GTEST_SKIPs without node/tsc. */
+	::testing::AssertionResult tsXmlRoundtrip(const std::string& xsdPath);
+
 	/* java-json.org: emit binding + driver into a Maven project, mvn package
 	 * and run. Caller GTEST_SKIPs when mvn/JDK are unavailable. */
 	::testing::AssertionResult javaRoundtrip(const std::string& xsdPath);
