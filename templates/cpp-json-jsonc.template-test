@@ -83,28 +83,27 @@
 	return outbuf:str()
 ]
 
-/* Exercise the overridable factory triple: wrappers delegate to the defaults
- * but count alloc/construct/destroy so we can assert the path is taken and
- * balanced. */
-static int g_allocCnt = 0;
-static int g_constructCnt = 0;
+/* Exercise the overridable Factory: a subclass counts create()s and returns an
+ * instrumented subtype whose dtor counts destructions, so we can assert the
+ * inject path is taken and that every created object is freed. */
+static int g_createCnt = 0;
 static int g_destroyCnt = 0;
 
-[@lua -- build the override factories table
+[@lua -- build the override Factory subclass
 	local outbuf = stringBuffer:new()
-	local dft = 'json_'..schemaName..'_default_factories()'
-	outbuf:append('static json_'..schemaName..'_factories makeOverrideFactories() {\n')
-	outbuf:append('\tjson_'..schemaName..'_factories f;\n')
+	-- one instrumented subtype per complex type that counts its own destruction
 	table.map(typeSansRoot, function(_, node)
-		outbuf:append('\tf.'..node.name..'Allocator = [](json_marshaller& m) -> json_'..node.name..'* {\n')
-		outbuf:append('\t\t++g_allocCnt;\n')
-		outbuf:append('\t\treturn '..dft..'.'..node.name..'Allocator(m);\n\t};\n')
-		outbuf:append('\tf.'..node.name..'Constructor = [](json_marshaller&, json_'..node.name..'*) { ++g_constructCnt; };\n')
-		outbuf:append('\tf.'..node.name..'Destructor = [](json_marshaller& m, json_'..node.name..'* pObj) {\n')
-		outbuf:append('\t\t++g_destroyCnt;\n')
-		outbuf:append('\t\t'..dft..'.'..node.name..'Destructor(m, pObj);\n\t};\n')
+		outbuf:append('struct Counting_'..node.name..' : json_'..node.name..' {\n')
+		outbuf:append('\t~Counting_'..node.name..'() override { ++g_destroyCnt; }\n')
+		outbuf:append('};\n')
 	end)
-	outbuf:append('\treturn f;\n}\n')
+	outbuf:append('class CountingFactory : public Factory {\npublic:\n')
+	table.map(typeSansRoot, function(_, node)
+		outbuf:append('\tstd::unique_ptr<json_'..node.name..'> create_'..node.name..'() const override {\n')
+		outbuf:append('\t\t++g_createCnt;\n')
+		outbuf:append('\t\treturn std::unique_ptr<json_'..node.name..'>(new Counting_'..node.name..'());\n\t}\n')
+	end)
+	outbuf:append('};\n')
 	return outbuf:str()
 ]
 
@@ -152,17 +151,16 @@ int main() {
 	return outbuf:str()
 ]	json_buffer output = json_marshal_flush(mrshllr, true);
 
-	/* test unmarshalling through the default factory table */
-	json_unmarshal_ex(mrshllr, output, true, json_[@lua return schemaName]_default_factories());
-	/* re-run through the override table to exercise the factory triple */
-	static const json_[@lua return schemaName]_factories overrides = makeOverrideFactories();
+	/* test unmarshalling through the default factory */
+	json_unmarshal(mrshllr, output, true);
+	/* re-run through the override Factory to exercise the inject path */
+	CountingFactory overrides;
 	json_unmarshal_ex(mrshllr, output, true, overrides);
 [@lua -- assert the override path ran (skip when schema has no elements)
 	if next(typeSansRoot) then
 		return table.concat({
-			'\tassert(g_allocCnt > 0);\n',
-			'\tassert(g_allocCnt == g_constructCnt);\n',
-			'\tassert(g_allocCnt == g_destroyCnt);\n',
+			'\tassert(g_createCnt > 0);\n',
+			'\tassert(g_createCnt == g_destroyCnt);\n',
 		})
 	end
 	return ''
