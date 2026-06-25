@@ -126,27 +126,7 @@ Any::ProcessContents() const {
 	return Any::STRICT;
 }
 
-bool
-Any::HasMaxOccurs() const {
-	return Node::HasAttribute("maxOccurs");
-}
-
-bool
-Any::HasMinOccurs() const {
-	return Node::HasAttribute("minOccurs");
-}
-
-bool
-Any::HasNamespace() const {
-	return Node::HasAttribute("namespace");
-}
-
-bool
-Any::HasProcessContents() const {
-	return Node::HasAttribute("processContents");
-}
-
-/* static */ Element * 
+/* static */ Element *
 Any::findParentElement_(const Node * pNode) {
 	if (NULL == pNode)
 		return NULL;

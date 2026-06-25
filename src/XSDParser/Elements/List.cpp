@@ -71,11 +71,6 @@ List::GetParentType(void) const noexcept(false) {
 	return this->ItemType();
 }
 
-bool
-List::HasItemType() const {
-	return Node::HasAttribute("itemType");
-}
-
 Types::BaseType*
 List::ItemType() const noexcept(false) {
 	if (HasContent(SimpleType::XSDTag()))

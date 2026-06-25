@@ -34,16 +34,16 @@ using namespace XSD;
 using namespace XSD::Elements;
 
 Include::Include(const TiXmlElement& elm, const Parser& rParser)
-	: Node(elm, rParser), m_pSchema(NULL)
+	: Node(elm, rParser), pSchema_(NULL)
 { }
 
 Include::Include(const Include& rCpy)
-	: Node(rCpy), m_pSchema(rCpy.m_pSchema)
+	: Node(rCpy), pSchema_(rCpy.pSchema_)
 { }
 
 /* virtual */
 Include::~Include() {
-	delete m_pSchema;
+	delete pSchema_;
 }
 
 void
@@ -58,15 +58,10 @@ Include::ParseElement(BaseProcessor& rProcessor) const noexcept(false) {
 
 const Schema*
 Include::QuerySchema() const noexcept(false) {
-	if (NULL == m_pSchema) {
-		m_pSchema = Node::GetParser().Parse(schemaURI_());
+	if (NULL == pSchema_) {
+		pSchema_ = Node::GetParser().Parse(schemaURI_());
 	}
-	return m_pSchema;
-}
-
-bool
-Include::HasSchema() const {
-	return Node::HasAttribute("schemaLocation");
+	return pSchema_;
 }
 
 std::string

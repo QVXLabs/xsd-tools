@@ -43,10 +43,10 @@ namespace XSD {
 			int MinOccurs() const;
 			std::string Name() const noexcept(false);;
 			Group* RefGroup() const noexcept(false);;
-			bool HasMaxOccurs() const;
-			bool HasMinOccurs() const;
-			bool HasName() const;
-			bool HasRef() const;
+			XSD_HAS_ATTR(HasMaxOccurs, "maxOccurs")
+			XSD_HAS_ATTR(HasMinOccurs, "minOccurs")
+			XSD_HAS_ATTR(HasName, "name")
+			XSD_HAS_ATTR(HasRef, "ref")
 		};
 	}	/* namespace Elements */
 }	/* namespace XSD */

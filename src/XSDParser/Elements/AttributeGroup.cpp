@@ -80,13 +80,3 @@ AttributeGroup*
 AttributeGroup::RefGroup() const noexcept(false) {
 	return Node::FindXSDRef<AttributeGroup>("ref");
 }
-
-bool
-AttributeGroup::HasName() const {
-	return Node::HasAttribute("name");
-}
-
-bool
-AttributeGroup::HasRef() const {
-	return Node::HasAttribute("ref");
-}

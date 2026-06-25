@@ -34,27 +34,27 @@ using namespace std;
 using namespace Processors;
 
 SimpleTypeExtracter::SimpleTypeExtracter()
-	: LuaProcessorBase(NULL), m_pType(NULL)
+	: LuaProcessorBase(NULL), pType_(NULL)
 { }
 
 SimpleTypeExtracter::SimpleTypeExtracter(const SimpleTypeExtracter& rProcessor)
- 	: LuaProcessorBase(rProcessor), m_pType(rProcessor.m_pType->clone())
+ 	: LuaProcessorBase(rProcessor), pType_(rProcessor.pType_->clone())
  {}
  
 /* virtual */
 SimpleTypeExtracter::~SimpleTypeExtracter() {
-	delete m_pType;
+	delete pType_;
 }
 
 const XSD::Types::BaseType&
 SimpleTypeExtracter::Extract(const XSD::Types::BaseType& rXSDType) {
 	parseType_(rXSDType);
-	return *m_pType;
+	return *pType_;
 }
 
 /* virtual */ void
 SimpleTypeExtracter::ProcessUnion(const XSD::Elements::Union* pNode) {
-	m_pType = new XSD::Types::String();
+	pType_ = new XSD::Types::String();
 }
 
 /* virtual */ void
@@ -85,11 +85,11 @@ void
 SimpleTypeExtracter::parseType_(const XSD::Types::BaseType& rXSDType) {
 	if(XSD_ISTYPE(&rXSDType, XSD::Types::SimpleType)) {
 		const XSD::Types::SimpleType* pSimpleType = static_cast<const XSD::Types::SimpleType*>(&rXSDType);
-		pSimpleType->m_pValue->ParseElement(*this);
+		pSimpleType->pValue_->ParseElement(*this);
 	} else if(XSD_ISTYPE(&rXSDType, XSD::Types::ComplexType)) {
 		const XSD::Types::ComplexType* pComplexType = static_cast<const XSD::Types::ComplexType*>(&rXSDType);
-		pComplexType->m_pValue->ParseElement(*this);
+		pComplexType->pValue_->ParseElement(*this);
 	} else {
-		m_pType = rXSDType.clone();
+		pType_ = rXSDType.clone();
 	}
 }

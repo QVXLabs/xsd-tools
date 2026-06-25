@@ -55,12 +55,12 @@ namespace XSD {
 			std::string Default() const noexcept(false);;
 			std::string Fixed() const noexcept(false);;
 			AttributeUse Use() const noexcept(false);;
-			bool HasName() const;
-			bool HasRef() const;
-			bool HasType() const;
-			bool HasDefault() const;
-			bool HasFixed() const;
-			bool HasUse() const;
+			XSD_HAS_ATTR(HasName, "name")
+			XSD_HAS_ATTR(HasRef, "ref")
+			XSD_HAS_ATTR(HasType, "type")
+			XSD_HAS_ATTR(HasDefault, "default")
+			XSD_HAS_ATTR(HasFixed, "fixed")
+			XSD_HAS_ATTR(HasUse, "use")
 		};
 	}	/* namespace Elements */
 } /* namespace XSD */

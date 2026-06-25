@@ -63,16 +63,16 @@ using namespace std;
 using namespace Processors;
 
 LuaProcessorBase::LuaProcessorBase(LuaAdapter * pLuaAdapter)
-	: m_pLuaAdapter(pLuaAdapter)
+	: pLuaAdapter_(pLuaAdapter)
 { }
 
 LuaProcessorBase::LuaProcessorBase(const LuaProcessorBase& rProcessor)
-	: m_pLuaAdapter(rProcessor.m_pLuaAdapter)
+	: pLuaAdapter_(rProcessor.pLuaAdapter_)
 { }
 
 /* virtual */
 LuaProcessorBase::~LuaProcessorBase() {
-	delete m_pLuaAdapter;
+	delete pLuaAdapter_;
 }
 
 /* Every base callback just recurses into the node's children. Enumerate the
@@ -123,5 +123,5 @@ LUA_PROC_BASE_CALLBACKS(LUA_PROC_BASE_DEFN)
 
 LuaAdapter *
 LuaProcessorBase::luaAdapter_() const {
-	return m_pLuaAdapter;
+	return pLuaAdapter_;
 }

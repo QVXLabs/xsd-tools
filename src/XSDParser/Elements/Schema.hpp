@@ -36,7 +36,7 @@ namespace XSD {
 		class Schema : public Node {
 			XSD_ELEMENT_TAG("schema")
 		private:
-			std::string		m_documentURI;
+			std::string		documentURI_;
 			Schema();
 			static std::string extractName_(const std::string& uri);			
 		public:

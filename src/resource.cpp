@@ -54,7 +54,7 @@ static const string gscHOMEPATH("~/.xsdtools/templates");
 static const string gscGLOBALPATH(XSDTOOLS_GLOBAL_TEMPLATE_PATH);
 
 ResourceException::ResourceException(const string& rMsg)
-	: m_errorMsg(rMsg)
+	: errorMsg_(rMsg)
 { }
 
 /* virtual */
@@ -63,7 +63,7 @@ ResourceException::~ResourceException() noexcept
 
 /* virtual */ const char*
 ResourceException::what() const noexcept {
-	return m_errorMsg.c_str();
+	return errorMsg_.c_str();
 }
 
 Resource::Resource() 

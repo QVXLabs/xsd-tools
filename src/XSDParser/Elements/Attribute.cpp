@@ -134,35 +134,6 @@ Attribute::Use() const noexcept(false) {
 	return Attribute::OPTIONAL;
 }
 
-bool
-Attribute::HasName() const {
-	return this->HasAttribute("name");
-}
-
-bool
-Attribute::HasRef() const {
-	return this->HasAttribute("ref");
-}
-
-bool
-Attribute::HasType() const {
-	return this->HasAttribute("type");
-}
-
-bool
-Attribute::HasDefault() const {
-	return this->HasAttribute("default");
-}
-
-bool
-Attribute::HasFixed() const {
-	return this->HasAttribute("fixed");
-}
-
-bool
-Attribute::HasUse() const {
-	return this->HasAttribute("use");
-}
 			
 Types::BaseType*
 Attribute::type_() const noexcept(false) {

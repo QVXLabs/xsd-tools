@@ -11,6 +11,7 @@
 #include <vector>
 #include <gtest/gtest.h>
 #include "src/xsdtools.hpp"
+#include "src/XSDParser/Exception.hpp"
 
 namespace {
 	std::string readFile(const std::string& path) {
@@ -52,5 +53,20 @@ TEST(Generate, MatchesGoldenCorpus) {
 			XsdTools::Generate(TEMPLATES_DIR "/test", xsd, out)) << base;
 		EXPECT_EQ(readFile(std::string(XSDPARSE_DIR "/") + golds[i]),
 		          out.str()) << "schema " << base;
+	}
+}
+
+/* Every schema under xsd-negative is malformed or unresolvable and must be
+ * rejected with a thrown XMLException — never silently generated, never a
+ * crash (the cyclic fixtures would overflow the stack without the guard). */
+TEST(Generate, RejectsNegativeCorpus) {
+	std::vector<std::string> xsds = listWithSuffix(XSD_NEGATIVE_DIR, ".xsd");
+	ASSERT_FALSE(xsds.empty()) << "no fixtures under " XSD_NEGATIVE_DIR;
+	for (size_t i = 0; i < xsds.size(); ++i) {
+		const std::string xsd =
+			std::string(XSD_NEGATIVE_DIR "/") + xsds[i];
+		std::ostringstream out;
+		EXPECT_THROW(XsdTools::Generate(TEMPLATES_DIR "/test", xsd, out),
+		             XSD::XMLException) << xsds[i];
 	}
 }

@@ -65,54 +65,66 @@ namespace XSD {
     };
     XSD_VTYPEDEF(AnySimpleType,BaseType, anySimpleType);
     XSD_VTYPEDEF(AnyAtomicType,AnySimpleType, anyAtomicType);
-    XSD_TYPEDEF(AnyURI,AnyAtomicType,std::string, anyURI);
-    XSD_TYPEDEF(Base64Binary,AnyAtomicType,std::string, base64Binary);
-    XSD_TYPEDEF(Boolean,AnyAtomicType,bool, boolean);
-    XSD_TYPEDEF(Date,AnyAtomicType,std::string, date);
-    XSD_TYPEDEF(DateTime,AnyAtomicType,std::string, dateTime);
-    XSD_TYPEDEF(DateTimeStamp,DateTime,std::string, dateTimeStamp);
-    XSD_TYPEDEF(Decimal,AnyAtomicType,long double, decimal);
-    XSD_TYPEDEF(Integer,Decimal,int64_t, integer);
-    XSD_TYPEDEF(Long,Integer,int64_t, long);
-    XSD_TYPEDEF(Int,Long,int32_t, int);
-    XSD_TYPEDEF(Short,Int,int16_t, short);
-    XSD_TYPEDEF(Byte,Short,int8_t, byte);
-    XSD_TYPEDEF(NonNegativeInteger,Integer,uint64_t, nonNegativeInteger);
-    XSD_TYPEDEF(PositiveInteger,NonNegativeInteger,uint64_t, positiveInteger);
-    XSD_TYPEDEF(UnsignedLong,NonNegativeInteger,uint64_t, unsignedLong);
-    XSD_TYPEDEF(UnsignedInt,UnsignedLong,uint32_t, unsignedInt);
-    XSD_TYPEDEF(UnsignedShort,UnsignedInt,uint16_t, unsignedShort);
-    XSD_TYPEDEF(UnsignedByte,UnsignedShort,uint8_t, unsignedByte);
-    XSD_TYPEDEF(NonPositiveInteger,Integer,int64_t, nonPositiveInteger);
-    XSD_TYPEDEF(NegativeInteger,NonPositiveInteger,int64_t, negativeInteger);
-    XSD_TYPEDEF(Double,AnyAtomicType,double, double);
-    XSD_TYPEDEF(Duration,AnyAtomicType,std::string, duration);
-    XSD_TYPEDEF(DayTimeDuration,Duration,std::string, dayTimeDuration);
-    XSD_TYPEDEF(YearMonthDuration,Duration,std::string, yearMonthDuration);
-    XSD_TYPEDEF(Float,AnyAtomicType,float, float);
-    XSD_TYPEDEF(gDay,AnyAtomicType,std::string, gDay);
-    XSD_TYPEDEF(gMonth,AnyAtomicType,std::string, gMonth);
-    XSD_TYPEDEF(gMonthDay,AnyAtomicType,std::string, gMonthDay);
-    XSD_TYPEDEF(gYear,AnyAtomicType,std::string, gYear);
-    XSD_TYPEDEF(gYearMonth,AnyAtomicType,std::string, gYearMonth);
-    XSD_TYPEDEF(HexBinary,AnyAtomicType,std::string, hexBinary);
-    XSD_TYPEDEF(Notation,AnyAtomicType,std::string, NOTATION);
-    XSD_TYPEDEF(PrecisionDecimal,AnyAtomicType,long double, precisionDecimal);
-    XSD_TYPEDEF(QName,AnyAtomicType,std::string, QName);
-    XSD_TYPEDEF(String,AnyAtomicType,std::string, string);
-    XSD_TYPEDEF(NormalizedString,String,std::string, normalizedString);
-    XSD_TYPEDEF(Token,String,std::string, token);
-    XSD_TYPEDEF(Language,Token,std::string, language);
-    XSD_TYPEDEF(XSDName,Token,std::string, name);
-    XSD_TYPEDEF(NCName,XSDName,std::string, NCName);
-    XSD_TYPEDEF(Entity,NCName,std::string, ENTITY);
-    XSD_TYPEDEF(ID,NCName,std::string, ID);
-    XSD_TYPEDEF(IDRef,NCName,std::string, IDREF);
-    XSD_TYPEDEF(NMToken,Token,std::string, NMTOKEN);
-    XSD_TYPEDEF(Time,AnyAtomicType,std::string, time);
-    XSD_TYPEDEF(Entities,AnyAtomicType,std::string, ENTITIES);
-    XSD_TYPEDEF(IDRefs,AnyAtomicType,std::string, IDREFS);
-    XSD_TYPEDEF(NMTokens,AnyAtomicType,std::string, NMTOKENS);
+    /* Single source of truth for the registerable builtin primitives:
+     * X(TYPE, BASE, CTYPE, NAME, KEY). NAME is the type's Name() string;
+     * KEY is its TypesDB lookup name (equal to NAME except XSDName). Both
+     * Types.hpp (struct defs below) and TypesDB.cpp (registration) expand
+     * this list, so the two can never drift. */
+    #define XSD_BUILTIN_TYPES(X)						\
+      X(AnyURI,AnyAtomicType,std::string, anyURI, "anyURI")		\
+      X(Base64Binary,AnyAtomicType,std::string, base64Binary, "base64Binary")	\
+      X(Boolean,AnyAtomicType,bool, boolean, "boolean")			\
+      X(Date,AnyAtomicType,std::string, date, "date")			\
+      X(DateTime,AnyAtomicType,std::string, dateTime, "dateTime")	\
+      X(DateTimeStamp,DateTime,std::string, dateTimeStamp, "dateTimeStamp")	\
+      X(Decimal,AnyAtomicType,long double, decimal, "decimal")		\
+      X(Integer,Decimal,int64_t, integer, "integer")			\
+      X(Long,Integer,int64_t, long, "long")				\
+      X(Int,Long,int32_t, int, "int")					\
+      X(Short,Int,int16_t, short, "short")				\
+      X(Byte,Short,int8_t, byte, "byte")				\
+      X(NonNegativeInteger,Integer,uint64_t, nonNegativeInteger, "nonNegativeInteger")	\
+      X(PositiveInteger,NonNegativeInteger,uint64_t, positiveInteger, "positiveInteger")	\
+      X(UnsignedLong,NonNegativeInteger,uint64_t, unsignedLong, "unsignedLong")	\
+      X(UnsignedInt,UnsignedLong,uint32_t, unsignedInt, "unsignedInt")	\
+      X(UnsignedShort,UnsignedInt,uint16_t, unsignedShort, "unsignedShort")	\
+      X(UnsignedByte,UnsignedShort,uint8_t, unsignedByte, "unsignedByte")	\
+      X(NonPositiveInteger,Integer,int64_t, nonPositiveInteger, "nonPositiveInteger")	\
+      X(NegativeInteger,NonPositiveInteger,int64_t, negativeInteger, "negativeInteger")	\
+      X(Double,AnyAtomicType,double, double, "double")			\
+      X(Duration,AnyAtomicType,std::string, duration, "duration")	\
+      X(DayTimeDuration,Duration,std::string, dayTimeDuration, "dayTimeDuration")	\
+      X(YearMonthDuration,Duration,std::string, yearMonthDuration, "yearMonthDuration")	\
+      X(Float,AnyAtomicType,float, float, "float")			\
+      X(gDay,AnyAtomicType,std::string, gDay, "gDay")			\
+      X(gMonth,AnyAtomicType,std::string, gMonth, "gMonth")		\
+      X(gMonthDay,AnyAtomicType,std::string, gMonthDay, "gMonthDay")	\
+      X(gYear,AnyAtomicType,std::string, gYear, "gYear")		\
+      X(gYearMonth,AnyAtomicType,std::string, gYearMonth, "gYearMonth")	\
+      X(HexBinary,AnyAtomicType,std::string, hexBinary, "hexBinary")	\
+      X(Notation,AnyAtomicType,std::string, NOTATION, "NOTATION")	\
+      X(PrecisionDecimal,AnyAtomicType,long double, precisionDecimal, "precisionDecimal")	\
+      X(QName,AnyAtomicType,std::string, QName, "QName")		\
+      X(String,AnyAtomicType,std::string, string, "string")		\
+      X(NormalizedString,String,std::string, normalizedString, "normalizedString")	\
+      X(Token,String,std::string, token, "token")			\
+      X(Language,Token,std::string, language, "language")		\
+      X(XSDName,Token,std::string, name, "Name")			\
+      X(NCName,XSDName,std::string, NCName, "NCName")			\
+      X(Entity,NCName,std::string, ENTITY, "ENTITY")			\
+      X(ID,NCName,std::string, ID, "ID")				\
+      X(IDRef,NCName,std::string, IDREF, "IDREF")			\
+      X(NMToken,Token,std::string, NMTOKEN, "NMTOKEN")			\
+      X(Time,AnyAtomicType,std::string, time, "time")			\
+      X(Entities,AnyAtomicType,std::string, ENTITIES, "ENTITIES")	\
+      X(IDRefs,AnyAtomicType,std::string, IDREFS, "IDREFS")		\
+      X(NMTokens,AnyAtomicType,std::string, NMTOKENS, "NMTOKENS")
+    /* Define a struct per builtin (drop the registration KEY field). */
+    #define XSD_DEFINE_TYPE(TYPE,BASE,CTYPE,NAME,KEY)	\
+      XSD_TYPEDEF(TYPE,BASE,CTYPE,NAME);
+    XSD_BUILTIN_TYPES(XSD_DEFINE_TYPE)
+    #undef XSD_DEFINE_TYPE
+    /* Sentinels: not registered in TypesDB (see TypesDB.cpp). */
     XSD_TYPEDEF(Unsupported,AnySimpleType,void*, Unsupported);
     XSD_TYPEDEF(Unknown,AnySimpleType,void*, Unknown);
     /* Shared body for the two XSD-element-backed wrapper types. Derived is
@@ -121,10 +133,10 @@ namespace XSD {
      * macro so the vtable is keyed on the concrete type. */
     template<typename Derived, typename Elm>
     struct WrappedType : public BaseType {
-      Elm* m_pValue;
-      mutable std::string m_name;
+      Elm* pValue_;
+      mutable std::string name_;
       inline WrappedType(Elm* pElm)
-        : m_pValue(pElm), m_name("Unnamed") {}
+        : pValue_(pElm), name_("Unnamed") {}
     };
     struct SimpleType : public WrappedType<SimpleType, Elements::SimpleType> {
       inline SimpleType(Elements::SimpleType* pElm) : WrappedType(pElm) {}

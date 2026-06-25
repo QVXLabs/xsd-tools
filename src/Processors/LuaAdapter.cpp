@@ -58,7 +58,7 @@ static void luaStackDumpRec_(lua_State * pLuaState, int stackIndex = 0);
 /* Class method definitions */
 /* Class LuaAdapter */
 LuaAdapter::LuaAdapter(lua_State* pLuaState)
-	: m_pLuaState(pLuaState)
+	: pLuaState_(pLuaState)
 { }
 
 /* virtual */
@@ -67,17 +67,17 @@ LuaAdapter::~LuaAdapter()
 
 LuaSchema *
 LuaAdapter::Schema() {
-	return new LuaSchema(m_pLuaState);
+	return new LuaSchema(pLuaState_);
 }
 
 lua_State *
 LuaAdapter::getLuaState_() {
-  return m_pLuaState;
+  return pLuaState_;
 }
 
 void
 LuaAdapter::setLuaState_(lua_State * pLuaState) {
-	m_pLuaState = pLuaState;
+	pLuaState_ = pLuaState;
 }
 
 /* Class LuaContent */
@@ -198,7 +198,7 @@ LuaAttribute::LuaAttribute(	lua_State * pLuaState,
 							const std::string * pDefault,
 							const std::string * pFixed,
 							const std::string * pUse) 
-	: LuaAdapter(pLuaState), m_name(rName), m_typeName(rType.Name()) {
+	: LuaAdapter(pLuaState), name_(rName), typeName_(rType.Name()) {
 	/* push attribute table to stack top */
 	lua_getfield(pLuaState, -1, ATTRIBUTE_TAG);
 	/* create emtpty table for attribute name/type pair */
@@ -236,8 +236,8 @@ LuaAttribute::Facets(const LuaFacets& rFacets) {
 	/* the ATTRIBUTE_TAG table is at stack top; descend attributes[name] ->
 	   [typeName] so facets land on the type sub-table (where targets read
 	   attr.<type>.facets, mirroring content-type facets) */
-	lua_getfield(pLuaState, -1, m_name.c_str());
-	lua_getfield(pLuaState, -1, m_typeName.c_str());
+	lua_getfield(pLuaState, -1, name_.c_str());
+	lua_getfield(pLuaState, -1, typeName_.c_str());
 	lua_newtable(pLuaState);
 	for (size_t i = 0; i < rFacets.scalars.size(); ++i) {
 		lua_pushstring(pLuaState, rFacets.scalars[i].second.c_str());

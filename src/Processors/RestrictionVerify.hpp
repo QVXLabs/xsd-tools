@@ -46,7 +46,7 @@ namespace Processors {
 	protected:
 		RestrictionVerify(const XSD::Elements::Node* pSubTree);
 	private:
-		const XSD::Elements::Node * m_pSubTree;
+		const XSD::Elements::Node * pSubTree_;
 	};
 }
 #endif /* RESTRICTIONVERIFY_HPP_ */

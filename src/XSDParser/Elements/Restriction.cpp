@@ -102,13 +102,15 @@ Restriction::ParseChildren(BaseProcessor& rProcessor) const noexcept(false) {
 		/* process children */
 		std::unique_ptr<Types::BaseType> pBase(Base());
 		eachChild_([&rProcessor, &pBase](const Node& rNode) {
-			if (XSD_ISELEMENT(&rNode, XSD::Elements::MinExclusive) ||
+			if (XSD_ISELEMENT(&rNode, XSD::Elements::Annotation)) {
+				/* annotation is always permitted, regardless of base type */
+				rNode.ParseElement(rProcessor);
+			} else if (XSD_ISELEMENT(&rNode, XSD::Elements::MinExclusive) ||
 				XSD_ISELEMENT(&rNode, XSD::Elements::MaxExclusive) ||
 				XSD_ISELEMENT(&rNode, XSD::Elements::MinInclusive) ||
 				XSD_ISELEMENT(&rNode, XSD::Elements::MaxInclusive) ||
 				XSD_ISELEMENT(&rNode, XSD::Elements::FractionDigits) ||
-				XSD_ISELEMENT(&rNode, XSD::Elements::TotalDigits) ||
-				XSD_ISELEMENT(&rNode, XSD::Elements::Annotation)) {
+				XSD_ISELEMENT(&rNode, XSD::Elements::TotalDigits)) {
 				/* verify that parent restriction type is numeric */
 				Types::Decimal	allowedBaseType;
 				if (!pBase->isTypeRelated(&allowedBaseType))
@@ -121,8 +123,7 @@ Restriction::ParseChildren(BaseProcessor& rProcessor) const noexcept(false) {
 						XSD_ISELEMENT(&rNode, XSD::Elements::MaxLength) ||
 						XSD_ISELEMENT(&rNode, XSD::Elements::Length) ||
 						XSD_ISELEMENT(&rNode, XSD::Elements::Pattern) ||
-						XSD_ISELEMENT(&rNode, XSD::Elements::WhiteSpace) ||
-						XSD_ISELEMENT(&rNode, XSD::Elements::Annotation)) {
+						XSD_ISELEMENT(&rNode, XSD::Elements::WhiteSpace)) {
 				/* verify that parent restriction type is a string */
 				Types::String	allowedBaseType;
 				if (!pBase->isTypeRelated(&allowedBaseType))
@@ -131,8 +132,7 @@ Restriction::ParseChildren(BaseProcessor& rProcessor) const noexcept(false) {
 					/* process element */
 					rNode.ParseElement(rProcessor);
 				}
-			} else if (XSD_ISELEMENT(&rNode, XSD::Elements::Enumeration) ||
-					   XSD_ISELEMENT(&rNode, XSD::Elements::Annotation)) {
+			} else if (XSD_ISELEMENT(&rNode, XSD::Elements::Enumeration)) {
 				/* process element */
 				rNode.ParseElement(rProcessor);
 			} else
@@ -158,7 +158,7 @@ Restriction::ParseElement(BaseProcessor& rProcessor) const noexcept(false) {
 	if (XSD_ISTYPE(pBase.get(), Types::ComplexType)) {
 		Types::ComplexType* pCmplxType = static_cast<Types::ComplexType*>(pBase.get());
 		Processors::RestrictionVerify verifyRestriciton;
-		if (!verifyRestriciton.Verify(this, pCmplxType->m_pValue))
+		if (!verifyRestriciton.Verify(this, pCmplxType->pValue_))
 			throw XMLException(GetXMLElm(), XMLException::RestrictionTypeMismatch);
 	}
 	/* process element */

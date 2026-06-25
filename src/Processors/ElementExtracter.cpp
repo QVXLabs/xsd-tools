@@ -35,22 +35,22 @@ using namespace Processors;
 using namespace XSD::Elements;
 
 ElementExtracter::ElementExtracter()
-	: LuaProcessorBase(NULL), m_elementLst()
+	: LuaProcessorBase(NULL), elementLst_()
 { }
 
 ElementExtracter::ElementExtracter(const ElementExtracter& rProcessor)
- 	: LuaProcessorBase(rProcessor), m_elementLst(rProcessor.m_elementLst)
+ 	: LuaProcessorBase(rProcessor), elementLst_(rProcessor.elementLst_)
  {}
  
 /* virtual */
 ElementExtracter::~ElementExtracter() {
-	m_elementLst.clear();
+	elementLst_.clear();
 }
 
 const ElementExtracter::ElementLst&
 ElementExtracter::Extract(const Schema& rDocRoot) {
 	ProcessSchema(&rDocRoot);
-	return m_elementLst;
+	return elementLst_;
 }
 
 /* virtual */ void 
@@ -70,7 +70,7 @@ ElementExtracter::ProcessSchema(const Schema* pNode) {
 
 /* virtual */ void 
 ElementExtracter::ProcessElement(const Element* pNode) {
-	m_elementLst.push_back(new Element(*pNode));
+	elementLst_.push_back(new Element(*pNode));
 }
 
 /* virtual */ void 

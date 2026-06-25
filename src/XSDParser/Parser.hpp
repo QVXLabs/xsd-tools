@@ -35,18 +35,18 @@ namespace XSD {
 	class Parser {
 	private:
 		struct DocumentRecord {
-			TiXmlDocument *	m_pDocument;
-			std::string 	m_uri;
+			TiXmlDocument *	pDocument_;
+			std::string 	uri_;
 			DocumentRecord(TiXmlDocument *	pDocument, const std::string& uri) 
-				: m_pDocument(pDocument), m_uri(uri) 
+				: pDocument_(pDocument), uri_(uri) 
 			{ }
 			virtual ~DocumentRecord() {
-				delete m_pDocument;
+				delete pDocument_;
 			}
 		};
 		typedef std::vector<DocumentRecord *> XmlDocList;
-		Types::TypesDB 		m_typesDb;
-	    mutable XmlDocList	m_docLst;
+		Types::TypesDB 		typesDb_;
+	    mutable XmlDocList	docLst_;
 		DocumentRecord* findByUri_(const std::string& rUri) const;
 		DocumentRecord* findByDoc_(const TiXmlDocument& document) const;
 	public:

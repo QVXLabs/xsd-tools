@@ -1,0 +1,11 @@
+<?xml version="1.0"?>
+<!-- Self-referential type. Valid XSD, but this generator inline-expands
+     types, so it cannot represent recursion; it must report a cycle rather
+     than crash. -->
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+  <xs:complexType name="tree"><xs:sequence>
+    <xs:element name="value" type="xs:string"/>
+    <xs:element name="child" type="tree" minOccurs="0" maxOccurs="unbounded"/>
+  </xs:sequence></xs:complexType>
+  <xs:element name="root" type="tree"/>
+</xs:schema>

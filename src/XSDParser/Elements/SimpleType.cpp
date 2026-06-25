@@ -72,8 +72,8 @@ SimpleType::GetParentType(void) const noexcept(false) {
 		return pRestriction->GetParentType();
 	} else if ((NULL == pRestriction.get()) && (NULL != pList.get()) && (NULL == pUnion.get())) {
 		return pList->GetParentType();
-	} else if ((NULL == pRestriction.get()) && (NULL != pList.get()) && (NULL == pUnion.get())) {
-		return pList->GetParentType();
+	} else if ((NULL == pRestriction.get()) && (NULL == pList.get()) && (NULL != pUnion.get())) {
+		return pUnion->GetParentType();
 	} else {
 		/* simple type can't have multiple child modifiers */
 		throw XMLException(Node::GetXMLElm(), XMLException::InvallidChildXMLElement);
@@ -88,11 +88,6 @@ SimpleType::GetRestriction() const noexcept {
 std::string
 SimpleType::Name() const noexcept(false) {
 	return Node::name_();
-}
-
-bool
-SimpleType::HasName() const {
-	return Node::HasAttribute("name");
 }
 
 bool

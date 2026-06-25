@@ -1,0 +1,10 @@
+<?xml version="1.0"?>
+<!-- simpleType <union>: previously fell through to throw (dead dup branch in
+     SimpleType::GetParentType). Now resolves (to string) and generates. -->
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+  <xs:element name="code">
+    <xs:simpleType>
+      <xs:union memberTypes="xs:int xs:string"/>
+    </xs:simpleType>
+  </xs:element>
+</xs:schema>

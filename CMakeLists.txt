@@ -117,9 +117,17 @@ set(FETCHCONTENT_BASE_DIR "${CMAKE_BINARY_DIR}/third-party"
 # over the upstream tree's missing CMakeLists.txt.
 function(fetch_third_party name url sha256 overlay provided iface)
   cmake_parse_arguments(ARG "" "" "PATCH" ${ARGN})
+  # Windows' GNU patch (Strawberry, 2.5.9) defaults to text mode and asserts
+  # on the LNUM patch's hunks against the LF-only upstream tarball
+  # ("Expression: hunk", patch.c:354); --binary makes it match byte-for-byte.
+  # macOS/BSD patch has no such flag, so apply it on Windows only.
+  set(patch_prog patch)
+  if(WIN32)
+    set(patch_prog patch --binary)
+  endif()
   set(patch_cmd "")
   foreach(p IN LISTS ARG_PATCH)
-    list(APPEND patch_cmd patch -p1 -i "${p}" COMMAND)
+    list(APPEND patch_cmd ${patch_prog} -p1 -i "${p}" COMMAND)
   endforeach()
   list(APPEND patch_cmd ${CMAKE_COMMAND} -E copy_if_different
        "${overlay}" "<SOURCE_DIR>/CMakeLists.txt")

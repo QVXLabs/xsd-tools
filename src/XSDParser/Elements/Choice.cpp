@@ -91,13 +91,3 @@ Choice::HasSequence() const noexcept(false) {
 	return Node::HasContent(Sequence::XSDTag());
 }
 
-bool
-Choice::HasMaxOccurs() const {
-	return Node::HasAttribute("maxOccurs");
-}
-
-bool
-Choice::HasMinOccurs() const {
-	return Node::HasAttribute("minOccurs");
-}
-

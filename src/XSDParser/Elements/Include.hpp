@@ -36,7 +36,7 @@ namespace XSD {
 		class Include : public Node {
 			XSD_ELEMENT_TAG("include")
 		private:
-			mutable Schema*	m_pSchema;
+			mutable Schema*	pSchema_;
 			Include();
 			std::string schemaURI_() const noexcept(false);;
 			static std::string extractURIPath_(const std::string& uri);
@@ -49,7 +49,7 @@ namespace XSD {
 			void ParseChildren(BaseProcessor& rProcessor) const noexcept(false);;
 			void ParseElement(BaseProcessor& rProcessor) const noexcept(false);;
 			const Schema* QuerySchema() const noexcept(false);;
-			bool HasSchema() const;
+			XSD_HAS_ATTR(HasSchema, "schemaLocation")
 		};
 	}	/* namespace Elements */
 }	/* namespace XSD */

@@ -153,39 +153,10 @@ Element::MinOccurs() const {
 }
 
 bool
-Element::HasName() const {
-	return Node::HasAttribute("name");
-}
-
-bool
-Element::HasSubstitutionGroup() const {
-	return Node::HasAttribute("substitutionGroup");
-}
-
-bool
-Element::HasRef() const {
-	return Node::HasAttribute("ref");
-}
-
-bool
-Element::HasType() const {
-	return Node::HasAttribute("type");
-}
-bool
 Element::HasChildType() const {
 	bool hasSmplType = Node::HasContent(SimpleType::XSDTag());
 	bool hasCmplxType = Node::HasContent(ComplexType::XSDTag());
 	return (hasSmplType | hasCmplxType);
-}
-
-bool
-Element::HasMaxOccurs() const {
-	return Node::HasAttribute("maxOccurs");
-}
-
-bool
-Element::HasMinOccurs() const {
-	return Node::HasAttribute("minOccurs");
 }
 
 Types::BaseType*

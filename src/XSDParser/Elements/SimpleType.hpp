@@ -49,7 +49,7 @@ namespace XSD {
 			/* the restriction child, or NULL when this simpleType has none */
 			Restriction * GetRestriction() const noexcept;
 			std::string Name() const noexcept(false);;
-			bool HasName() const;
+			XSD_HAS_ATTR(HasName, "name")
 			bool HasUnion() const;
 			bool HasRestriction() const;
 			bool HasList() const;

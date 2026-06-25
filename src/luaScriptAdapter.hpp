@@ -36,7 +36,7 @@ namespace Core {
 		virtual ~LuaException() noexcept;
 		virtual const char* what() const noexcept;
 	private:
-		std::string	m_errorMsg;
+		std::string	errorMsg_;
 	};
 	class LuaScriptAdapter {
 	public:
@@ -51,7 +51,7 @@ namespace Core {
 		void SetSchemaName(const std::string& schemaName) noexcept;
 		lua_State* LuaState() noexcept;
 	private:
-		lua_State*	m_pLuaState;
+		lua_State*	pLuaState_;
 		LuaScriptAdapter();
 		LuaScriptAdapter(const LuaScriptAdapter&);
 		static int luaSDBMHash(lua_State*);

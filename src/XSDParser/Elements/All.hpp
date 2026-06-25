@@ -39,8 +39,8 @@ namespace XSD {
 			void ParseElement(BaseProcessor& rProcessor) const noexcept(false);;
 			int MaxOccurs() const;
 			int MinOccurs() const;
-			bool HasMaxOccurs() const;
-			bool HasMinOccurs() const;
+			XSD_HAS_ATTR(HasMaxOccurs, "maxOccurs")
+			XSD_HAS_ATTR(HasMinOccurs, "minOccurs")
 		};
 	}	/* namespace Elements */
 }	/* namespace XSD */

@@ -295,19 +295,19 @@ namespace {
 }
 
 TEST(Reject, PythonSaxRange) {
-	EXPECT_TRUE(pythonSaxRejects(XSD_FACETS_DIR "/facet_range.xsd",
+	EXPECT_TRUE(pythonSaxRejects(XSD_CORPUS_DIR "/facet_range.xsd",
 		"xml_facet_range_xsd", "<rating>99</rating>"));
 }
 TEST(Reject, PythonSaxEnum) {
-	EXPECT_TRUE(pythonSaxRejects(XSD_FACETS_DIR "/facet_enum.xsd",
+	EXPECT_TRUE(pythonSaxRejects(XSD_CORPUS_DIR "/facet_enum.xsd",
 		"xml_facet_enum_xsd", "<color>purple</color>"));
 }
 TEST(Reject, PythonSaxLength) {
-	EXPECT_TRUE(pythonSaxRejects(XSD_FACETS_DIR "/facet_strlen.xsd",
+	EXPECT_TRUE(pythonSaxRejects(XSD_CORPUS_DIR "/facet_strlen.xsd",
 		"xml_facet_strlen_xsd", "<code>x</code>"));
 }
 TEST(Reject, PythonSaxAttribute) {
-	EXPECT_TRUE(pythonSaxRejects(XSD_FACETS_DIR "/facet_attr.xsd",
+	EXPECT_TRUE(pythonSaxRejects(XSD_CORPUS_DIR "/facet_attr.xsd",
 		"xml_facet_attr_xsd",
 		"<catalog><widget size=\"huge\"/></catalog>"));
 }
@@ -360,11 +360,11 @@ namespace {
 }
 
 TEST(Reject, CExpatRange) {
-	EXPECT_TRUE(cExpatRejects(XSD_FACETS_DIR "/facet_range.xsd",
+	EXPECT_TRUE(cExpatRejects(XSD_CORPUS_DIR "/facet_range.xsd",
 		"xml_facet_range.h", "rating", "<rating>99</rating>"));
 }
 TEST(Reject, CExpatEnum) {
-	EXPECT_TRUE(cExpatRejects(XSD_FACETS_DIR "/facet_enum.xsd",
+	EXPECT_TRUE(cExpatRejects(XSD_CORPUS_DIR "/facet_enum.xsd",
 		"xml_facet_enum.h", "color", "<color>purple</color>"));
 }
 
@@ -432,20 +432,20 @@ namespace {
 }
 
 TEST(Reject, CDomRange) {
-	EXPECT_TRUE(cDomRejects(XSD_FACETS_DIR "/facet_range.xsd",
+	EXPECT_TRUE(cDomRejects(XSD_CORPUS_DIR "/facet_range.xsd",
 		"xml_facet_range.h", "<rating>99</rating>"));
 }
 TEST(Reject, CDomEnum) {
-	EXPECT_TRUE(cDomRejects(XSD_FACETS_DIR "/facet_enum.xsd",
+	EXPECT_TRUE(cDomRejects(XSD_CORPUS_DIR "/facet_enum.xsd",
 		"xml_facet_enum.h", "<color>purple</color>"));
 }
 TEST(Reject, PythonJsonRange) {
-	EXPECT_TRUE(pythonJsonRejects(XSD_FACETS_DIR "/facet_range.xsd",
+	EXPECT_TRUE(pythonJsonRejects(XSD_CORPUS_DIR "/facet_range.xsd",
 		"json_facet_range_xsd",
 		"[{\"name\": \"rating\", \"attrs\": {}, \"content\": 99}]"));
 }
 TEST(Reject, PythonJsonEnum) {
-	EXPECT_TRUE(pythonJsonRejects(XSD_FACETS_DIR "/facet_enum.xsd",
+	EXPECT_TRUE(pythonJsonRejects(XSD_CORPUS_DIR "/facet_enum.xsd",
 		"json_facet_enum_xsd",
 		"[{\"name\": \"color\", \"attrs\": {}, \"content\": [\"purple\"]}]"));
 }
@@ -495,11 +495,11 @@ namespace {
 }
 
 TEST(Reject, JavaXmlRange) {
-	EXPECT_TRUE(javaXmlRejects(XSD_FACETS_DIR "/facet_range.xsd",
+	EXPECT_TRUE(javaXmlRejects(XSD_CORPUS_DIR "/facet_range.xsd",
 		"<rating>99</rating>"));
 }
 TEST(Reject, JavaXmlEnum) {
-	EXPECT_TRUE(javaXmlRejects(XSD_FACETS_DIR "/facet_enum.xsd",
+	EXPECT_TRUE(javaXmlRejects(XSD_CORPUS_DIR "/facet_enum.xsd",
 		"<color>purple</color>"));
 }
 
@@ -601,14 +601,14 @@ namespace {
 }
 
 TEST(Reject, CJsonRange) {
-	EXPECT_TRUE(cJsonRejectsRange(XSD_FACETS_DIR "/facet_range.xsd",
+	EXPECT_TRUE(cJsonRejectsRange(XSD_CORPUS_DIR "/facet_range.xsd",
 		"json_facet_range.h", "rating"));
 }
 TEST(Reject, JavaJsonRange) {
-	EXPECT_TRUE(javaJsonRejects(XSD_FACETS_DIR "/facet_range.xsd",
+	EXPECT_TRUE(javaJsonRejects(XSD_CORPUS_DIR "/facet_range.xsd",
 		"Rating", "{'$':99}"));
 }
 TEST(Reject, JavaJsonEnum) {
-	EXPECT_TRUE(javaJsonRejects(XSD_FACETS_DIR "/facet_enum.xsd",
+	EXPECT_TRUE(javaJsonRejects(XSD_CORPUS_DIR "/facet_enum.xsd",
 		"Color", "{'$':'purple'}"));
 }

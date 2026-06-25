@@ -63,9 +63,7 @@ namespace XSD {
 			ValueT Value() const noexcept(false) {
 				return Node::GetAttribute<ValueT>("value");
 			}
-			bool HasValue() const {
-				return Node::HasAttribute("value");
-			}
+			XSD_HAS_ATTR(HasValue, "value")
 		};
 	}	/* namespace Elements */
 }	/* namespace XSD */

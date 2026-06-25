@@ -37,15 +37,15 @@ using namespace Processors;
 using namespace XSD::Elements;
 
 RestrictionVerify::RestrictionVerify()
-	: LuaProcessorBase(NULL), m_pSubTree(NULL)
+	: LuaProcessorBase(NULL), pSubTree_(NULL)
 { }
 
 RestrictionVerify::RestrictionVerify(const RestrictionVerify& rProcessor)
- 	: LuaProcessorBase(rProcessor), m_pSubTree(rProcessor.m_pSubTree)
+ 	: LuaProcessorBase(rProcessor), pSubTree_(rProcessor.pSubTree_)
  { }
  
  RestrictionVerify::RestrictionVerify(const Node* pSubTree)
-	: LuaProcessorBase(NULL), m_pSubTree(pSubTree)
+	: LuaProcessorBase(NULL), pSubTree_(pSubTree)
 { }
  
 /* virtual */
@@ -58,7 +58,7 @@ RestrictionVerify::Verify(const Restriction* pRestriciton, const ComplexType* pP
 	try {
 		processor.ProcessRestriction(pRestriciton);
 	} catch (XSD::XMLException& e) {
-		if (XSD::XMLException::RestrictionTypeMismatch == e.QueryError().m_errorId) {
+		if (XSD::XMLException::RestrictionTypeMismatch == e.QueryError().errorId_) {
 			return false;
 		} else {
 			throw;	/* rethrow exception */
@@ -70,7 +70,7 @@ RestrictionVerify::Verify(const Restriction* pRestriciton, const ComplexType* pP
 /* virtual */ void 
 RestrictionVerify::ProcessElement(const Element* pNode) {
 	/* find the element in the parent sub-tree */
-	bool bFound = m_pSubTree->findChild_([&](const Node& rSearchNode) -> bool {
+	bool bFound = pSubTree_->findChild_([&](const Node& rSearchNode) -> bool {
 		if (XSD_ISELEMENT(&rSearchNode, Element)) {
 			const Element * pElement = static_cast<const Element *>(&rSearchNode);
 			if (pNode->HasRef() && pElement->HasRef()) {
@@ -119,14 +119,14 @@ RestrictionVerify::ProcessElement(const Element* pNode) {
 
 /* virtual */ void 
 RestrictionVerify::ProcessRestriction(const XSD::Elements::Restriction* pNode) {
-	RestrictionVerify processor(m_pSubTree);
+	RestrictionVerify processor(pSubTree_);
 	pNode->ParseChildren(processor);
 }
 
 /* virtual */ void 
 RestrictionVerify::ProcessSequence(const XSD::Elements::Sequence* pNode) {
 	/* valid restrictions are xs:sequence to xs:sequence or xs:choice to xs:sequence */
-	bool bFound = m_pSubTree->findChild_([&](const Node& rSearchNode) -> bool {
+	bool bFound = pSubTree_->findChild_([&](const Node& rSearchNode) -> bool {
 		if (XSD_ISELEMENT(&rSearchNode, Sequence) ||
 			XSD_ISELEMENT(&rSearchNode, Choice)) {
 			RestrictionVerify processor(&rSearchNode);
@@ -142,7 +142,7 @@ RestrictionVerify::ProcessSequence(const XSD::Elements::Sequence* pNode) {
 /* virtual */ void 
 RestrictionVerify::ProcessChoice(const XSD::Elements::Choice* pNode) {
 	/* search for either a xs:choice and verify that it is in the sub-tree */
-	bool bFound = m_pSubTree->findChild_([&](const Node& rSearchNode) -> bool {
+	bool bFound = pSubTree_->findChild_([&](const Node& rSearchNode) -> bool {
 		if (XSD_ISELEMENT(&rSearchNode, Choice)) {
 			RestrictionVerify processor(&rSearchNode);
 			pNode->ParseChildren(processor);
@@ -157,7 +157,7 @@ RestrictionVerify::ProcessChoice(const XSD::Elements::Choice* pNode) {
 /* virtual */ void 
 RestrictionVerify::ProcessGroup(const XSD::Elements::Group* pNode) {
 	/* search for either a xs:group and verify that it is in the sub-tree */
-	bool bFound = m_pSubTree->findChild_([&](const Node& rSearchNode) -> bool {
+	bool bFound = pSubTree_->findChild_([&](const Node& rSearchNode) -> bool {
 		if (XSD_ISELEMENT(&rSearchNode, Group)) {
 			const Group * pGroup = static_cast<const Group *>(&rSearchNode);
 			if (pNode->HasRef() && pGroup->HasName()) {
@@ -176,7 +176,7 @@ RestrictionVerify::ProcessGroup(const XSD::Elements::Group* pNode) {
 /* virtual */ void 
 RestrictionVerify::ProcessAll(const XSD::Elements::All* pNode) {
 	/* valid restrictions are xs:all to xs:all or xs:all to xs:sequence  */
-	bool bFound = m_pSubTree->findChild_([&](const Node& rSearchNode) -> bool {
+	bool bFound = pSubTree_->findChild_([&](const Node& rSearchNode) -> bool {
 		if (XSD_ISELEMENT(&rSearchNode, All) ||
 			XSD_ISELEMENT(&rSearchNode, Sequence)) {
 			RestrictionVerify processor(&rSearchNode);

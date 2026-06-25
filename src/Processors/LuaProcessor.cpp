@@ -68,14 +68,17 @@ using namespace Processors;
 
 LuaProcessor::LuaProcessor(lua_State * pLuaState)
 	: LuaProcessorBase(new LuaAdapter(pLuaState))
+	, activePath_(new set<const void*>())
 { }
 
 LuaProcessor::LuaProcessor(const LuaProcessor& rProcessor)
 	: LuaProcessorBase(rProcessor)
+	, activePath_(rProcessor.activePath_)
 { }
 
 LuaProcessor::LuaProcessor(LuaAdapter * pLuaAdapter)
 	: LuaProcessorBase(pLuaAdapter)
+	, activePath_(new set<const void*>())
 { }
 
 /* virtual */
@@ -87,6 +90,7 @@ LuaProcessor::ProcessSchema(const XSD::Elements::Schema* pNode) {
 	if (pNode->isRootSchema()) {
 		/* create root schema table and append it to stack */
 		LuaProcessor processor(luaAdapter_()->Schema());
+		processor.activePath_ = activePath_;
 		pNode->ParseChildren(processor);
 	} else {
 		/* parse schema children */
@@ -109,6 +113,7 @@ LuaProcessor::ProcessElement(const XSD::Elements::Element* pNode) {
 			/* enter the type content table & add elements, then leave */
 			LuaType * pLuaType = dynamic_cast<LuaType*>(luaAdapter_());
 			LuaProcessor processor(pLuaType->Content());
+			processor.activePath_ = activePath_;
 			processor.ProcessElement(pNode);
 		} else {
 			/* Default min/maxOccurs is 1 */
@@ -116,6 +121,7 @@ LuaProcessor::ProcessElement(const XSD::Elements::Element* pNode) {
 			int minOccurs = pNode->HasMinOccurs() ?	pNode->MinOccurs() : 1;
 			LuaProcessor luaPrcssr(
 				pLuaContent->Type(pNode->Name(), maxOccurs, minOccurs));
+			luaPrcssr.activePath_ = activePath_;
 			luaPrcssr.parseType_(*pElmType);
 		}
 	} else {
@@ -139,7 +145,7 @@ LuaProcessor::ProcessRestriction(const XSD::Elements::Restriction* pNode ) {
 		unique_ptr<XSD::Types::BaseType> pType(pNode->Base());
 		parseType_(*pType);
 	} else {
-		/* Walk facet children directly (accumulating onto m_facets across
+		/* Walk facet children directly (accumulating onto facets_ across
 		   the derivation chain) before resolving the base type. Bypasses
 		   Restriction::ParseChildren, whose numeric-base verification
 		   rejects valid facets on integer-derived types. parseType_
@@ -238,15 +244,15 @@ LuaProcessor::ProcessAttribute(const XSD::Elements::Attribute* pNode) {
 			);
 		/* bridge the attribute's restriction facets (clear first so prior
 		   content facets don't leak in), then attach to the attribute */
-		m_facets.clear();
+		facets_.clear();
 		walkAttributeFacets_(pType.get());
-		pAttribute->Facets(m_facets);
-		m_facets.clear();
+		pAttribute->Facets(facets_);
+		facets_.clear();
 	}
 }
 
 /* Accumulate the facets of an attribute's simpleType restriction onto
-   m_facets, following the derivation chain when a restriction's base is
+   facets_, following the derivation chain when a restriction's base is
    itself a user-defined simpleType (covers inline and named-type
    attributes uniformly: both resolve to a Types::SimpleType). */
 void
@@ -255,7 +261,7 @@ LuaProcessor::walkAttributeFacets_(const XSD::Types::BaseType* pType) {
 		return;
 	const XSD::Types::SimpleType* pSimpleType =
 		dynamic_cast<const XSD::Types::SimpleType*>(pType);
-	const XSD::Elements::SimpleType* pElm = pSimpleType->m_pValue;
+	const XSD::Elements::SimpleType* pElm = pSimpleType->pValue_;
 	unique_ptr<XSD::Elements::Restriction> pRestriction(pElm->GetRestriction());
 	if (NULL == pRestriction.get())
 		return;
@@ -276,6 +282,7 @@ LuaProcessor::ProcessComplexType(const XSD::Elements::ComplexType* pNode) {
 			/* enter the type content table & add elements, then leave */
 			LuaType * pLuaType = dynamic_cast<LuaType*>(luaAdapter_());
 			LuaProcessor processor(pLuaType->Content());
+			processor.activePath_ = activePath_;
 			processor.ProcessComplexType(pNode);
 		} else {
 			unique_ptr<XSD::Types::String> pType(new XSD::Types::String());
@@ -339,68 +346,66 @@ LuaProcessor::ProcessAll(const XSD::Elements::All * pNode) {
 	pNode->ParseChildren(*this);
 }
 
-namespace {
-	/* stringify a numeric facet value (ostream drops trailing zeros) */
-	template <typename T>
-	string numStr_(T val) {
-		ostringstream ss;
-		ss << val;
-		return ss.str();
-	}
+/* stringify a numeric facet value (ostream drops trailing zeros) */
+template <typename T>
+static string numStr_(T val) {
+	ostringstream ss;
+	ss << val;
+	return ss.str();
 }
 
 /* virtual */ void
 LuaProcessor::ProcessMinExclusive(const XSD::Elements::MinExclusive* pNode) {
 	if (pNode->HasValue())
-		m_facets.addScalar("minExclusive", numStr_(pNode->Value()));
+		facets_.addScalar("minExclusive", numStr_(pNode->Value()));
 }
 
 /* virtual */ void
 LuaProcessor::ProcessMaxExclusive(const XSD::Elements::MaxExclusive* pNode) {
 	if (pNode->HasValue())
-		m_facets.addScalar("maxExclusive", numStr_(pNode->Value()));
+		facets_.addScalar("maxExclusive", numStr_(pNode->Value()));
 }
 
 /* virtual */ void
 LuaProcessor::ProcessMinInclusive(const XSD::Elements::MinInclusive* pNode) {
 	if (pNode->HasValue())
-		m_facets.addScalar("minInclusive", numStr_(pNode->Value()));
+		facets_.addScalar("minInclusive", numStr_(pNode->Value()));
 }
 
 /* virtual */ void
 LuaProcessor::ProcessMaxInclusive(const XSD::Elements::MaxInclusive* pNode) {
 	if (pNode->HasValue())
-		m_facets.addScalar("maxInclusive", numStr_(pNode->Value()));
+		facets_.addScalar("maxInclusive", numStr_(pNode->Value()));
 }
 
 /* virtual */ void
 LuaProcessor::ProcessMinLength(const XSD::Elements::MinLength* pNode) {
 	if (pNode->HasValue())
-		m_facets.addScalar("minLength", numStr_(pNode->Value()));
+		facets_.addScalar("minLength", numStr_(pNode->Value()));
 }
 
 /* virtual */ void
 LuaProcessor::ProcessMaxLength(const XSD::Elements::MaxLength* pNode) {
 	if (pNode->HasValue())
-		m_facets.addScalar("maxLength", numStr_(pNode->Value()));
+		facets_.addScalar("maxLength", numStr_(pNode->Value()));
 }
 
 /* virtual */ void
 LuaProcessor::ProcessLength(const XSD::Elements::Length* pNode) {
 	if (pNode->HasValue())
-		m_facets.addScalar("length", numStr_(pNode->Value()));
+		facets_.addScalar("length", numStr_(pNode->Value()));
 }
 
 /* virtual */ void
 LuaProcessor::ProcessTotalDigits(const XSD::Elements::TotalDigits* pNode) {
 	if (pNode->HasValue())
-		m_facets.addScalar("totalDigits", numStr_(pNode->Value()));
+		facets_.addScalar("totalDigits", numStr_(pNode->Value()));
 }
 
 /* virtual */ void
 LuaProcessor::ProcessFractionDigits(const XSD::Elements::FractionDigits* pNode) {
 	if (pNode->HasValue())
-		m_facets.addScalar("fractionDigits", numStr_(pNode->Value()));
+		facets_.addScalar("fractionDigits", numStr_(pNode->Value()));
 }
 
 /* virtual */ void
@@ -413,38 +418,60 @@ LuaProcessor::ProcessWhiteSpace(const XSD::Elements::WhiteSpace* pNode) {
 	case XSD::Elements::WhiteSpace::REPLACE:  pVal = "replace";  break;
 	case XSD::Elements::WhiteSpace::COLLAPSE: pVal = "collapse"; break;
 	}
-	m_facets.addScalar("whiteSpace", pVal);
+	facets_.addScalar("whiteSpace", pVal);
 }
 
 /* virtual */ void
 LuaProcessor::ProcessEnumeration(const XSD::Elements::Enumeration* pNode) {
 	if (pNode->HasValue())
-		m_facets.addToList("enumeration", pNode->Value());
+		facets_.addToList("enumeration", pNode->Value());
 }
 
 /* virtual */ void
 LuaProcessor::ProcessPattern(const XSD::Elements::Pattern* pNode) {
 	if (pNode->HasValue())
-		m_facets.addToList("pattern", pNode->Value());
+		facets_.addToList("pattern", pNode->Value());
 }
 
 /* virtual */ void
 LuaProcessor::parseType_(const XSD::Types::BaseType& rXSDType) {
+	/* RAII marker: a type is "on the active path" while its content is
+	   expanded. The model inline-expands every referenced type, so a cyclic
+	   schema (mutual or self-referential) would otherwise recurse until the
+	   stack overflows. Keyed on the backing TiXmlElement, because each
+	   resolution of a named type yields a fresh Node wrapper. */
+	struct ActiveMark {
+		std::set<const void*>&	path_;
+		const void*				key_;
+		ActiveMark(std::set<const void*>& rPath, const void* pKey)
+			: path_(rPath), key_(pKey) { path_.insert(pKey); }
+		~ActiveMark() { path_.erase(key_); }
+	};
 	if(XSD_ISTYPE(&rXSDType, XSD::Types::SimpleType)) {
-		const XSD::Types::SimpleType* pSimpleType = 
+		const XSD::Types::SimpleType* pSimpleType =
 			dynamic_cast<const XSD::Types::SimpleType*>(&rXSDType);
-		pSimpleType->m_pValue->ParseElement(*this);
+		const void* pKey = &pSimpleType->pValue_->GetXMLElm();
+		if (0 != activePath_->count(pKey))
+			throw XSD::XMLException(pSimpleType->pValue_->GetXMLElm(),
+				XSD::XMLException::CyclicTypeDefinition);
+		ActiveMark mark(*activePath_, pKey);
+		pSimpleType->pValue_->ParseElement(*this);
 	} else if(XSD_ISTYPE(&rXSDType, XSD::Types::ComplexType)) {
-		const XSD::Types::ComplexType* pComplexType = 
+		const XSD::Types::ComplexType* pComplexType =
 			dynamic_cast<const XSD::Types::ComplexType*>(&rXSDType);
-		pComplexType->m_pValue->ParseElement(*this);
+		const void* pKey = &pComplexType->pValue_->GetXMLElm();
+		if (0 != activePath_->count(pKey))
+			throw XSD::XMLException(pComplexType->pValue_->GetXMLElm(),
+				XSD::XMLException::CyclicTypeDefinition);
+		ActiveMark mark(*activePath_, pKey);
+		pComplexType->pValue_->ParseElement(*this);
 	} else {
 		/* inserts basic type. Handles array types the same as basic types */
 		LuaType * pLuaType = dynamic_cast<LuaType*>(luaAdapter_());
 		unique_ptr<LuaContent> pLuaContent(pLuaType->Content());
 		unique_ptr<LuaType> pLeaf(pLuaContent->Type(rXSDType.Name(), 1));
 		/* attach facets accumulated over the restriction chain, then reset */
-		pLeaf->Facets(m_facets);
-		m_facets.clear();
+		pLeaf->Facets(facets_);
+		facets_.clear();
 	}
 }

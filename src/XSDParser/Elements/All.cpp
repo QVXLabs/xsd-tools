@@ -86,13 +86,3 @@ All::MinOccurs() const {
 	else
 		return 1;
 }
-
-bool
-All::HasMaxOccurs() const {
-	return Node::HasAttribute("maxOccurs");
-}
-
-bool
-All::HasMinOccurs() const {
-	return Node::HasAttribute("minOccurs");
-}

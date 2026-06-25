@@ -39,6 +39,8 @@
 
 #define XSD_ISELEMENT(TYPE_PTR,TYPE)	typeid(*TYPE_PTR) == typeid(TYPE)
 #define XSD_ELEMENT_TAG(NAME)			public: static const char* XSDTag() throw() { return NAME; }
+/* Define an attribute-presence predicate inline (METHOD -> HasAttribute). */
+#define XSD_HAS_ATTR(METHOD,ATTR)		bool METHOD() const noexcept { return Node::HasAttribute(ATTR); }
 
 namespace XSD { 
   namespace Elements { 
@@ -51,8 +53,8 @@ namespace XSD {
 	namespace Elements {
 		class Node {
 		private:
-			const TiXmlElement&		m_rXmlElm;	// <-- Tinyxml dom node
-			const Parser&			m_rParser;	// <-- XSD parser engine
+			const TiXmlElement&		rXmlElm_;	// <-- Tinyxml dom node
+			const Parser&			rParser_;	// <-- XSD parser engine
 
 			Node();
 			const TiXmlElement* ContentElement(const char* pElemName) const noexcept(false);
@@ -63,16 +65,15 @@ namespace XSD {
 			Node* FindChildXSDNode_(const char* pXMLTag) const noexcept(false);
 			Node* FindXSDRef_(const char* pRefAttribStr, const char* pTypeName) const noexcept(false);
 			std::string Attribute_(const char* pAttrib) const noexcept(false);
-			Types::BaseType* Type_(const char* pType) const noexcept(false);
 			const std::string StripNamespace_(const std::string& rQName) const noexcept(false);
 		protected:
 			Node(const TiXmlElement& elm, const Parser& rParser);
 			Node(const Node& rCpy);
-			Types::BaseType* LookupType(const char* pType) const noexcept(false) { return Type_(pType); }
+			Types::BaseType* Type_(const char* pType) const noexcept(false);
 			/* QueryRootElement(): returns the root element of the document containg the node*/
 			const TiXmlElement& QueryRootElement() const;
 			Schema * GetSchema() const noexcept(false);
-			const Parser& GetParser() const { return m_rParser; }
+			const Parser& GetParser() const { return rParser_; }
 			bool HasAttribute(const char* pAttrib) const noexcept;
 			bool HasContent(const char* pElemName) const noexcept;
 			bool HasContent() const noexcept;
@@ -139,7 +140,7 @@ namespace XSD {
 				const std::function<bool(const Node&)>& rFn) const noexcept(false);
 			bool operator == (const Node& elm) const;
 			bool operator == (const Node& elm);
-			inline const TiXmlElement& GetXMLElm() const { return m_rXmlElm;}
+			inline const TiXmlElement& GetXMLElm() const { return rXmlElm_;}
 			const TiXmlDocument& GetXmlDocument() const;
 		};
 		template<> bool Node::GetAttribute<bool>(const char* pAttrib) const noexcept(false);

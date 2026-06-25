@@ -35,7 +35,7 @@ namespace XSD {
 			//struct StrCp { bool operator()(const char* p1, const char* p2) const { return (strcmp(p1,p2) < 0); } };
 			//typedef std::map<const char*, const BaseType*, StrCp> TypeTbl;
 			typedef std::map<std::string, const BaseType*> TypeTbl;
-			TypeTbl	m_typeTbl;
+			TypeTbl	typeTbl_;
 		public:
 			TypesDB();
 			virtual~ TypesDB();

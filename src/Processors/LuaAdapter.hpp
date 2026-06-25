@@ -70,7 +70,7 @@ namespace Processors {
 		lua_State * getLuaState_();
 		void setLuaState_(lua_State * pLuaState);
 	private:
-		lua_State *	m_pLuaState;
+		lua_State *	pLuaState_;
 		LuaAdapter(const LuaAdapter&);
 	};
 	/* lua content class */
@@ -130,8 +130,8 @@ namespace Processors {
 	private:
 		/* attribute + type-table keys; let Facets() re-descend to the type
 		   sub-table where targets read `attr.<type>.facets` */
-		std::string m_name;
-		std::string m_typeName;
+		std::string name_;
+		std::string typeName_;
 	};
 }
 #endif /* LUAADAPTER_HPP_ */

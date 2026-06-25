@@ -79,15 +79,15 @@ namespace XSD{
 
 		template<> const char*
 		Node::GetAttribute<const char*>(const char* pAttrib) const noexcept(false) {
-			const char* pRetVal = m_rXmlElm.Attribute(pAttrib);
-			if (!pRetVal) throw XMLException(m_rXmlElm, XMLException::MissingAttribute);
+			const char* pRetVal = rXmlElm_.Attribute(pAttrib);
+			if (!pRetVal) throw XMLException(rXmlElm_, XMLException::MissingAttribute);
 			return pRetVal;
 		}
 
 		template<> Types::BaseType*
 		Node::GetAttribute<Types::BaseType*>(const char* pAttrib) const noexcept(false) {
 			const char* pTypeStr = GetAttribute<const char*>(pAttrib);
-			if (!pTypeStr) throw XMLException(m_rXmlElm, XMLException::MissingAttribute);
+			if (!pTypeStr) throw XMLException(rXmlElm_, XMLException::MissingAttribute);
 			return Type_(pTypeStr);
 		}
 	}
@@ -95,22 +95,22 @@ namespace XSD{
 
 /* Non-specialized methods */
 Node::Node(const TiXmlElement& rElm, const Parser& rParser)
-	: m_rXmlElm(rElm), m_rParser(rParser)
+	: rXmlElm_(rElm), rParser_(rParser)
 { 
 #if (DEBUG_CONSTRUCTION)
-	std::cout << "Created: " << m_rXmlElm.ValueStr() << "[ ";
-	for (const TiXmlAttribute * pAttr = m_rXmlElm.FirstAttribute(); pAttr; pAttr = pAttr->Next())
+	std::cout << "Created: " << rXmlElm_.ValueStr() << "[ ";
+	for (const TiXmlAttribute * pAttr = rXmlElm_.FirstAttribute(); pAttr; pAttr = pAttr->Next())
 		std::cout << pAttr->Name() << ":" << pAttr->Value() << " ";
 	std::cout << "]" << std::endl;
 #endif /* DEBUG_CONSTRUCTION */
 }
 
 Node::Node(const Node& rCpy)
-	: m_rXmlElm(rCpy.m_rXmlElm), m_rParser(rCpy.m_rParser)
+	: rXmlElm_(rCpy.rXmlElm_), rParser_(rCpy.rParser_)
 {
 #if (DEBUG_CONSTRUCTION)
-	std::cout << "Created: " << m_rXmlElm.ValueStr() << "[ ";
-	for (const TiXmlAttribute * pAttr = m_rXmlElm.FirstAttribute(); pAttr; pAttr = pAttr->Next())
+	std::cout << "Created: " << rXmlElm_.ValueStr() << "[ ";
+	for (const TiXmlAttribute * pAttr = rXmlElm_.FirstAttribute(); pAttr; pAttr = pAttr->Next())
 		std::cout << pAttr->Name() << ":" << pAttr->Value() << " ";
 	std::cout << "]" << std::endl;  
 #endif /* DEBUG_CONSTRUCTION */
@@ -119,8 +119,8 @@ Node::Node(const Node& rCpy)
 /* virtual */
 Node::~Node() {
 #if (DEBUG_CONSTRUCTION)
-	std::cout << "Deleted: " << m_rXmlElm.ValueStr() << "[ ";
-	for (const TiXmlAttribute * pAttr = m_rXmlElm.FirstAttribute(); pAttr; pAttr = pAttr->Next())
+	std::cout << "Deleted: " << rXmlElm_.ValueStr() << "[ ";
+	for (const TiXmlAttribute * pAttr = rXmlElm_.FirstAttribute(); pAttr; pAttr = pAttr->Next())
 		std::cout << pAttr->Name() << ":" << pAttr->Value() << " ";
 	std::cout << "]" << std::endl;
 #endif /* DEBUG_CONSTRUCTION */
@@ -129,7 +129,7 @@ Node::~Node() {
 const TiXmlElement*
 Node::FindChildXMLElement_(const char* pXMLElmTag, const char* pAttrib, const char* pName) const noexcept(false) {
 	/* search all nodes in root document */
-	const TiXmlElement* pElm = m_rXmlElm.FirstChildElement(pXMLElmTag);
+	const TiXmlElement* pElm = rXmlElm_.FirstChildElement(pXMLElmTag);
 	for ( ;
 		pElm && pElm->Attribute(pAttrib) && !boost::iequals(std::string(pElm->Attribute(pAttrib)), std::string(pName));
 		pElm = pElm->NextSiblingElement(pXMLElmTag) ) {}
@@ -261,15 +261,15 @@ Node::FindXSDElm_(const char* pName, const char* pTypeName) const noexcept(false
 	if (!pElm) {
 		const TiXmlElement* pIncludElm = pSchemaRoot->GetXMLElm().FirstChildElement(XSD::Elements::Include::XSDTag());
 		for ( ; pIncludElm; pIncludElm = pIncludElm->NextSiblingElement(XSD::Elements::Include::XSDTag()) ) {
-			std::unique_ptr<Include> pNode(static_cast<Include*>(ConstructNode_(pIncludElm, m_rParser)));
+			std::unique_ptr<Include> pNode(static_cast<Include*>(ConstructNode_(pIncludElm, rParser_)));
 			const Schema* pSchema = pNode->QuerySchema();
 			if (NULL != (pElm = pSchema->FindChildXMLElement_(elementName.c_str(), "name", pName))) {
-				pRetNode = ConstructNode_(pElm, pSchema->m_rParser);
+				pRetNode = ConstructNode_(pElm, pSchema->rParser_);
 				break;
 			}
 		}
 	} else
-		pRetNode = ConstructNode_(pElm, m_rParser);
+		pRetNode = ConstructNode_(pElm, rParser_);
 	return pRetNode;
 }
 
@@ -277,7 +277,7 @@ Node*
 Node::FindXSDNode_(const char* pName, const char* pTypeName) const noexcept(false) {
 	Node* pNode = FindXSDElm_(pName, pTypeName);
 	if (!pNode)
-		throw XMLException(m_rXmlElm, XMLException::MissingElement);
+		throw XMLException(rXmlElm_, XMLException::MissingElement);
 	return pNode;
 }
 
@@ -285,10 +285,10 @@ Node*
 Node::FindChildXSDNode_(const char* pXMLTag) const noexcept(false) {
 	std::string elementName = QualifyElementName(pXMLTag);
 	/* search all nodes in root document */
-	const TiXmlElement* pElm = m_rXmlElm.FirstChildElement(elementName.c_str());
+	const TiXmlElement* pElm = rXmlElm_.FirstChildElement(elementName.c_str());
 	if (NULL == pElm)
-		throw XMLException(m_rXmlElm, XMLException::MissingChildXMLElement);
-	return ConstructNode_(pElm, m_rParser);
+		throw XMLException(rXmlElm_, XMLException::MissingChildXMLElement);
+	return ConstructNode_(pElm, rParser_);
 }
 
 Node*
@@ -297,15 +297,15 @@ Node::FindXSDRef_(const char* pRefAttribStr, const char* pTypeName) const noexce
 		std::unique_ptr<Node> pRefElm(FindXSDNode_(GetAttribute<const char*>(pRefAttribStr), pTypeName));
 		return pRefElm->FindXSDRef_(pRefAttribStr, pTypeName);
 	} else
-		return ConstructNode_(&m_rXmlElm, m_rParser);
+		return ConstructNode_(&rXmlElm_, rParser_);
 }
 
 std::string
 Node::Attribute_(const char* pAttrib) const noexcept(false) {
 	if (HasAttribute(pAttrib)) {
-		return std::string(m_rXmlElm.Attribute(pAttrib));
+		return std::string(rXmlElm_.Attribute(pAttrib));
 	} else
-		throw XMLException(m_rXmlElm, XMLException::MissingAttribute);
+		throw XMLException(rXmlElm_, XMLException::MissingAttribute);
 	return std::string("");
 }
 
@@ -313,7 +313,7 @@ Types::BaseType*
 Node::Type_(const char* pType) const noexcept(false) {
 	/* search for type name */
 	std::string typeName = StripNamespace_(std::string(pType));
-	Types::BaseType* pRetType = m_rParser.QueryTypesDb().FindType(typeName.c_str());
+	Types::BaseType* pRetType = rParser_.QueryTypesDb().FindType(typeName.c_str());
 	if (typeid(*pRetType) == typeid(Types::Unknown)) {
 		delete pRetType;
 		Node* pSimpleType = FindXSDElm_(typeName.c_str(), SimpleType::XSDTag());
@@ -323,7 +323,7 @@ Node::Type_(const char* pType) const noexcept(false) {
 		if (NULL != pComplexType)
 			return new Types::ComplexType(
 				static_cast<ComplexType*>(pComplexType));
-		throw XMLException(m_rXmlElm, XMLException::MissingElement);
+		throw XMLException(rXmlElm_, XMLException::MissingElement);
 	}
 	return pRetType;
 }
@@ -345,8 +345,8 @@ Node::StripNamespace_(const std::string& rQName) const noexcept(false) {
 
 Node*
 Node::Parent() const noexcept(false) {
-	const TiXmlElement* pElm = m_rXmlElm.Parent()->ToElement();
-	return pElm ? ConstructNode_(pElm, m_rParser) : NULL;
+	const TiXmlElement* pElm = rXmlElm_.Parent()->ToElement();
+	return pElm ? ConstructNode_(pElm, rParser_) : NULL;
 }
 
 /* virtual */ Types::BaseType*
@@ -357,13 +357,13 @@ Node::GetParentType() const noexcept(false) {
 
 Node*
 Node::FirstChild() const noexcept(false) {
-	const TiXmlElement* pElm = m_rXmlElm.FirstChildElement();
-	return pElm ? ConstructNode_(pElm, m_rParser) : NULL;
+	const TiXmlElement* pElm = rXmlElm_.FirstChildElement();
+	return pElm ? ConstructNode_(pElm, rParser_) : NULL;
 }
 Node*
 Node::NextSibling() const noexcept(false) {
-	const TiXmlElement* pElm = m_rXmlElm.NextSiblingElement();
-	return pElm ? ConstructNode_(pElm, m_rParser) : NULL;
+	const TiXmlElement* pElm = rXmlElm_.NextSiblingElement();
+	return pElm ? ConstructNode_(pElm, rParser_) : NULL;
 }
 
 /* Recurse the sibling chain from pNode until rFn returns true. */
@@ -393,8 +393,8 @@ Node::eachChild_(
 const TiXmlElement*
 Node::ContentElement(const char* pElemName) const noexcept(false) {
 	std::string elementName = QualifyElementName(pElemName);
-	const TiXmlElement* pElm = m_rXmlElm.FirstChildElement(elementName.c_str());
-	if (!pElm) throw XMLException(m_rXmlElm,XMLException::MissingChildXMLElement);
+	const TiXmlElement* pElm = rXmlElm_.FirstChildElement(elementName.c_str());
+	if (!pElm) throw XMLException(rXmlElm_,XMLException::MissingChildXMLElement);
 	return pElm;
 }
 
@@ -406,25 +406,25 @@ Node::QueryRootElement() const {
 
 Schema * 
 Node::GetSchema() const noexcept(false) {
-	return new Elements::Schema(QueryRootElement(), m_rParser, m_rParser.GetUri(GetXmlDocument()));
+	return new Elements::Schema(QueryRootElement(), rParser_, rParser_.GetUri(GetXmlDocument()));
 }
 
 bool
 Node::HasAttribute(const char* pAttrib) const throw() {
-	const char* pAttribVal = m_rXmlElm.Attribute(pAttrib);
+	const char* pAttribVal = rXmlElm_.Attribute(pAttrib);
 	return (NULL != pAttribVal && *pAttribVal != 0);
 }
 
 bool
 Node::HasContent(const char* pElemName) const throw() {
 	std::string elementName = QualifyElementName(pElemName);
-	return (NULL != m_rXmlElm.FirstChildElement(elementName.c_str()));
+	return (NULL != rXmlElm_.FirstChildElement(elementName.c_str()));
 }
 
 bool
 Node::HasContent() const throw() {
 	/* search for a text node */
-	const TiXmlNode* pXmlNode = m_rXmlElm.FirstChild();
+	const TiXmlNode* pXmlNode = rXmlElm_.FirstChild();
 	for ( ; NULL != pXmlNode; pXmlNode = pXmlNode->NextSibling()) {
 		if (TiXmlNode::TINYXML_TEXT == pXmlNode->Type())
 			return true;
@@ -475,19 +475,19 @@ Node::name_() const noexcept(false) {
 
 bool
 Node::IsRootNode() const throw () {
-	const TiXmlNode* 	pParent	= m_rXmlElm.Parent();
+	const TiXmlNode* 	pParent	= rXmlElm_.Parent();
 	const TiXmlElement* pElm 	= (pParent) ? pParent->ToElement() : NULL;
 	return pElm && (pElm == &QueryRootElement());
 }
 
 bool
 Node::operator == (const Node& elm) const {
-	return &m_rXmlElm == &elm.m_rXmlElm;
+	return &rXmlElm_ == &elm.rXmlElm_;
 }
 
 bool
 Node::operator == (const Node& elm) {
-	return &m_rXmlElm == &elm.m_rXmlElm;
+	return &rXmlElm_ == &elm.rXmlElm_;
 }
 
 std::string 
@@ -507,7 +507,7 @@ Node::QualifyElementName(const char* pElemName) const throw() {
 
 const TiXmlDocument& 
 Node::GetXmlDocument() const {
-	const TiXmlNode * pNode = &m_rXmlElm;
+	const TiXmlNode * pNode = &rXmlElm_;
 	for (; pNode->Parent(); pNode = pNode->Parent()) {}
 	return *(pNode->ToDocument());
 }
