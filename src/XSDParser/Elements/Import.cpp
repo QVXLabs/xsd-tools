@@ -22,7 +22,6 @@
  */
 
 #include <memory>
-#include <unistd.h>
 #include "./src/XSDParser/Elements/Import.hpp"
 #include "./src/XSDParser/Elements/Element.hpp"
 #include "./src/XSDParser/Elements/Schema.hpp"
