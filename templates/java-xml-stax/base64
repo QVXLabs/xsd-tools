@@ -1,0 +1,59 @@
+[@lua --define StAX base64Binary type (byte[])
+	javatype_base64 = {
+		jtype = "byte[]",
+		field = function(attribName)
+			return table.concat({
+				"\tprivate byte[] _", attribName, ";\n",
+			})
+		end,
+		default = function(attribName, value)
+			return table.concat({
+				"\t\t_", attribName,
+				" = java.util.Base64.getDecoder().decode(\"",
+				value, "\");\n",
+			})
+		end,
+		marshal = {
+			attribute = function(attribName)
+				return table.concat({
+					"\t\tif (_", attribName,
+					" != null) w.writeAttribute(\"", attribName,
+					"\", java.util.Base64.getEncoder().encodeToString(_",
+					attribName, "));\n",
+				})
+			end,
+			content = function()
+				return table.concat({
+					"\t\tif (_text != null) w.writeCharacters(",
+					"java.util.Base64.getEncoder().encodeToString(_text));\n",
+				})
+			end,
+		},
+		unmarshal = {
+			attribute = function(attribName)
+				return table.concat({
+					"\t\t\tif (an.equals(\"", attribName, "\")) _",
+					attribName,
+					" = java.util.Base64.getDecoder().decode(av.trim());\n",
+				})
+			end,
+			content = function()
+				return table.concat({
+					"\t\t_text = java.util.Base64.getDecoder()",
+					".decode(_buf.toString().trim());\n",
+				})
+			end,
+		},
+		test = {
+			assign = function()
+				local ret = {
+					"Q3yj/lYzNI0Fp0SrC8sctw==",
+					"kpxzQiW1uLkFessP+5xZjQ==",
+					"/kFxXF8edN6Dt3L99Y6aFQ==",
+					"PceWThKB0OQoYk6O0nigSw==",
+					"KDk10Nf+vS+JrzsYzRuDRw==" }
+				return ret[math.random(1, 5)]
+			end,
+		},
+	}
+]

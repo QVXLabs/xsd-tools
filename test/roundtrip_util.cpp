@@ -286,4 +286,41 @@ namespace xsdtest {
 				<< "round-trip mismatch; output:\n" << run.output;
 		return ::testing::AssertionSuccess();
 	}
+
+	::testing::AssertionResult javaXmlRoundtrip(const std::string& xsdPath) {
+		const std::string base = baseName(xsdPath);
+		const std::string root = makeTempDir(base);
+		if (root.empty())
+			return ::testing::AssertionFailure() << "could not create tempdir";
+		const std::string pkg = root + "/src/main/java/com/mobitv/app";
+		if (0 != runCommand("mkdir -p '" + pkg + "'", root).exitCode)
+			return ::testing::AssertionFailure() << "mkdir failed";
+		if (0 != runCommand("cp '" JAVA_XML_POM "' pom.xml", root).exitCode)
+			return ::testing::AssertionFailure() << "could not copy pom.xml";
+		try {
+			splitMarkedFiles(
+				generate(TEMPLATES_DIR "/java-xml-stax.tmpl", xsdPath), pkg);
+			writeFile(pkg + "/RunTest.java",
+			          generate(TEMPLATES_DIR "/java-xml-stax.tmpl-test",
+			                   xsdPath));
+		} catch (std::exception& e) {
+			return ::testing::AssertionFailure()
+				<< "generation failed: " << e.what();
+		}
+		CommandResult build = runCommand("mvn -q package", root);
+		if (0 != build.exitCode)
+			return ::testing::AssertionFailure()
+				<< "mvn package failed:\n" << build.output;
+		CommandResult run = runCommand(
+			"java -cp target/my-app-1.0-SNAPSHOT-jar-with-dependencies.jar"
+			" com.mobitv.app.RunTest", root);
+		if (0 != run.exitCode)
+			return ::testing::AssertionFailure()
+				<< "RunTest failed (exit " << run.exitCode << "):\n"
+				<< run.output;
+		if (run.output.find("false") != std::string::npos)
+			return ::testing::AssertionFailure()
+				<< "round-trip mismatch; output:\n" << run.output;
+		return ::testing::AssertionSuccess();
+	}
 }

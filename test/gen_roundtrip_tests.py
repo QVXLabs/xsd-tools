@@ -27,11 +27,14 @@ TARGETS = [
      "roundtrip_c_json.cpp"),
     ("JavaJsonRoundtrip", "javaRoundtrip", ["mvn", "java"],
      "roundtrip_java_json.cpp"),
+    ("JavaXmlRoundtrip", "javaXmlRoundtrip", ["mvn", "java"],
+     "roundtrip_java_xml.cpp"),
 ]
 
 # Targets emitted by default.
 ENABLED = {"PythonSaxRoundtrip", "PythonJsonRoundtrip", "CXmlExpatRoundtrip",
-           "CXmlExpatDomRoundtrip", "CJsonRoundtrip", "JavaJsonRoundtrip"}
+           "CXmlExpatDomRoundtrip", "CJsonRoundtrip", "JavaJsonRoundtrip",
+           "JavaXmlRoundtrip"}
 
 # Round-trips known to fail for reasons unrelated to the build (e.g. defects
 # in a template's test-value generation). Emitted with gtest's DISABLED_

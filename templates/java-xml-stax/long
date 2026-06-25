@@ -1,0 +1,49 @@
+[@lua --define StAX long type
+	javatype_long = {
+		jtype = "Long",
+		field = function(attribName)
+			return table.concat({
+				"\tprivate Long _", attribName, ";\n",
+			})
+		end,
+		default = function(attribName, value)
+			return table.concat({
+				"\t\t_", attribName, " = ", value, "L;\n",
+			})
+		end,
+		marshal = {
+			attribute = function(attribName)
+				return table.concat({
+					"\t\tif (_", attribName,
+					" != null) w.writeAttribute(\"", attribName,
+					"\", String.valueOf(_", attribName, "));\n",
+				})
+			end,
+			content = function()
+				return table.concat({
+					"\t\tif (_text != null) w.writeCharacters(",
+					"String.valueOf(_text));\n",
+				})
+			end,
+		},
+		unmarshal = {
+			attribute = function(attribName)
+				return table.concat({
+					"\t\t\tif (an.equals(\"", attribName, "\")) _",
+					attribName, " = Long.parseLong(av.trim());\n",
+				})
+			end,
+			content = function()
+				return table.concat({
+					"\t\t_text = Long.parseLong(_buf.toString().trim());\n",
+				})
+			end,
+		},
+		test = {
+			assign = function()
+				return string.format("%.0f",
+					math.floor(math.random() * 9223372036854775807.0))
+			end,
+		},
+	}
+]

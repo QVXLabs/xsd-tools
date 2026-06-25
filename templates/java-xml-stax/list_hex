@@ -1,0 +1,20 @@
+[@lua --define StAX list(hexBinary) type
+	javatype_listHex = {
+		jtype = "java.util.List<String>",
+		field = javatype_listString.field,
+		default = javatype_listString.default,
+		marshal = javatype_listString.marshal,
+		unmarshal = javatype_listString.unmarshal,
+		test = {
+			assign = function()
+				return table.concat({
+					string.format('%.4x%.4x%.4x', math.random(0, 65535),
+						math.random(0, 65535), math.random(0, 65535)),
+					string.format('%.4x%.4x%.4x', math.random(0, 65535),
+						math.random(0, 65535), math.random(0, 65535)),
+					string.format('%.4x%.4x%.4x', math.random(0, 65535),
+						math.random(0, 65535), math.random(0, 65535)) }, " ")
+			end,
+		},
+	}
+]

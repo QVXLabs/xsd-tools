@@ -1,0 +1,48 @@
+[@lua --define StAX float/double type
+	javatype_float = {
+		jtype = "Double",
+		field = function(attribName)
+			return table.concat({
+				"\tprivate Double _", attribName, ";\n",
+			})
+		end,
+		default = function(attribName, value)
+			return table.concat({
+				"\t\t_", attribName, " = ", value, ";\n",
+			})
+		end,
+		marshal = {
+			attribute = function(attribName)
+				return table.concat({
+					"\t\tif (_", attribName,
+					" != null) w.writeAttribute(\"", attribName,
+					"\", String.valueOf(_", attribName, "));\n",
+				})
+			end,
+			content = function()
+				return table.concat({
+					"\t\tif (_text != null) w.writeCharacters(",
+					"String.valueOf(_text));\n",
+				})
+			end,
+		},
+		unmarshal = {
+			attribute = function(attribName)
+				return table.concat({
+					"\t\t\tif (an.equals(\"", attribName, "\")) _",
+					attribName, " = Double.parseDouble(av.trim());\n",
+				})
+			end,
+			content = function()
+				return table.concat({
+					"\t\t_text = Double.parseDouble(_buf.toString().trim());\n",
+				})
+			end,
+		},
+		test = {
+			assign = function()
+				return tostring(math.random() * math.random(1, 127))
+			end,
+		},
+	}
+]

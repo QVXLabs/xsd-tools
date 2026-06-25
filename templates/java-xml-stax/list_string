@@ -1,0 +1,55 @@
+[@lua --define StAX list(string) type
+	javatype_listString = {
+		jtype = "java.util.List<String>",
+		field = function(attribName)
+			return table.concat({
+				"\tprivate java.util.List<String> _", attribName, ";\n",
+			})
+		end,
+		default = function(attribName, value)
+			return table.concat({
+				"\t\t_", attribName,
+				" = java.util.Arrays.asList(\"", value, "\".split(\" \"));\n",
+			})
+		end,
+		marshal = {
+			attribute = function(attribName)
+				return table.concat({
+					"\t\tif (_", attribName,
+					" != null) w.writeAttribute(\"", attribName,
+					"\", String.join(\" \", _", attribName, "));\n",
+				})
+			end,
+			content = function()
+				return table.concat({
+					"\t\tif (_text != null) w.writeCharacters(",
+					"String.join(\" \", _text));\n",
+				})
+			end,
+		},
+		unmarshal = {
+			attribute = function(attribName)
+				return table.concat({
+					"\t\t\tif (an.equals(\"", attribName, "\")) _",
+					attribName,
+					" = java.util.Arrays.asList(av.trim().split(\" \"));\n",
+				})
+			end,
+			content = function()
+				return table.concat({
+					"\t\t_text = java.util.Arrays.asList(",
+					"_buf.toString().trim().split(\" \"));\n",
+				})
+			end,
+		},
+		test = {
+			assign = function()
+				local tbl = { 'arch', 'Ancestor', 'Interaction',
+					'Productivity', 'Jelly', 'Glue', 'Way'}
+				return table.concat({
+					tbl[math.random(1, #tbl)], tbl[math.random(1, #tbl)],
+					tbl[math.random(1, #tbl)] }, " ")
+			end,
+		},
+	}
+]

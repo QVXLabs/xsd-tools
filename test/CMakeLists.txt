@@ -147,7 +147,8 @@ set(GENERATED_ROUNDTRIP_SOURCES
   "${GEN_DIR}/roundtrip_c_xml_expat.cpp"
   "${GEN_DIR}/roundtrip_c_xml_expat_dom.cpp"
   "${GEN_DIR}/roundtrip_c_json.cpp"
-  "${GEN_DIR}/roundtrip_java_json.cpp")
+  "${GEN_DIR}/roundtrip_java_json.cpp"
+  "${GEN_DIR}/roundtrip_java_xml.cpp")
 
 add_executable(xsdb-test
   roundtrip_util.cpp
@@ -170,7 +171,8 @@ target_compile_definitions(xsdb-test PRIVATE
   EXPAT_LINK="${EXPAT_LINK_VAL}"
   JSONC_INCLUDE_DIR="${JSONC_INCLUDE_DIR_VAL}"
   JSONC_LINK="${JSONC_LINK_VAL}"
-  JAVA_POM="${CMAKE_CURRENT_SOURCE_DIR}/java-json.org.tmpl/pom.xml")
+  JAVA_POM="${CMAKE_CURRENT_SOURCE_DIR}/java-json.org.tmpl/pom.xml"
+  JAVA_XML_POM="${CMAKE_CURRENT_SOURCE_DIR}/java-xml-stax.tmpl/pom.xml")
 
 include(GoogleTest)
 gtest_discover_tests(xsdb-test)
