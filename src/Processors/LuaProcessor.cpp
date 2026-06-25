@@ -119,9 +119,14 @@ LuaProcessor::ProcessElement(const XSD::Elements::Element* pNode) {
 			/* Default min/maxOccurs is 1 */
 			int maxOccurs = pNode->HasMaxOccurs() ?	pNode->MaxOccurs() : 1;
 			int minOccurs = pNode->HasMinOccurs() ?	pNode->MinOccurs() : 1;
-			LuaProcessor luaPrcssr(
-				pLuaContent->Type(pNode->Name(), maxOccurs, minOccurs));
+			LuaType * pLuaType =
+				pLuaContent->Type(pNode->Name(), maxOccurs, minOccurs);
+			LuaProcessor luaPrcssr(pLuaType);
 			luaPrcssr.activePath_ = activePath_;
+			/* element namespace/form land on the element's type table before
+			   parseType_ descends into the content sub-tables */
+			pLuaType->Namespace(pNode->Namespace());
+			pLuaType->Qualified(pNode->Qualified());
 			luaPrcssr.parseType_(*pElmType);
 		}
 	} else {
@@ -248,6 +253,9 @@ LuaProcessor::ProcessAttribute(const XSD::Elements::Attribute* pNode) {
 		walkAttributeFacets_(pType.get());
 		pAttribute->Facets(facets_);
 		facets_.clear();
+		/* attribute namespace/form, gated like facets */
+		pAttribute->Namespace(pNode->Namespace());
+		pAttribute->Qualified(pNode->Qualified());
 	}
 }
 

@@ -3,6 +3,7 @@ record = {
 		id = {
 			string = {
 				attributes = {}
+				namespace = urn:example:phase0
 				use = optional
 				maxOccurs = 1
 				content = {}
@@ -10,10 +11,12 @@ record = {
 			}
 		}
 	}
+	namespace = urn:example:phase0
 	maxOccurs = 1
 	content = {
 		count = {
 			attributes = {}
+			namespace = urn:example:phase0
 			maxOccurs = 1
 			content = {
 				integer = {
@@ -27,6 +30,7 @@ record = {
 		}
 		label = {
 			attributes = {}
+			namespace = urn:example:phase0
 			maxOccurs = 1
 			content = {
 				string = {

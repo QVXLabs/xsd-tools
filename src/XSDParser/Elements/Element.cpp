@@ -30,6 +30,7 @@
 #include <tinyxml.h>
 #include "./src/XSDParser/Types.hpp"
 #include "./src/XSDParser/Elements/Element.hpp"
+#include "./src/XSDParser/Elements/Schema.hpp"
 #include "./src/XSDParser/Elements/SimpleType.hpp"
 #include "./src/XSDParser/Elements/ComplexType.hpp"
 #include "./src/XSDParser/Elements/Annotation.hpp"
@@ -133,6 +134,23 @@ Element::Type() const noexcept(false) {
 	} else {
 		return ParseType_(*this);
 	}
+}
+
+std::string
+Element::Namespace() const noexcept(false) {
+	std::unique_ptr<Schema> pSchema(Node::GetSchema());
+	return pSchema->TargetNamespace();
+}
+
+bool
+Element::Qualified() const noexcept(false) {
+	/* a local form= attribute overrides the schema's elementFormDefault */
+	if (Node::HasAttribute("form"))
+		return "qualified" == Node::GetAttribute<std::string>("form");
+	std::unique_ptr<Schema> pSchema(Node::GetSchema());
+	const char* pVal =
+		pSchema->GetXMLElm().Attribute("elementFormDefault");
+	return pVal && 0 == strcmp(pVal, "qualified");
 }
 
 Element*

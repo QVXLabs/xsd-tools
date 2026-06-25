@@ -52,6 +52,10 @@ namespace XSD {
 			std::string Name() const noexcept(false);;
 			Attribute* RefAttribute() const noexcept(false);;
 			Types::BaseType* Type() const noexcept(false);;
+			/* Owning schema's targetNamespace URI; "" if none. */
+			std::string Namespace() const noexcept(false);
+			/* Qualified? local form= else attributeFormDefault; default false. */
+			bool Qualified() const noexcept(false);
 			std::string Default() const noexcept(false);;
 			std::string Fixed() const noexcept(false);;
 			AttributeUse Use() const noexcept(false);;

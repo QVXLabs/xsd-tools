@@ -1,9 +1,11 @@
 record = {
 	attributes = {}
+	namespace = urn:example:phase0default
 	maxOccurs = 1
 	content = {
 		label = {
 			attributes = {}
+			namespace = urn:example:phase0default
 			maxOccurs = 1
 			content = {
 				string = {

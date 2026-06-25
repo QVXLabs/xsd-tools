@@ -109,6 +109,23 @@ Attribute::Type() const noexcept(false) {
 }
 
 std::string
+Attribute::Namespace() const noexcept(false) {
+	std::unique_ptr<Schema> pSchema(Node::GetSchema());
+	return pSchema->TargetNamespace();
+}
+
+bool
+Attribute::Qualified() const noexcept(false) {
+	/* a local form= attribute overrides the schema's attributeFormDefault */
+	if (Node::HasAttribute("form"))
+		return "qualified" == Node::GetAttribute<std::string>("form");
+	std::unique_ptr<Schema> pSchema(Node::GetSchema());
+	const char* pVal =
+		pSchema->GetXMLElm().Attribute("attributeFormDefault");
+	return pVal && 0 == strcmp(pVal, "qualified");
+}
+
+std::string
 Attribute::Default() const noexcept(false) {
 	return std::string(Node::GetAttribute<const char*>("default"));
 }

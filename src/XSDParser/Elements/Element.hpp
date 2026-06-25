@@ -50,6 +50,10 @@ namespace XSD {
 			Element* SubstitutionGroup() const noexcept(false);;
 			bool VerifySubstitutionGroup() const noexcept(false);;
 			Types::BaseType* Type() const noexcept(false);;
+			/* Owning schema's targetNamespace URI; "" if none. */
+			std::string Namespace() const noexcept(false);
+			/* Qualified? local form= else elementFormDefault; default false. */
+			bool Qualified() const noexcept(false);
 			Element* RefElement() const noexcept(false);;
 			int MaxOccurs() const;
 			int MinOccurs() const;

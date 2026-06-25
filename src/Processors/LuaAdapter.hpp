@@ -108,6 +108,10 @@ namespace Processors {
 		LuaContent * Content();
 		/* attach a `facets` sub-table; no-op when rFacets is empty */
 		void Facets(const LuaFacets& rFacets);
+		/* attach the resolved namespace URI; no-op when rNamespace is empty */
+		void Namespace(const std::string& rNamespace);
+		/* attach the qualified flag; no-op when unqualified (the default) */
+		void Qualified(bool qualified);
 	protected:
 		LuaType(lua_State * pLuaState, const std::string& rTypeName,
 		        const int maxOccurs, const int minOccurs = 1);
@@ -119,6 +123,10 @@ namespace Processors {
 		virtual ~LuaAttribute();
 		/* attach a `facets` sub-table; no-op when rFacets is empty */
 		void Facets(const LuaFacets& rFacets);
+		/* attach the resolved namespace URI; no-op when rNamespace is empty */
+		void Namespace(const std::string& rNamespace);
+		/* attach the qualified flag; no-op when unqualified (the default) */
+		void Qualified(bool qualified);
 	protected:
 		LuaAttribute(	lua_State * pLuaState,
 						const std::string& rAttribName,
