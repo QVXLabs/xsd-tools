@@ -35,34 +35,16 @@ using namespace XSD;
 using namespace XSD::Elements;
 
 WhiteSpace::WhiteSpace(const TiXmlElement& elm, const Parser& rParser)
-	: Node(elm, rParser)
+	: FacetNode(elm, rParser)
 { }
 
 WhiteSpace::WhiteSpace(const WhiteSpace& cpy)
-	: Node(cpy)
+	: FacetNode(cpy)
 { }
-
-void
-WhiteSpace::ParseChildren(BaseProcessor& rProcessor) const noexcept(false) {
-	/* no children allowed */
-	std::unique_ptr<Node> pNode(Node::FirstChild());
-	if (NULL != pNode.get()) {
-		if (XSD_ISELEMENT(pNode.get(), Annotation))
-			pNode->ParseElement(rProcessor);
-		else
-			throw XMLException(pNode->GetXMLElm(), XMLException::InvallidChildXMLElement);
-	}
-}
 
 void
 WhiteSpace::ParseElement(BaseProcessor& rProcessor) const noexcept(false) {
 	rProcessor.ProcessWhiteSpace(this);
-}
-
-Types::BaseType * 
-WhiteSpace::GetParentType() const noexcept(false) {
-	std::unique_ptr<Node> pParent(Node::Parent());
-	return pParent->GetParentType();
 }
 
 WhiteSpace::eOperation
@@ -78,9 +60,4 @@ WhiteSpace::Value() const noexcept(false) {
 		throw XMLException(Node::GetXMLElm(), XMLException::InvalidAttribute);
 		return PRESERVE;
 	}
-}
-
-bool
-WhiteSpace::HasValue() const {
-	return Node::HasAttribute("value");
 }

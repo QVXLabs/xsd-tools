@@ -38,7 +38,7 @@ namespace XSD {
 		private:
 			std::string		m_documentURI;
 			Schema();
-			static std::string _extractName(const std::string& uri);			
+			static std::string extractName_(const std::string& uri);			
 		public:
 			Schema(const TiXmlElement& elm, const Parser& rParser, const std::string& uri);
 			Schema( const Schema& elm);

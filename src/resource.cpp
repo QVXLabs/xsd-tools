@@ -81,7 +81,7 @@ Resource::GetEngineScript(size_t* pRetSz) noexcept {
 
 /* True if `path` is readable. (POSIX access / Windows _access.) */
 static bool
-_readable(const string& path) noexcept {
+readable_(const string& path) noexcept {
 #if defined(_WIN32)
 	return 0 == _access(path.c_str(), 4 /* R_OK */);
 #else
@@ -91,7 +91,7 @@ _readable(const string& path) noexcept {
 
 /* The current user's home directory, or "" if unknown. */
 static string
-_homeDir() noexcept {
+homeDir_() noexcept {
 #if defined(_WIN32)
 	const char* home = getenv("USERPROFILE");
 	return home ? string(home) : string();
@@ -108,7 +108,7 @@ _homeDir() noexcept {
 __attribute__((noinline))
 #endif
 static string
-_exeDir() noexcept {
+exeDir_() noexcept {
 	char buf[4096];
 #if defined(_WIN32)
 	DWORD n = GetModuleFileNameA(NULL, buf, sizeof(buf));
@@ -136,40 +136,40 @@ _exeDir() noexcept {
 string
 Resource::GetTemplatePath(const std::string& templateName) noexcept(false) {
 	/* test if the template name exists */
-	if (_readable(templateName))
+	if (readable_(templateName))
 		return templateName;
 	/* check environment variable for template file */
 	const char * val = getenv("XSDTOOLS_DATA");
 	if (nullptr != val) {
 		string envFilePath(val);
 		envFilePath += "/" + templateName;
-		if (_readable(envFilePath))
+		if (readable_(envFilePath))
 			return envFilePath;
 	}
 	/* check the home directory for template file */
-	string homeDir(_homeDir());
+	string homeDir(homeDir_());
 	if (!homeDir.empty()) {
 		string homeFilePath(homeDir);
 		homeFilePath += "/" + gscHOMEPATH.substr(1) + templateName;
-		if (_readable(homeFilePath))
+		if (readable_(homeFilePath))
 			return homeFilePath;
 	}
 	/* check relative to the executable (relocatable install / tarball) */
-	string exeDir(_exeDir());
+	string exeDir(exeDir_());
 	if (!exeDir.empty()) {
 		const string relPaths[] = {
 			exeDir + "/../share/xsdtools/templates/" + templateName,
 			exeDir + "/templates/" + templateName,
 		};
 		for (const string& relPath : relPaths) {
-			if (_readable(relPath))
+			if (readable_(relPath))
 				return relPath;
 		}
 	}
 	/* check the global directory for template file */
 	string globalFilePath(gscGLOBALPATH);
 	globalFilePath += "/" + templateName;
-	if (_readable(globalFilePath))
+	if (readable_(globalFilePath))
 		return globalFilePath;
 	/* source-tree convenience: ./templates/<name> */
 	string localPath("templates/" + templateName);

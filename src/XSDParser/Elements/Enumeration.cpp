@@ -35,11 +35,11 @@ using namespace XSD;
 using namespace XSD::Elements;
 
 Enumeration::Enumeration(const TiXmlElement& elm, const Parser& rParser)
-	: Node(elm, rParser)
+	: FacetNode(elm, rParser)
 { }
 
 Enumeration::Enumeration(const Enumeration& cpy)
-	: Node(cpy)
+	: FacetNode(cpy)
 { }
 
 void
@@ -59,18 +59,7 @@ Enumeration::ParseElement(BaseProcessor& rProcessor) const noexcept(false) {
 	rProcessor.ProcessEnumeration(this);
 }
 
-Types::BaseType * 
-Enumeration::GetParentType() const noexcept(false) {
-	std::unique_ptr<Node> pParent(Node::Parent());
-	return pParent->GetParentType();
-}
-
 std::string
 Enumeration::Value() const noexcept(false) {
 	return std::string(Node::GetAttribute<const char*>("value"));
-}
-
-bool
-Enumeration::HasValue() const {
-	return Node::HasAttribute("value");
 }

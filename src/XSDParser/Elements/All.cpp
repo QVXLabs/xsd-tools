@@ -71,12 +71,6 @@ All::ParseElement(BaseProcessor& rProcessor) const noexcept(false) {
 	rProcessor.ProcessAll(this);
 }
 
-Types::BaseType * 
-All::GetParentType() const noexcept(false) {
-	std::unique_ptr<Node> pParent(Node::Parent());
-	return pParent->GetParentType();
-}
-
 int
 All::MaxOccurs() const {
 	if (HasMaxOccurs())

@@ -70,7 +70,7 @@ namespace Processors {
 		virtual void ProcessAll(const XSD::Elements::All* pNode);
 		virtual void ProcessAppInfo(const XSD::Elements::AppInfo* pNode);
 	protected:
-		LuaAdapter *  	_luaAdapter() const;
+		LuaAdapter *  	luaAdapter_() const;
 	private:
 		mutable LuaAdapter * m_pLuaAdapter;
 	};

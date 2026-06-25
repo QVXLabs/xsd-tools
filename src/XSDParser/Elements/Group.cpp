@@ -48,7 +48,7 @@ Group::Group(const Group& cpy)
 void
 Group::ParseChildren(BaseProcessor& rProcessor) const noexcept(false) {
 	/* process children */
-	_eachChild([&rProcessor](const Node& rNode) {
+	eachChild_([&rProcessor](const Node& rNode) {
 		if (XSD_ISELEMENT(&rNode, Choice) ||
 			XSD_ISELEMENT(&rNode, Annotation) ||
 			XSD_ISELEMENT(&rNode, All) ||
@@ -85,34 +85,19 @@ Group::ParseElement(BaseProcessor& rProcessor) const noexcept(false) {
 	rProcessor.ProcessGroup(this);
 }
 
-Types::BaseType * 
-Group::GetParentType() const noexcept(false) {
-	std::unique_ptr<Node> pParent(Node::Parent());
-	return pParent->GetParentType();
-}
-
 int
 Group::MaxOccurs() const {
-	if (HasMaxOccurs()) {
-		if (strcmp(Node::GetAttribute<const char*>("maxOccurs"), "unbounded"))
-			return Node::GetAttribute<int>("maxOccurs");
-		else
-			return -1;
-	}
-	return 1;
+	return Node::maxOccurs_(1);
 }
 
 int
 Group::MinOccurs() const {
-	if (HasMinOccurs()) {
-		return Node::GetAttribute<int>("minOccurs");
-	}
-	return 1;
+	return Node::minOccurs_(1);
 }
 
 std::string
 Group::Name() const noexcept(false) {
-	return std::string(Node::GetAttribute<const char*>("name"));
+	return Node::name_();
 }
 
 Group*

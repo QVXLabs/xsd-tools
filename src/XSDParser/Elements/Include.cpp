@@ -56,16 +56,10 @@ Include::ParseElement(BaseProcessor& rProcessor) const noexcept(false) {
 	rProcessor.ProcessInclude(this);
 }
 
-Types::BaseType * 
-Include::GetParentType() const noexcept(false) {
-	std::unique_ptr<Node> pParent(Node::Parent());
-	return pParent->GetParentType();
-}
-
 const Schema*
 Include::QuerySchema() const noexcept(false) {
 	if (NULL == m_pSchema) {
-		m_pSchema = Node::GetParser().Parse(_schemaURI());
+		m_pSchema = Node::GetParser().Parse(schemaURI_());
 	}
 	return m_pSchema;
 }
@@ -76,23 +70,23 @@ Include::HasSchema() const {
 }
 
 std::string
-Include::_schemaURI() const noexcept(false) {
+Include::schemaURI_() const noexcept(false) {
 	std::string uri(Node::GetAttribute<const char*>("schemaLocation"));
 	/* handle file URIs differently */
-	if (_isFileURI(uri)) {
+	if (isFileURI_(uri)) {
 		std::string retStr("file://");
-		boost::filesystem::path path(_extractURIPath(uri));
+		boost::filesystem::path path(extractURIPath_(uri));
 		if (path.has_root_path()) {
-			retStr += (path.string() + _extractQuery(uri));
+			retStr += (path.string() + extractQuery_(uri));
 			return retStr;
 		} else {
 			std::unique_ptr<Schema> pDocRoot(Node::GetSchema());
 #if defined(BOOST_FILESYSTEM_VERSION) && (BOOST_FILESYSTEM_VERSION > 2)
-			boost::filesystem::path schemaPath = (boost::filesystem::absolute(_extractURIPath(pDocRoot->URI()))).branch_path();
+			boost::filesystem::path schemaPath = (boost::filesystem::absolute(extractURIPath_(pDocRoot->URI()))).branch_path();
 #else
-			boost::filesystem::path schemaPath = (boost::filesystem::complete(_extractURIPath(pDocRoot->URI()))).branch_path();
+			boost::filesystem::path schemaPath = (boost::filesystem::complete(extractURIPath_(pDocRoot->URI()))).branch_path();
 #endif
-			(schemaPath /= _extractURIPath(uri)).normalize();
+			(schemaPath /= extractURIPath_(uri)).normalize();
 			retStr += schemaPath.string();
 			return retStr;
 		}
@@ -102,7 +96,7 @@ Include::_schemaURI() const noexcept(false) {
 }
 
 /* static */std::string
-Include::_extractURIPath(const std::string& uri) {
+Include::extractURIPath_(const std::string& uri) {
 	/* strip off query section */
 	std::string noQuery		= uri.substr(0, uri.find("?"));
 	/* strip off protocol section */
@@ -112,7 +106,7 @@ Include::_extractURIPath(const std::string& uri) {
 }
 
 /* static */ bool
-Include::_isFileURI(const std::string& uri) {
+Include::isFileURI_(const std::string& uri) {
 	/* strip off query section */
 	std::string noQuery	= uri.substr(0, uri.find("?"));
 	bool hasFileProto	= (std::string::npos != noQuery.find("file://"));
@@ -121,7 +115,7 @@ Include::_isFileURI(const std::string& uri) {
 }
 
 /* static */ std::string
-Include::_extractQuery(const std::string& uri) {
+Include::extractQuery_(const std::string& uri) {
 	const size_t queryNdx = uri.find("?");
 	if (std::string::npos == queryNdx)
 		return std::string("");

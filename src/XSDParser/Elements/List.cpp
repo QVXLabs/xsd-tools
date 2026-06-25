@@ -44,7 +44,7 @@ List::List(const List& lst)
 void
 List::ParseChildren(BaseProcessor& rProcessor) const noexcept(false) {
 	/* process children */
-	_eachChild([&rProcessor](const Node& rNode) {
+	eachChild_([&rProcessor](const Node& rNode) {
 		if (XSD_ISELEMENT(&rNode, SimpleType) ||
 			XSD_ISELEMENT(&rNode, Annotation)) {
 			rNode.ParseElement(rProcessor);
@@ -81,11 +81,11 @@ List::ItemType() const noexcept(false) {
 	if (HasContent(SimpleType::XSDTag()))
 		return new Types::SimpleType(FindXSDChildElm<SimpleType>());
 	else
-		return _type();
+		return type_();
 };
 
 Types::BaseType*
-List::_type() const noexcept(false) {
+List::type_() const noexcept(false) {
 	Types::BaseType* pType = Node::GetAttribute<Types::BaseType*>("itemType");
 	if (XSD_ISTYPE(pType, Types::Unknown)) {
 		delete pType;

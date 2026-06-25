@@ -28,20 +28,20 @@
 #endif /* TIXML_USE_STL */
 #include <tinyxml.h>
 #include "./src/XSDParser/Elements/Node.hpp"
+#include "./src/XSDParser/Elements/FacetNode.hpp"
 namespace XSD {
 	namespace Elements {
-		class Enumeration : public Node {
+		class Enumeration
+				: public FacetNode<Enumeration, std::string> {
 			XSD_ELEMENT_TAG("enumeration")
 		private:
 			Enumeration();
 		public:
 			Enumeration(const TiXmlElement& elm, const Parser& rParser);
 			Enumeration(const Enumeration& cpy);
-			void ParseChildren(BaseProcessor& rProcessor) const noexcept(false);;
-			void ParseElement(BaseProcessor& rProcessor) const noexcept(false);;
-			Types::BaseType * GetParentType() const noexcept(false);;
-			std::string Value() const noexcept(false);;
-			bool HasValue() const;
+			void ParseChildren(BaseProcessor& rProcessor) const noexcept(false);
+			void ParseElement(BaseProcessor& rProcessor) const noexcept(false);
+			std::string Value() const noexcept(false);
 		};
 	}	/* namespace Elements */
 }	/* namespace XSD */

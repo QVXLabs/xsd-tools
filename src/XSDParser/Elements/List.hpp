@@ -34,7 +34,7 @@ namespace XSD {
 			XSD_ELEMENT_TAG("list")
 		private:
 			List();
-			Types::BaseType* _type() const noexcept(false);;
+			Types::BaseType* type_() const noexcept(false);;
 		public:
 			List(const TiXmlElement& elm, const Parser& rParser);
 			List(const List& lst);

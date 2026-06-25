@@ -28,7 +28,6 @@
 #endif /* TIXML_USE_STL */
 #include <string>
 #include <tinyxml.h>
-#include "./src/XSDParser/Exception.hpp"
 #include "./src/XSDParser/Elements/Node.hpp"
 #include "./src/XSDParser/Elements/Schema.hpp"
 
@@ -38,19 +37,17 @@ namespace XSD {
 			XSD_ELEMENT_TAG("include")
 		private:
 			mutable Schema*	m_pSchema;
-			Parser	m_parser;
 			Include();
-			std::string _schemaURI() const noexcept(false);;
-			static std::string _extractURIPath(const std::string& uri);
-			static bool _isFileURI(const std::string& uri);
-			static std::string _extractQuery(const std::string& uri);
+			std::string schemaURI_() const noexcept(false);;
+			static std::string extractURIPath_(const std::string& uri);
+			static bool isFileURI_(const std::string& uri);
+			static std::string extractQuery_(const std::string& uri);
 		public:
 			Include(const TiXmlElement& elm, const Parser& rParser);
 			Include(const Include& elm);
 			virtual ~Include();
 			void ParseChildren(BaseProcessor& rProcessor) const noexcept(false);;
 			void ParseElement(BaseProcessor& rProcessor) const noexcept(false);;
-			Types::BaseType * GetParentType() const noexcept(false);;
 			const Schema* QuerySchema() const noexcept(false);;
 			bool HasSchema() const;
 		};

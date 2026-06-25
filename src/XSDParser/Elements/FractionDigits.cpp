@@ -35,42 +35,15 @@ using namespace XSD;
 using namespace XSD::Elements;
 
 FractionDigits::FractionDigits(const TiXmlElement& elm, const Parser& rParser)
-	: Node(elm, rParser)
+	: FacetNode(elm, rParser)
 { }
 
 FractionDigits::FractionDigits(const FractionDigits& cpy)
-	: Node(cpy)
+	: FacetNode(cpy)
 { }
-
-void
-FractionDigits::ParseChildren(BaseProcessor& rProcessor) const noexcept(false) {
-	/* no children allowed */
-	std::unique_ptr<Node> pNode(Node::FirstChild());
-	if (NULL != pNode.get()) {
-		if (XSD_ISELEMENT(pNode.get(), Annotation))
-			pNode->ParseElement(rProcessor);
-		else
-			throw XMLException(pNode->GetXMLElm(), XMLException::InvallidChildXMLElement);
-	}
-}
 
 void
 FractionDigits::ParseElement(BaseProcessor& rProcessor) const noexcept(false) {
 	rProcessor.ProcessFractionDigits(this);
 }
 
-Types::BaseType * 
-FractionDigits::GetParentType() const noexcept(false) {
-	std::unique_ptr<Node> pParent(Node::Parent());
-	return pParent->GetParentType();
-}
-
-uint64_t
-FractionDigits::Value() const noexcept(false) {
-	return Node::GetAttribute<uint64_t>("value");
-}
-
-bool
-FractionDigits::HasValue() const {
-	return Node::HasAttribute("value");
-}

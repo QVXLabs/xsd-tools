@@ -25,7 +25,7 @@
 
 using namespace XSD;
 
-static const char* _ERRORTBL[] ={
+static const char* ERRORTBL_[] ={
 		ENUM_STR(TIXML_NO_ERROR),
 		ENUM_STR(TIXML_ERROR),
 		ENUM_STR(TIXML_ERROR_OPENING_FILE),
@@ -72,15 +72,15 @@ XMLException::ErrorInfo::ErrorInfo(const ErrorInfo& err)
 
 XMLException::XMLException(const TiXmlDocument& doc) throw ()
 	: m_errorInfo(doc.ErrorId(), doc.ErrorRow(), doc.ErrorCol())
-{ _createErrorString(); }
+{ createErrorString_(); }
 
 XMLException::XMLException(const XMLException& excpt) throw ()
 	: m_errorInfo(excpt.m_errorInfo)
-{ _createErrorString(); }
+{ createErrorString_(); }
 
 XMLException::XMLException(const TiXmlBase& elem, int id) throw()
 	: m_errorInfo(id, elem.Row(), elem.Column())
-{ _createErrorString(); }
+{ createErrorString_(); }
 
 /* virtual */
 XMLException::~XMLException() throw ()
@@ -97,9 +97,9 @@ XMLException::what() const throw() {
 }
 
 void
-XMLException::_createErrorString() throw (){
+XMLException::createErrorString_() throw (){
 	std::stringstream strStrm(m_errorMsg);
-	strStrm << "XSD Parse Error: " << _ERRORTBL[m_errorInfo.m_errorId]
+	strStrm << "XSD Parse Error: " << ERRORTBL_[m_errorInfo.m_errorId]
 	        << "(" << m_errorInfo.m_errorId << ") row:" << m_errorInfo.m_docRow
 	        << " col: " << m_errorInfo.m_docCol << std::endl;
 	m_errorMsg = strStrm.str();

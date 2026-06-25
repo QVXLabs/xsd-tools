@@ -1,5 +1,5 @@
 /*
- * Document.cpp
+ * Schema.cpp
  *
  *  Created on: Jun 26, 2011
  *      Author: QVXLabs LLC
@@ -47,7 +47,7 @@ Schema::~Schema()
 void
 Schema::ParseChildren(BaseProcessor& rProcessor) const noexcept(false) {
 	/* process children */
-	_eachChild([&rProcessor](const Node& rNode) {
+	eachChild_([&rProcessor](const Node& rNode) {
 		if (XSD_ISELEMENT(&rNode, Element) ||
 			XSD_ISELEMENT(&rNode, Annotation) ||
 			XSD_ISELEMENT(&rNode, Include)) {
@@ -63,7 +63,7 @@ Schema::ParseElement(BaseProcessor& rProcessor) const noexcept(false) {
 
 const std::string
 Schema::Name() const noexcept(false) {
-	return _extractName(m_documentURI);
+	return extractName_(m_documentURI);
 }
 
 const std::string&
@@ -101,6 +101,6 @@ Schema::isRootSchema() const {
 }
 
 /* static */ std::string
-Schema::_extractName(const std::string& uri) {
+Schema::extractName_(const std::string& uri) {
 	return Util::StripFileExtension(Util::ExtractResourceName(uri));
 }

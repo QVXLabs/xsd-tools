@@ -56,7 +56,7 @@ ElementExtracter::Extract(const Schema& rDocRoot) {
 /* virtual */ void 
 ElementExtracter::ProcessSchema(const Schema* pNode) {
 	/* different iterator accross the schema children */
-	pNode->_eachChild([&](const Node& rNode) {
+	pNode->eachChild_([&](const Node& rNode) {
 		if (XSD_ISELEMENT(&rNode, Element) ||
 			XSD_ISELEMENT(&rNode, Annotation) ||
 			XSD_ISELEMENT(&rNode, Include) ||

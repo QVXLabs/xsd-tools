@@ -42,7 +42,6 @@ namespace XSD {
 			Sequence(const Sequence& rCpy);
 			void ParseChildren(BaseProcessor& rProcessor) const noexcept(false);;
 			void ParseElement(BaseProcessor& rProcessor) const noexcept(false);;
-			Types::BaseType * GetParentType() const noexcept(false);;
 			bool HasElements() const noexcept(false);;
 		};
 	}	/* namespace Elements */

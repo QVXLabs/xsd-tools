@@ -45,7 +45,7 @@ SimpleType::SimpleType(const SimpleType& rType)
 void
 SimpleType::ParseChildren(BaseProcessor& rProcessor) const noexcept(false) {
 	/* process children */
-	_eachChild([&rProcessor](const Node& rNode) {
+	eachChild_([&rProcessor](const Node& rNode) {
 		if (XSD_ISELEMENT(&rNode, Restriction) ||
 			XSD_ISELEMENT(&rNode, List) ||
 			XSD_ISELEMENT(&rNode, Annotation) ||
@@ -87,7 +87,7 @@ SimpleType::GetRestriction() const noexcept {
 
 std::string
 SimpleType::Name() const noexcept(false) {
-	return std::string(this->GetAttribute<const char*>("name"));
+	return Node::name_();
 }
 
 bool

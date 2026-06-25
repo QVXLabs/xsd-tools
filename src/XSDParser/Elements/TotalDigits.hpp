@@ -29,20 +29,18 @@
 #endif /* TIXML_USE_STL */
 #include <tinyxml.h>
 #include "./src/XSDParser/Elements/Node.hpp"
+#include "./src/XSDParser/Elements/FacetNode.hpp"
 namespace XSD {
 	namespace Elements {
-		class TotalDigits : public Node {
+		class TotalDigits
+				: public FacetNode<TotalDigits, uint64_t> {
 			XSD_ELEMENT_TAG("totalDigits")
 		private:
 			TotalDigits();
 		public:
 			TotalDigits(const TiXmlElement& elm, const Parser& rParser);
 			TotalDigits(const TotalDigits& cpy);
-			void ParseChildren(BaseProcessor& rProcessor) const noexcept(false);;
-			void ParseElement(BaseProcessor& rProcessor) const noexcept(false);;
-			Types::BaseType * GetParentType() const noexcept(false);;
-			uint64_t Value() const noexcept(false);;
-			bool HasValue() const;
+			void ParseElement(BaseProcessor& rProcessor) const noexcept(false);
 		};
 	}	/* namespace Elements */
 }	/* namespace XSD */

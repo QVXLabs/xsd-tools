@@ -45,11 +45,30 @@ Parser::Parse(const char* pUri) const noexcept(false) {
 	return Parse(uri);
 }
 
+Parser::DocumentRecord*
+Parser::findByUri_(const std::string& rUri) const {
+	for (XmlDocList::iterator i = m_docLst.begin(); i != m_docLst.end(); ++i) {
+		if ((*i)->m_uri == rUri)
+			return *i;
+	}
+	return NULL;
+}
+
+Parser::DocumentRecord*
+Parser::findByDoc_(const TiXmlDocument& document) const {
+	for (XmlDocList::iterator i = m_docLst.begin(); i != m_docLst.end(); ++i) {
+		if ((*i)->m_pDocument == &document)
+			return *i;
+	}
+	return NULL;
+}
+
 Elements::Schema*
 Parser::Parse(const std::string& rUri) const noexcept(false) {
 	/* search if the document has already been parsed */
-	if (HasDocument(rUri)) {
-		return new Elements::Schema(*(GetDocument(rUri)->RootElement()), *this, rUri);
+	if (DocumentRecord* pRec = findByUri_(rUri)) {
+		return new Elements::Schema(*(pRec->m_pDocument->RootElement()),
+			*this, rUri);
 	} else {
 		m_docLst.push_back(new DocumentRecord(new TiXmlDocument(), rUri));
 		TiXmlDocument * pDoc = m_docLst.back()->m_pDocument;
@@ -77,40 +96,26 @@ Parser::QueryTypesDb() const throw() {
 	return m_typesDb;
 }
 
-bool 
+bool
 Parser::HasDocument(const TiXmlDocument& document) const {
-	for (XmlDocList::iterator i = m_docLst.begin(); i != m_docLst.end(); ++i) {
-		if ((*i)->m_pDocument == &document) 
-			return true;
-	}
-	return false;
+	return NULL != findByDoc_(document);
 }
 
-bool 
+bool
 Parser::HasDocument(const std::string& rUri) const {
-	for (XmlDocList::iterator i = m_docLst.begin(); i != m_docLst.end(); ++i) {
-		if ((*i)->m_uri == rUri) 
-			return true;
-	}
-	return false;
+	return NULL != findByUri_(rUri);
 }
 
-std::string 
+std::string
 Parser::GetUri(const TiXmlDocument& document) const {
-	for (XmlDocList::iterator i = m_docLst.begin(); i != m_docLst.end(); ++i) {
-		if ((*i)->m_pDocument == &document) 
-			return (*i)->m_uri;
-	}
-	return std::string("unknown");
+	DocumentRecord* pRec = findByDoc_(document);
+	return pRec ? pRec->m_uri : std::string("unknown");
 }
 
 const TiXmlDocument *
 Parser::GetDocument(const std::string& rUri) const {
-	for (XmlDocList::iterator i = m_docLst.begin(); i != m_docLst.end(); ++i) {
-		if ((*i)->m_uri == rUri) 
-			return (*i)->m_pDocument;
-	}
-	return NULL;
+	DocumentRecord* pRec = findByUri_(rUri);
+	return pRec ? pRec->m_pDocument : NULL;
 }
 
 bool 

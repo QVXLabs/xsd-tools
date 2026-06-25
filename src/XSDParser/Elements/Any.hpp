@@ -36,7 +36,7 @@ namespace XSD {
 			XSD_ELEMENT_TAG("any")
 		private:
 			Any();
-			static Element * _findParentElement(const Node * pNode);
+			static Element * findParentElement_(const Node * pNode);
 		public:
 			typedef enum {
 				STRICT,
@@ -47,7 +47,6 @@ namespace XSD {
 			Any(const Any& cpy);
 			void ParseChildren(BaseProcessor& rProcessor) const noexcept(false);;
 			void ParseElement(BaseProcessor& rProcessor) const noexcept(false);;
-			Types::BaseType * GetParentType() const noexcept(false);;
 			Processors::ElementExtracter::ElementLst GetAllowedElements() const;
 			int MaxOccurs() const;
 			int MinOccurs() const;

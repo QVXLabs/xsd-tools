@@ -41,7 +41,7 @@ Sequence::Sequence(const Sequence& rCpy)
 void
 Sequence::ParseChildren(BaseProcessor& rProcessor) const noexcept(false) {
 	/* process children */
-	_eachChild([&rProcessor](const Node& rNode) {
+	eachChild_([&rProcessor](const Node& rNode) {
 		if (XSD_ISELEMENT(&rNode, Element) ||
 			XSD_ISELEMENT(&rNode, Choice) ||
 			XSD_ISELEMENT(&rNode, Annotation) ||
@@ -56,12 +56,6 @@ Sequence::ParseChildren(BaseProcessor& rProcessor) const noexcept(false) {
 void
 Sequence::ParseElement(BaseProcessor& rProcessor) const noexcept(false) {
 	rProcessor.ProcessSequence(this);
-}
-
-Types::BaseType * 
-Sequence::GetParentType() const noexcept(false) {
-	std::unique_ptr<Node> pParent(Node::Parent());
-	return pParent->GetParentType();
 }
 
 bool

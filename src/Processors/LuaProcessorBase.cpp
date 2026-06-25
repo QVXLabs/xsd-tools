@@ -75,172 +75,53 @@ LuaProcessorBase::~LuaProcessorBase() {
 	delete m_pLuaAdapter;
 }
 
-/* virtual */ void
-LuaProcessorBase::ProcessSchema(const XSD::Elements::Schema* pNode) {
-	pNode->ParseChildren(*this);
-}
-	
-/* virtual */ void 
-LuaProcessorBase::ProcessElement(const XSD::Elements::Element* pNode) {
-	pNode->ParseChildren(*this);
-}
-	
-/* virtual */ void
-LuaProcessorBase::ProcessUnion(const XSD::Elements::Union* pNode) {
-	pNode->ParseChildren(*this);
-}
-	
-/* virtual */ void
-LuaProcessorBase::ProcessRestriction(const XSD::Elements::Restriction* pNode ) {
-	pNode->ParseChildren(*this);
-}
-	
-/* virtual */ void
-LuaProcessorBase::ProcessList(const XSD::Elements::List* pNode) {
-	pNode->ParseChildren(*this);
-}
+/* Every base callback just recurses into the node's children. Enumerate the
+ * (ProcessXxx, element type) pairs once and stamp out the bodies. */
+#define LUA_PROC_BASE_CALLBACKS(X) \
+	X(ProcessSchema,         Schema) \
+	X(ProcessElement,        Element) \
+	X(ProcessUnion,          Union) \
+	X(ProcessRestriction,    Restriction) \
+	X(ProcessList,           List) \
+	X(ProcessSequence,       Sequence) \
+	X(ProcessChoice,         Choice) \
+	X(ProcessAttribute,      Attribute) \
+	X(ProcessSimpleType,     SimpleType) \
+	X(ProcessComplexType,    ComplexType) \
+	X(ProcessGroup,          Group) \
+	X(ProcessAny,            Any) \
+	X(ProcessComplexContent, ComplexContent) \
+	X(ProcessExtension,      Extension) \
+	X(ProcessSimpleContent,  SimpleContent) \
+	X(ProcessMinExclusive,   MinExclusive) \
+	X(ProcessMaxExclusive,   MaxExclusive) \
+	X(ProcessMinInclusive,   MinInclusive) \
+	X(ProcessMaxInclusive,   MaxInclusive) \
+	X(ProcessMinLength,      MinLength) \
+	X(ProcessMaxLength,      MaxLength) \
+	X(ProcessLength,         Length) \
+	X(ProcessEnumeration,    Enumeration) \
+	X(ProcessFractionDigits, FractionDigits) \
+	X(ProcessPattern,        Pattern) \
+	X(ProcessTotalDigits,    TotalDigits) \
+	X(ProcessWhiteSpace,     WhiteSpace) \
+	X(ProcessAttributeGroup, AttributeGroup) \
+	X(ProcessInclude,        Include) \
+	X(ProcessAnnotation,     Annotation) \
+	X(ProcessDocumentation,  Documentation) \
+	X(ProcessAll,            All) \
+	X(ProcessAppInfo,        AppInfo)
 
-/* virtual */ void
-LuaProcessorBase::ProcessSequence(const XSD::Elements::Sequence* pNode) {
-	pNode->ParseChildren(*this);
-}
-
-/* virtual */ void
-LuaProcessorBase::ProcessChoice(const XSD::Elements::Choice* pNode ) {
-	pNode->ParseChildren(*this);
-}
-	
-/* virtual */ void
-LuaProcessorBase::ProcessAttribute(const XSD::Elements::Attribute* pNode) {
-	pNode->ParseChildren(*this);
-}
-
-/* virtual */ void
-LuaProcessorBase::ProcessSimpleType(const XSD::Elements::SimpleType* pNode) {
-	pNode->ParseChildren(*this);
-}
-
-/* virtual */ void
-LuaProcessorBase::ProcessComplexType(const XSD::Elements::ComplexType* pNode) {
-	pNode->ParseChildren(*this);
-}
-
-/* virtual */ void
-LuaProcessorBase::ProcessGroup(const XSD::Elements::Group* pNode) {
-	pNode->ParseChildren(*this);
-}
-
-/* virtual */ void
-LuaProcessorBase::ProcessAny(const XSD::Elements::Any* pNode) {
-	pNode->ParseChildren(*this);
-}
-
-/* virtual */ void
-LuaProcessorBase::ProcessComplexContent(const XSD::Elements::ComplexContent* pNode) {
-	pNode->ParseChildren(*this);
-}
-
-/* virtual */ void
-LuaProcessorBase::ProcessExtension(const XSD::Elements::Extension* pNode) {
-	pNode->ParseChildren(*this);
-}
-
-/* virtual */ void
-LuaProcessorBase::ProcessSimpleContent(const XSD::Elements::SimpleContent* pNode) {
-	pNode->ParseChildren(*this);
-}
-
-/* virtual */ void
-LuaProcessorBase::ProcessMinExclusive(const XSD::Elements::MinExclusive* pNode) {
-	pNode->ParseChildren(*this);
-}
-
-/* virtual */ void
-LuaProcessorBase::ProcessMaxExclusive(const XSD::Elements::MaxExclusive* pNode) {
-	pNode->ParseChildren(*this);
-}
-
-/* virtual */ void
-LuaProcessorBase::ProcessMinInclusive(const XSD::Elements::MinInclusive* pNode) {
-	pNode->ParseChildren(*this);
-}
-
-/* virtual */ void
-LuaProcessorBase::ProcessMaxInclusive(const XSD::Elements::MaxInclusive* pNode) {
-	pNode->ParseChildren(*this);
-}
-
-/* virtual */ void
-LuaProcessorBase::ProcessMinLength(const XSD::Elements::MinLength* pNode) {
-	pNode->ParseChildren(*this);
-}
-
-/* virtual */ void
-LuaProcessorBase::ProcessMaxLength(const XSD::Elements::MaxLength* pNode) {
-	pNode->ParseChildren(*this);
-}
-
-/* virtual */ void
-LuaProcessorBase::ProcessLength(const XSD::Elements::Length* pNode) {
-	pNode->ParseChildren(*this);
-}
-
-/* virtual */ void
-LuaProcessorBase::ProcessEnumeration(const XSD::Elements::Enumeration* pNode) {
-	pNode->ParseChildren(*this);
-}
-
-/* virtual */ void 
-LuaProcessorBase::ProcessFractionDigits(const XSD::Elements::FractionDigits* pNode) {
-	pNode->ParseChildren(*this);
-}
-
-/* virtual */ void 
-LuaProcessorBase::ProcessPattern(const XSD::Elements::Pattern* pNode) {
-	pNode->ParseChildren(*this);
-}
-
-/* virtual */ void 
-LuaProcessorBase::ProcessTotalDigits(const XSD::Elements::TotalDigits* pNode) {
-	pNode->ParseChildren(*this);
-}
-
-/* virtual */ void 
-LuaProcessorBase::ProcessWhiteSpace(const XSD::Elements::WhiteSpace* pNode) {
-	pNode->ParseChildren(*this);
-}
-
-/* virtual */ void
-LuaProcessorBase::ProcessAttributeGroup(const XSD::Elements::AttributeGroup* pNode) {
-	pNode->ParseChildren(*this);
-}
-
-/* virtual */ void
-LuaProcessorBase::ProcessInclude(const XSD::Elements::Include* pNode) {
-	pNode->ParseChildren(*this);
-}
-
-/* virtual */ void
-LuaProcessorBase::ProcessAnnotation(const XSD::Elements::Annotation* pNode) {
-	pNode->ParseChildren(*this);
-}
-
-/* virtual */ void
-LuaProcessorBase::ProcessDocumentation(const XSD::Elements::Documentation* pNode) {
-	pNode->ParseChildren(*this);
-}
-
-/* virtual */ void
-LuaProcessorBase::ProcessAll(const XSD::Elements::All* pNode) {
-	pNode->ParseChildren(*this);
-}
-
-/* virtual */ void
-LuaProcessorBase::ProcessAppInfo(const XSD::Elements::AppInfo* pNode) {
-	pNode->ParseChildren(*this);
-}
+#define LUA_PROC_BASE_DEFN(METHOD, TYPE) \
+	/* virtual */ void \
+	LuaProcessorBase::METHOD(const XSD::Elements::TYPE* pNode) { \
+		pNode->ParseChildren(*this); \
+	}
+LUA_PROC_BASE_CALLBACKS(LUA_PROC_BASE_DEFN)
+#undef LUA_PROC_BASE_DEFN
+#undef LUA_PROC_BASE_CALLBACKS
 
 LuaAdapter *
-LuaProcessorBase::_luaAdapter() const {
+LuaProcessorBase::luaAdapter_() const {
 	return m_pLuaAdapter;
 }

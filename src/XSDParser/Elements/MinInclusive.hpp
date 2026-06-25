@@ -29,20 +29,18 @@
 #endif /* TIXML_USE_STL */
 #include <tinyxml.h>
 #include "./src/XSDParser/Elements/Node.hpp"
+#include "./src/XSDParser/Elements/FacetNode.hpp"
 namespace XSD {
 	namespace Elements {
-		class MinInclusive : public Node {
+		class MinInclusive
+				: public FacetNode<MinInclusive, long double> {
 			XSD_ELEMENT_TAG("minInclusive")
 		private:
 			MinInclusive();
 		public:
 			MinInclusive(const TiXmlElement& elm, const Parser& rParser);
 			MinInclusive(const MinInclusive& cpy);
-			void ParseChildren(BaseProcessor& rProcessor) const noexcept(false);
 			void ParseElement(BaseProcessor& rProcessor) const noexcept(false);
-			Types::BaseType * GetParentType() const noexcept(false);
-			long double Value() const noexcept(false);
-			bool HasValue() const;
 		};
 	}	/* namespace Elements */
 }	/* namespace XSD */

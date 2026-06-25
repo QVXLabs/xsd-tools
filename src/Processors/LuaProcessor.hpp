@@ -66,13 +66,13 @@ namespace Processors {
 		virtual void ProcessWhiteSpace(const XSD::Elements::WhiteSpace* pNode);
 	protected:
 		LuaProcessor(LuaAdapter * pLuaAdapter);
-		virtual void _parseType(const XSD::Types::BaseType& rXSDType);
+		virtual void parseType_(const XSD::Types::BaseType& rXSDType);
 	private:
 		LuaProcessor();
 		/* dispatch a restriction's facet children to this processor */
-		void _walkFacets(const XSD::Elements::Node* pNode);
+		void walkFacets_(const XSD::Elements::Node* pNode);
 		/* accumulate an attribute's restriction facets onto m_facets */
-		void _walkAttributeFacets(const XSD::Types::BaseType* pType);
+		void walkAttributeFacets_(const XSD::Types::BaseType* pType);
 		/* facets accumulated across a restriction derivation chain */
 		LuaFacets m_facets;
 	};

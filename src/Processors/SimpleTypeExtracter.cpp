@@ -48,7 +48,7 @@ SimpleTypeExtracter::~SimpleTypeExtracter() {
 
 const XSD::Types::BaseType&
 SimpleTypeExtracter::Extract(const XSD::Types::BaseType& rXSDType) {
-	_parseType(rXSDType);
+	parseType_(rXSDType);
 	return *m_pType;
 }
 
@@ -63,7 +63,7 @@ SimpleTypeExtracter::ProcessRestriction(const XSD::Elements::Restriction* pNode 
 		pNode->ParseChildren(*this);
 	else {
 		unique_ptr<XSD::Types::BaseType> pType(pNode->Base());
-		_parseType(*pType);
+		parseType_(*pType);
 	}
 }
 
@@ -72,7 +72,7 @@ SimpleTypeExtracter::ProcessList(const XSD::Elements::List* pNode) {
 	unique_ptr<XSD::Types::BaseType> pTypeLst(pNode->ItemType());
 	/* extract xsd native type from simple type */
 	SimpleTypeExtracter typeXtr;
-	_parseType(Types::ArrayType(typeXtr.Extract(*pTypeLst)));
+	parseType_(Types::ArrayType(typeXtr.Extract(*pTypeLst)));
 }
 
 /* virtual */ void
@@ -82,7 +82,7 @@ SimpleTypeExtracter::ProcessInclude(const XSD::Elements::Include* pNode) {
 }
 
 void 
-SimpleTypeExtracter::_parseType(const XSD::Types::BaseType& rXSDType) {
+SimpleTypeExtracter::parseType_(const XSD::Types::BaseType& rXSDType) {
 	if(XSD_ISTYPE(&rXSDType, XSD::Types::SimpleType)) {
 		const XSD::Types::SimpleType* pSimpleType = static_cast<const XSD::Types::SimpleType*>(&rXSDType);
 		pSimpleType->m_pValue->ParseElement(*this);

@@ -57,7 +57,7 @@ ComplexType::ParseChildren(BaseProcessor& rProcessor) const noexcept(false) {
 	/* process children */
 	enum { CMODEL_UNKNOWN, CMODEL_TRUE, CMODEL_FALSE };
 	int contentModel = CMODEL_UNKNOWN;
-	_eachChild([&rProcessor, &contentModel](const Node& rNode) {
+	eachChild_([&rProcessor, &contentModel](const Node& rNode) {
 		if (XSD_ISELEMENT(&rNode, ComplexContent) ||
 			XSD_ISELEMENT(&rNode, SimpleContent)) {
 			if (CMODEL_FALSE != contentModel) {
@@ -125,7 +125,7 @@ ComplexType::Mixed() const {
 
 std::string
 ComplexType::Name() const noexcept(false) {
-	return std::string(Node::GetAttribute<const char*>("name"));
+	return Node::name_();
 }
 
 bool

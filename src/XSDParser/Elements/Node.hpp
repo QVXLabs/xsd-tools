@@ -56,19 +56,19 @@ namespace XSD {
 
 			Node();
 			const TiXmlElement* ContentElement(const char* pElemName) const noexcept(false);
-			const TiXmlElement* _FindChildXMLElement(const char* pXMLElmTag, const char* pAttrib, const char* pName) const noexcept(false);
-			Node* _FindXSDElm(const char* pName, const char* pTypeName) const noexcept(false);
-			Node* _ConstructNode(const TiXmlElement* pElm, const Parser& rParser) const;
-			Node* _FindXSDNode(const char* pName, const char* pTypeName) const noexcept(false);
-			Node* _FindChildXSDNode(const char* pXMLTag) const noexcept(false);
-			Node* _FindXSDRef(const char* pRefAttribStr, const char* pTypeName) const noexcept(false);
-			std::string _Attribute(const char* pAttrib) const noexcept(false);
-			Types::BaseType* _Type(const char* pType) const noexcept(false);
-			const std::string _StripNamespace(const std::string& rQName) const noexcept(false);
+			const TiXmlElement* FindChildXMLElement_(const char* pXMLElmTag, const char* pAttrib, const char* pName) const noexcept(false);
+			Node* FindXSDElm_(const char* pName, const char* pTypeName) const noexcept(false);
+			Node* ConstructNode_(const TiXmlElement* pElm, const Parser& rParser) const;
+			Node* FindXSDNode_(const char* pName, const char* pTypeName) const noexcept(false);
+			Node* FindChildXSDNode_(const char* pXMLTag) const noexcept(false);
+			Node* FindXSDRef_(const char* pRefAttribStr, const char* pTypeName) const noexcept(false);
+			std::string Attribute_(const char* pAttrib) const noexcept(false);
+			Types::BaseType* Type_(const char* pType) const noexcept(false);
+			const std::string StripNamespace_(const std::string& rQName) const noexcept(false);
 		protected:
 			Node(const TiXmlElement& elm, const Parser& rParser);
 			Node(const Node& rCpy);
-			Types::BaseType* LookupType(const char* pType) const noexcept(false) { return _Type(pType); }
+			Types::BaseType* LookupType(const char* pType) const noexcept(false) { return Type_(pType); }
 			/* QueryRootElement(): returns the root element of the document containg the node*/
 			const TiXmlElement& QueryRootElement() const;
 			Schema * GetSchema() const noexcept(false);
@@ -77,25 +77,36 @@ namespace XSD {
 			bool HasContent(const char* pElemName) const noexcept;
 			bool HasContent() const noexcept;
 			bool IsRootNode() const noexcept;
+			/* Shared maxOccurs/minOccurs reads: absent -> dflt, "unbounded"
+			 * -> -1. Used by the byte-identical Choice/Group/Any overrides. */
+			int maxOccurs_(int dflt) const noexcept(false);
+			int minOccurs_(int dflt) const noexcept(false);
+			/* GetParentType for nodes whose type comes from a single child
+			 * restriction xor extension (simpleContent/complexContent). */
+			Types::BaseType* delegateToSoleChild_() const noexcept(false);
+			/* The "base" attribute as a type; shared by restriction/extension. */
+			Types::BaseType* baseType_() const noexcept(false);
+			/* The "name" attribute as a string; shared by named nodes. */
+			std::string name_() const noexcept(false);
 			std::string QualifyElementName(const char* pElemName) const noexcept;
 			template<typename T> T GetAttribute(const char* pAttrib) const noexcept(false) {
 				T retVal;
-				std::stringstream sstrm(_Attribute(pAttrib));
+				std::stringstream sstrm(Attribute_(pAttrib));
 				sstrm >> retVal;
 				return retVal;
 			}
 			template<typename T> T* FindXSDElm(const char* pName) const noexcept(false) {
-				return static_cast<T*>(_FindXSDNode(pName, T::XSDTag()));
+				return static_cast<T*>(FindXSDNode_(pName, T::XSDTag()));
 			}
 			template<typename T> T* FindXSDRef(const char* pRefAttribStr) const noexcept(false) {
-				return static_cast<T*>(_FindXSDRef(pRefAttribStr, T::XSDTag()));
+				return static_cast<T*>(FindXSDRef_(pRefAttribStr, T::XSDTag()));
 			}
 			template<typename T> T* FindXSDChildElm() const noexcept(false) {
-				return static_cast<T*>(_FindChildXSDNode(T::XSDTag()));
+				return static_cast<T*>(FindChildXSDNode_(T::XSDTag()));
 			}
 			template<typename T> T* SearchXSDChildElm() const noexcept {
 				try {
-					return static_cast<T*>(_FindChildXSDNode(T::XSDTag()));
+					return static_cast<T*>(FindChildXSDNode_(T::XSDTag()));
 				} catch (XMLException& e) {
 					return NULL;
 				}
@@ -104,26 +115,27 @@ namespace XSD {
 			virtual ~Node();
 			virtual void ParseChildren(BaseProcessor& rProcessor) const noexcept(false) = 0;
 			virtual void ParseElement(BaseProcessor& rProcessor) const noexcept(false) = 0;
-			/* for "element" : return their type 
+			/* for "element" : return their type
 			 * for "simpleType/complexType" : return the base type of their child elements
 			 * for "simpleContent/complexContent" : return type of their child restriction/extension elements
 			 * for "restriction/extension": return base type
 			 * for "list" : return type
 			 * for "union" : return xs:string HACK
-			 * for all other elements: return the type they are enclosed in */
-			virtual Types::BaseType * GetParentType() const noexcept(false) = 0;
+			 * for all other elements: return the type they are enclosed in
+			 * (the default — delegate to the enclosing parent) */
+			virtual Types::BaseType * GetParentType() const noexcept(false);
 			Node* Parent() const noexcept(false);
 			Node* FirstChild() const noexcept(false);
 			Node* NextSibling() const noexcept(false);
 			/* Recurse over the child sibling chain, invoking rFn on each
 			 * child. Functional replacement for the do/while NextSibling
 			 * loops in the ParseChildren overrides. */
-			void _eachChild(
+			void eachChild_(
 				const std::function<void(const Node&)>& rFn) const noexcept(false);
 			/* Recurse the child sibling chain until rFn returns true (a
 			 * short-circuiting search); returns true if some child matched.
 			 * Functional replacement for the do/while search loops. */
-			bool _findChild(
+			bool findChild_(
 				const std::function<bool(const Node&)>& rFn) const noexcept(false);
 			bool operator == (const Node& elm) const;
 			bool operator == (const Node& elm);

@@ -115,21 +115,27 @@ namespace XSD {
     XSD_TYPEDEF(NMTokens,AnyAtomicType,std::string, NMTOKENS);
     XSD_TYPEDEF(Unsupported,AnySimpleType,void*, Unsupported);
     XSD_TYPEDEF(Unknown,AnySimpleType,void*, Unknown);
-    struct SimpleType : public BaseType {
-      Elements::SimpleType* m_pValue;
-      mutable std::string   m_name;
-      inline SimpleType(Elements::SimpleType* pElm)
-	: m_pValue(pElm), m_name("Unnamed") {} 
+    /* Shared body for the two XSD-element-backed wrapper types. Derived is
+     * the concrete wrapper (for clone()/typeid); Elm is its element type.
+     * clone/isTypeRelated/Name/dtor live in Types.cpp via the WRAPPED_TYPE
+     * macro so the vtable is keyed on the concrete type. */
+    template<typename Derived, typename Elm>
+    struct WrappedType : public BaseType {
+      Elm* m_pValue;
+      mutable std::string m_name;
+      inline WrappedType(Elm* pElm)
+        : m_pValue(pElm), m_name("Unnamed") {}
+    };
+    struct SimpleType : public WrappedType<SimpleType, Elements::SimpleType> {
+      inline SimpleType(Elements::SimpleType* pElm) : WrappedType(pElm) {}
       virtual BaseType* clone() const;
       virtual bool isTypeRelated(const BaseType* pType) const;
       virtual const char* Name() const;
       virtual ~SimpleType();
     };
-    struct ComplexType : public BaseType {
-      Elements::ComplexType* m_pValue;
-      mutable std::string    m_name;
-      inline ComplexType(Elements::ComplexType* pElm)
-        : m_pValue(pElm), m_name("Unnamed") {}
+    struct ComplexType
+        : public WrappedType<ComplexType, Elements::ComplexType> {
+      inline ComplexType(Elements::ComplexType* pElm) : WrappedType(pElm) {}
       virtual BaseType* clone() const;
       virtual bool isTypeRelated(const BaseType* pType) const;
       virtual const char* Name() const;

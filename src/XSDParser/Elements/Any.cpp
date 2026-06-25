@@ -69,12 +69,6 @@ Any::ParseElement(BaseProcessor& rProcessor) const noexcept(false) {
 	rProcessor.ProcessAny(this);
 }
 
-Types::BaseType * 
-Any::GetParentType() const noexcept(false) {
-	std::unique_ptr<Node> pParent(Node::Parent());
-	return pParent->GetParentType();
-}
-
 Processors::ElementExtracter::ElementLst
 Any::GetAllowedElements() const {
   Processors::ElementExtracter::ElementLst retLst;
@@ -83,7 +77,7 @@ Any::GetAllowedElements() const {
 		std::unique_ptr<Schema> pDocRoot(Node::GetSchema());
 		retLst = elmExtrctr.Extract(*pDocRoot);
 		/* find parent element and remove it from list to prevent recursive loops */
-		std::unique_ptr<Element> pElement(_findParentElement(this));
+		std::unique_ptr<Element> pElement(findParentElement_(this));
 		if (NULL != pElement.get()) {
 			for (	Processors::ElementExtracter::ElementLst::iterator itr = retLst.begin();
 				  itr != retLst.end();
@@ -100,21 +94,12 @@ Any::GetAllowedElements() const {
 
 int
 Any::MaxOccurs() const {
-	if (HasMaxOccurs()) {
-		if (strcmp(Node::GetAttribute<const char*>("maxOccurs"), "unbounded"))
-			return Node::GetAttribute<int>("maxOccurs");
-		else
-			return -1;
-	}
-	return 1;
+	return Node::maxOccurs_(1);
 }
 
 int
 Any::MinOccurs() const {
-	if (HasMinOccurs()) {
-		return Node::GetAttribute<int>("minOccurs");
-	}
-	return 1;
+	return Node::minOccurs_(1);
 }
 
 std::string
@@ -162,11 +147,11 @@ Any::HasProcessContents() const {
 }
 
 /* static */ Element * 
-Any::_findParentElement(const Node * pNode) {
+Any::findParentElement_(const Node * pNode) {
 	if (NULL == pNode)
 		return NULL;
 	if (XSD_ISELEMENT(pNode, Element)) 
 		return new Element(*(static_cast<const Element *>(pNode)));
 	std::unique_ptr<Node> pParent(pNode->Parent());
-	return _findParentElement(pParent.get());
+	return findParentElement_(pParent.get());
 }
