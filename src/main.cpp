@@ -21,7 +21,11 @@
  *  along with xsd-tools.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <unistd.h>
+#if defined(_WIN32)
+#	include <io.h>
+#else
+#	include <unistd.h>
+#endif
 #include <exception>
 #include <sstream>
 #include <string>
@@ -97,7 +101,11 @@ int main(int argc, const char* argv[]) {
 
 	/* Distinguish a missing/unreadable XSD up front: Generate() would
 	 * otherwise surface this as a generic parse error. */
+#if defined(_WIN32)
+	if (0 != _access(xsdPath.c_str(), 4 /* R_OK */)) {
+#else
 	if (0 != access(xsdPath.c_str(), R_OK)) {
+#endif
 		cerr << "XSD file not found or unreadable: " << xsdPath << endl;
 		return 3;
 	}
