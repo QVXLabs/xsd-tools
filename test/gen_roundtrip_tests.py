@@ -29,12 +29,22 @@ TARGETS = [
      "roundtrip_java_json.cpp"),
     ("JavaXmlRoundtrip", "javaXmlRoundtrip", ["mvn", "java"],
      "roundtrip_java_xml.cpp"),
+    # Workstream I targets — enable once their templates land (integrate step).
+    ("CppXmlRoundtrip", "cppXmlRoundtrip", ["c++"],
+     "roundtrip_cpp_xml.cpp"),
+    ("CppJsonRoundtrip", "cppJsonRoundtrip", ["c++"],
+     "roundtrip_cpp_json.cpp"),
+    # tsc is provided locally by npm install (node_modules/.bin), so the gate
+    # only needs node on PATH.
+    ("TsXmlRoundtrip", "tsXmlRoundtrip", ["node"],
+     "roundtrip_ts_xml.cpp"),
 ]
 
 # Targets emitted by default.
 ENABLED = {"PythonSaxRoundtrip", "PythonJsonRoundtrip", "CXmlExpatRoundtrip",
            "CXmlExpatDomRoundtrip", "CJsonRoundtrip", "JavaJsonRoundtrip",
-           "JavaXmlRoundtrip"}
+           "JavaXmlRoundtrip",
+           "CppXmlRoundtrip", "CppJsonRoundtrip", "TsXmlRoundtrip"}
 
 # Round-trips known to fail for reasons unrelated to the build (e.g. defects
 # in a template's test-value generation). Emitted with gtest's DISABLED_

@@ -1,0 +1,77 @@
+[@lua --define list type (std::vector<base>)
+	cpp_list = {}
+	function cpp_list:new(base)
+		local function vecType()
+			return 'std::vector<'..base.cpp_type.name()..' >'
+		end
+		-- a unique helper-fn suffix; base.tag disambiguates types that share a
+		-- C++ spelling (base64/hex both map to std::vector<uint8_t>).
+		local function suffix()
+			return (base.tag or base.cpp_type.name()):gsub('[^%w]', '_')
+		end
+		return {
+			type = 'cpp_list',
+			cpp_type = {
+				name = vecType,
+				definition = function() return '' end,
+				statement = function(varName)
+					return vecType()..'\t'..varName..'_;\n'
+				end,
+			},
+			buildVar = function(obj, member)
+				return table.concat({obj, member, '_'})
+			end,
+			baseType = function() return base end,
+			binding = {
+				marshal = {
+					definition = function()
+						return table.concat({
+							'json_object* _marshal_list_', suffix(), '(const ', vecType(), '& v) {\n',
+							'\tjson_object* pArr = json_object_new_array();\n',
+							'\tfor (size_t i = 0; i < v.size(); ++i) {\n',
+							'\t\tjson_object_array_add(pArr, ', base.binding.marshal.value('v[i]'), ');\n',
+							'\t}\n',
+							'\treturn pArr;\n',
+							'}\n',
+						})
+					end,
+					value = function(obj)
+						return '_marshal_list_'..suffix()..'('..obj..')'
+					end,
+					statement = function(dst, key, obj)
+						return 'json_object_object_add('..dst..', '..key..', _marshal_list_'..suffix()..'('..obj..'));\n'
+					end,
+				},
+				unmarshal = {
+					definition = function()
+						return table.concat({
+							'void _unmarshal_list_', suffix(), '(json_object* pArr, ', vecType(), '& v) {\n',
+							'\tconst size_t n = (size_t)json_object_array_length(pArr);\n',
+							'\tv.clear();\n',
+							'\tv.resize(n);\n',
+							'\tfor (size_t i = 0; i < n; ++i) {\n',
+							'\t\tjson_object* pElem = json_object_array_get_idx(pArr, i);\n',
+							'\t\t', base.binding.unmarshal.statement('pElem', 'v[i]'),
+							'\t}\n',
+							'}\n',
+						})
+					end,
+					statement = function(src, obj)
+						return '_unmarshal_list_'..suffix()..'('..src..', '..obj..');\n'
+					end,
+				},
+			},
+			test = {
+				assign = function()
+					local elems = {
+						base.test.assign(), base.test.assign(), base.test.assign(),
+					}
+					return '{ '..table.concat(elems, ', ')..' }'
+				end,
+				assert = function(obj1, obj2)
+					return string.format("\tassert(%s == %s);\n", obj1, obj2)
+				end
+			},
+		}
+	end
+]

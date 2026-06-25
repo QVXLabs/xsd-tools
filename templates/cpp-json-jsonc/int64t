@@ -1,0 +1,36 @@
+[@lua --define int64_t type
+	ctype_int64t = {
+		type = 'cpp_type',
+		cpp_type = {
+			name = function() return 'int64_t' end,
+			definition = function() return '' end,
+			statement = function(varName) return 'int64_t\t'..varName..'_ = 0;\n' end,
+		},
+		buildVar = function(obj, member) return table.concat({obj, member, '_'}) end,
+		binding = {
+			marshal = {
+				definition = function() return '' end,
+				value = function(obj) return 'json_object_new_int64((int64_t)'..obj..')' end,
+				statement = function(dst, key, obj)
+					return 'json_object_object_add('..dst..', '..key..', json_object_new_int64((int64_t)'..obj..'));\n'
+				end,
+			},
+			unmarshal = {
+				definition = function() return '' end,
+				statement = function(src, obj)
+					return obj..' = (int64_t)json_object_get_int64('..src..');\n'
+				end,
+			},
+		},
+		test = {
+			assign = function(facets)
+				local n = facets_sampleInt(facets)
+				if n then return n..'LL' end
+				return string.format("%.0f", math.floor(math.random() * 9223372036854775807.0))..'LL'
+			end,
+			assert = function(obj1, obj2)
+				return string.format("\tassert(%s == %s);\n", obj1, obj2)
+			end
+		},
+	}
+]

@@ -1,0 +1,19 @@
+[@lua --TS number type: int/short/byte/float/double/decimal (32-bit-safe range)
+	tstype_number = {
+		tsType = "number",
+		field = function(name)
+			return table.concat({ "\t_", name, "?: number;\n" })
+		end,
+		default = function(name, value)
+			return table.concat({ "\t\tthis._", name, " = ", value, ";\n" })
+		end,
+		toText = function(expr) return "String(" .. expr .. ")" end,
+		fromText = function(expr) return "Number(" .. expr .. ")" end,
+		test = {
+			assign = function()
+				return string.format("%.0f",
+					math.floor(math.random() * 2147483647.0))
+			end,
+		},
+	}
+]

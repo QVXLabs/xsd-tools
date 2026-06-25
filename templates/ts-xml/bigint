@@ -1,0 +1,20 @@
+[@lua --TS bigint type: long/integer-class (exact 64-bit, round-trip safe)
+	tstype_bigint = {
+		tsType = "bigint",
+		field = function(name)
+			return table.concat({ "\t_", name, "?: bigint;\n" })
+		end,
+		default = function(name, value)
+			return table.concat({
+				"\t\tthis._", name, " = BigInt(", value, ");\n" })
+		end,
+		toText = function(expr) return expr .. ".toString()" end,
+		fromText = function(expr) return "BigInt(" .. expr .. ")" end,
+		test = {
+			assign = function()
+				return string.format("%.0f",
+					math.floor(math.random() * 9223372036854775807.0))
+			end,
+		},
+	}
+]

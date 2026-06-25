@@ -1,0 +1,32 @@
+[@lua --TS base64Binary type (Uint8Array via Node Buffer)
+	tstype_base64 = {
+		tsType = "Uint8Array",
+		field = function(name)
+			return table.concat({ "\t_", name, "?: Uint8Array;\n" })
+		end,
+		default = function(name, value)
+			return table.concat({
+				"\t\tthis._", name,
+				' = new Uint8Array(Buffer.from("', value, '", "base64"));\n' })
+		end,
+		toText = function(expr)
+			return "Buffer.from(" .. expr .. ").toString(\"base64\")"
+		end,
+		fromText = function(expr)
+			return "new Uint8Array(Buffer.from((" .. expr
+				.. ").trim(), \"base64\"))"
+		end,
+		test = {
+			assign = function()
+				local ret = {
+					"Q3yj/lYzNI0Fp0SrC8sctw==",
+					"kpxzQiW1uLkFessP+5xZjQ==",
+					"/kFxXF8edN6Dt3L99Y6aFQ==",
+					"PceWThKB0OQoYk6O0nigSw==",
+					"KDk10Nf+vS+JrzsYzRuDRw==" }
+				return 'new Uint8Array(Buffer.from("'
+					.. ret[math.random(1, 5)] .. '", "base64"))'
+			end,
+		},
+	}
+]
