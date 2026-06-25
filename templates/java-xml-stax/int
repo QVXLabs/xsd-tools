@@ -1,0 +1,49 @@
+[@lua --define StAX int type
+	javatype_int = {
+		jtype = "Integer",
+		field = function(attribName)
+			return table.concat({
+				"\tprivate Integer _", attribName, ";\n",
+			})
+		end,
+		default = function(attribName, value)
+			return table.concat({
+				"\t\t_", attribName, " = ", value, ";\n",
+			})
+		end,
+		marshal = {
+			attribute = function(attribName)
+				return table.concat({
+					"\t\tif (_", attribName,
+					" != null) w.writeAttribute(\"", attribName,
+					"\", String.valueOf(_", attribName, "));\n",
+				})
+			end,
+			content = function()
+				return table.concat({
+					"\t\tif (_text != null) w.writeCharacters(",
+					"String.valueOf(_text));\n",
+				})
+			end,
+		},
+		unmarshal = {
+			attribute = function(attribName)
+				return table.concat({
+					"\t\t\tif (an.equals(\"", attribName, "\")) _",
+					attribName, " = Integer.parseInt(av.trim());\n",
+				})
+			end,
+			content = function()
+				return table.concat({
+					"\t\t_text = Integer.parseInt(_buf.toString().trim());\n",
+				})
+			end,
+		},
+		test = {
+			assign = function()
+				return string.format("%.0f",
+					math.floor(math.random() * 2147483647.0))
+			end,
+		},
+	}
+]

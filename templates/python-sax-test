@@ -1,9 +1,52 @@
-[@lua --include and transform old format
+[@lua -- E3c: snapshot element namespace/form BEFORE trnsfrm_old drops the
+	-- element-level fields. The generated test XML must match what the binding
+	-- marshals, so the same prefix/xmlns rules are applied here. Gated on a
+	-- namespace being present: non-namespaced schemas emit byte-identical XML.
+	nsByName = {}
+	nsTopLevel = {}
+	local function _nsCollect(name, node)
+		if type(node) ~= 'table' then return end
+		if node.namespace then
+			nsByName[name] = {ns = node.namespace, qualified = node.qualified}
+		end
+		table.map(node.content or {}, function(k, v) _nsCollect(k, v) end)
+	end
+	table.map(schema, function(k, v)
+		if type(v) == 'table' then
+			if v.namespace then nsTopLevel[k] = true end
+			_nsCollect(k, v)
+		end
+	end)
+	local _uris = {}
+	table.map(nsByName, function(_, v) _uris[v.ns] = true end)
+	local _sorted = {}
+	table.map(_uris, function(uri, _) _sorted[#_sorted + 1] = uri end)
+	table.sort(_sorted)
+	nsPrefixOf = {}
+	for i, uri in ipairs(_sorted) do
+		nsPrefixOf[uri] = (#_sorted == 1) and 'ns' or ('ns' .. i)
+	end
+	function py_nsTag(localName)
+		local e = nsByName[localName]
+		if e and e.qualified then return nsPrefixOf[e.ns] .. ':' .. localName end
+		return localName
+	end
+	-- Plain-text xmlns decl (the test XML is a Python literal, not escaped).
+	function py_nsDecl(localName)
+		local e = nsByName[localName]
+		if not (e and nsTopLevel[localName]) then return '' end
+		if e.qualified then
+			return ' xmlns:' .. nsPrefixOf[e.ns] .. '=\\"' .. e.ns .. '\\"'
+		end
+		return ' xmlns=\\"' .. e.ns .. '\\"'
+	end
+][@lua --include and transform old format
 	include 'shared/trnsfrm_old'
 	schema = trnsfrm_oldFmt(schema)
 ][@lua --include any shared 'helper' templates
 	return include 'shared/schemaEx'
 ][@lua -- include python type info
+	include 'shared/facets'
 	return include 'python-xml/python_type_info'
 ][@lua --rename any non-c-safe names to c-safe names & sort dependencies so that they are matched correctly
 	schema = schema.c_safeNames()
@@ -16,20 +59,22 @@ test = [
 [@lua --output each test xml file
 	local outbuf = stringBuffer:new()
 	local function dpOutput(_, node)
-		outbuf:append(table.concat({'<', node.name}))
+		-- E3c: match the binding's wire form (prefix when qualified, xmlns on
+		-- the document root).
+		outbuf:append(table.concat({'<', py_nsTag(node.name), py_nsDecl(node.name)}))
 		table.map(node.attributes, function(attribName, attrib)
 			outbuf:append(table.concat({
-				' ', attribName, '=\\"', py_type_info[attrib.type].test.assign(), '\\"',
+				' ', attribName, '=\\"', py_type_info[attrib.type].test.assign(attrib.facets), '\\"',
 			}))
 		end)
 		outbuf:append('>')
 		if next(node.content) then
-			outbuf:append(py_type_info[node.content.type].test.assign())
+			outbuf:append(py_type_info[node.content.type].test.assign(node.content.facets))
 		end
 		if next(node.dependents) then
 			table.map(node.dependents, dpOutput)
 		end
-		outbuf:append(table.concat({'</', node.name, '>'}))
+		outbuf:append(table.concat({'</', py_nsTag(node.name), '>'}))
 	end
 	table.map(schema.types[schema.root].dependents, function(name, node)
 		outbuf:append('    "<?xml version=\\"1.0\\" encoding=\\"UTF-8\\" ?>\\n" \\\n    "')

@@ -1,17 +1,24 @@
 [@lua
 local out = stringBuffer:new()
+-- a table is list-like if its only keys are the sequence 1..#t
+function isList(t)
+	local n = 0
+	for _ in pairs(t) do n = n + 1 end
+	return n > 0 and n == #t
+end
 function printTable(t, depth)
+	local pad = string.rep("\t", depth)
 	for k,v in pairs(t) do
-		if "table" == type(v) then
-			if nill == next(v) then 
-				out:append(string.rep("\t", depth)..k.." = {}\n")
-			else
-				out:append(string.rep("\t", depth)..k.." = {\n")
-				printTable(v, depth + 1)
-				out:append(string.rep("\t", depth).."}\n")
-			end
+		if "table" ~= type(v) then
+			out:append(pad..k.." = "..v.."\n")
+		elseif nil == next(v) then
+			out:append(pad..k.." = {}\n")
+		elseif isList(v) then
+			out:append(pad..k.." = { "..table.concat(v, ", ").." }\n")
 		else
-			out:append(string.rep("\t", depth)..k.." = "..v.."\n")
+			out:append(pad..k.." = {\n")
+			printTable(v, depth + 1)
+			out:append(pad.."}\n")
 		end
 	end
 end

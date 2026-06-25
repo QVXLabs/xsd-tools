@@ -2,8 +2,8 @@
  * AppInfo.cpp
  *
  *  Created on: Feb 27, 2014
- *      Author: Ardavon Falls
- *   Copyright: (c)2011 Ardavon Falls
+ *      Author: QVXLabs LLC
+ *   Copyright: (c)2011 QVXLabs LLC
  *
  *  This file is part of xsd-tools.
  *
@@ -18,7 +18,7 @@
  *  GNU General Public License for more details.
  *
  *  You should have received a copy of the GNU General Public License
- *  along with Xsd-Tools.  If not, see <http://www.gnu.org/licenses/>.
+ *  along with xsd-tools.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 #ifndef TIXML_USE_STL
@@ -51,8 +51,3 @@ AppInfo::ParseElement(BaseProcessor& rProcessor) const noexcept(false) {
 	rProcessor.ProcessAppInfo(this);
 }
 
-Types::BaseType * 
-AppInfo::GetParentType() const noexcept(false) {
-	std::unique_ptr<Node> pParent(Node::Parent());
-	return pParent->GetParentType();
-}

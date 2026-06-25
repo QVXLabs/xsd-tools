@@ -32,7 +32,59 @@ if(NOT Expat_FOUND AND NOT TARGET Expat::Expat)
   set(EXPAT_BUNDLED TRUE)
 endif()
 
+# json-c — only the generated C→JSON round-trip needs it. find_package first
+# (our Conan recipe / system provides json-c::json-c), else FetchContent the
+# upstream 0.17 tarball (ships its own CMake; no submodule).
+find_package(json-c QUIET)
+set(JSONC_BUNDLED FALSE)
+if(NOT TARGET json-c::json-c AND NOT json-c_FOUND)
+  message(STATUS "json-c: fetching json-c 0.17")
+  include(FetchContent)
+  # Save/restore BUILD_TESTING: json-c's CMake reads it, but it's also the
+  # top-level gate that add_subdirectory()s this dir on reconfigure.
+  set(_xsd_save_build_testing "${BUILD_TESTING}")
+  set(BUILD_TESTING OFF CACHE BOOL "" FORCE)
+  set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
+  set(DISABLE_WERROR ON CACHE BOOL "" FORCE)
+  FetchContent_Declare(jsonc
+    URL      "https://s3.amazonaws.com/json-c_releases/releases/json-c-0.17.tar.gz"
+    URL_HASH SHA256=7550914d58fb63b2c3546f3ccfbe11f1c094147bd31a69dcd23714d7956159e6)
+  FetchContent_MakeAvailable(jsonc)
+  set(BUILD_TESTING "${_xsd_save_build_testing}" CACHE BOOL "" FORCE)
+  set(JSONC_BUNDLED TRUE)
+endif()
+
+# -- json-c include/link flags for the popen-driven C compile. Bundled headers
+#    are flat in the source tree (umbrella json.h) with json_config.h/config.h
+#    generated into the binary tree; pass both. roundtrip_util splits the dir
+#    list on '|' (a ';' would split the -D, being a CMake list separator). --
+if(JSONC_BUNDLED)
+  set(JSONC_INCLUDE_DIR_VAL "${jsonc_SOURCE_DIR}|${jsonc_BINARY_DIR}")
+  set(JSONC_LINK_VAL "$<TARGET_FILE:json-c>")
+  set(JSONC_EXTRA_DEP json-c)
+else()
+  set(JSONC_EXTRA_DEP "")
+  if(json-c_INCLUDE_DIRS)
+    set(JSONC_INCLUDE_DIR_VAL "${json-c_INCLUDE_DIRS}")
+  elseif(TARGET json-c::json-c)
+    get_target_property(JSONC_INCLUDE_DIR_VAL json-c::json-c
+                        INTERFACE_INCLUDE_DIRECTORIES)
+  endif()
+  if(JSONC_INCLUDE_DIR_VAL MATCHES "-NOTFOUND$")
+    set(JSONC_INCLUDE_DIR_VAL "")
+  endif()
+  string(REPLACE ";" "|" JSONC_INCLUDE_DIR_VAL "${JSONC_INCLUDE_DIR_VAL}")
+  if(TARGET json-c::json-c)
+    set(JSONC_LINK_VAL "$<TARGET_FILE:json-c::json-c>")
+  elseif(json-c_LIBRARIES)
+    string(REPLACE ";" " " JSONC_LINK_VAL "${json-c_LIBRARIES}")
+  else()
+    set(JSONC_LINK_VAL "-ljson-c")
+  endif()
+endif()
+
 set(CORPUS_DIR   "${CMAKE_CURRENT_SOURCE_DIR}/xsd-positive")
+set(NEGATIVE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/xsd-negative")
 set(XSDPARSE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/xsdparse")
 set(TEMPLATES_DIR "${CMAKE_SOURCE_DIR}/templates")
 
@@ -78,44 +130,78 @@ else()
   endif()
 endif()
 
-# -- Auto-generate the round-trip .cpp at configure time. Re-run configure
-#    when the corpus changes. --
-file(GLOB _corpus_xsds CONFIGURE_DEPENDS "${CORPUS_DIR}/*.xsd")
-set(GEN_DIR "${CMAKE_CURRENT_BINARY_DIR}/generated-tests")
-execute_process(
-  COMMAND "${Python3_EXECUTABLE}"
-          "${CMAKE_CURRENT_SOURCE_DIR}/gen_roundtrip_tests.py"
-          "${CORPUS_DIR}" "${GEN_DIR}"
-  RESULT_VARIABLE _gen_rc)
-if(NOT _gen_rc EQUAL 0)
-  message(FATAL_ERROR "gen_roundtrip_tests.py failed (${_gen_rc})")
-endif()
-set(GENERATED_ROUNDTRIP_SOURCES
-  "${GEN_DIR}/roundtrip_python_sax.cpp"
-  "${GEN_DIR}/roundtrip_c_xml_expat.cpp"
-  "${GEN_DIR}/roundtrip_c_xml_expat_dom.cpp"
-  "${GEN_DIR}/roundtrip_java_json.cpp")
+# The round-trip harness (roundtrip_util.cpp) is POSIX-only (popen/mkdtemp/
+# system/shell quoting) and the round-trips shell out to cc/mvn/python/node;
+# generateTests lists goldens via dirent. On Windows, build only the
+# parser/codegen/resource tests (no POSIX) — they exercise the library and
+# every target's code generation; the round-trips run on the POSIX runners.
+if(WIN32)
+  add_executable(xsdb-test
+    facetTests.cpp
+    parserTests.cpp
+    resourceTests.cpp)
+else()
+  # -- Auto-generate the round-trip .cpp at configure time. Re-run configure
+  #    when the corpus changes. --
+  file(GLOB _corpus_xsds CONFIGURE_DEPENDS "${CORPUS_DIR}/*.xsd")
+  set(GEN_DIR "${CMAKE_CURRENT_BINARY_DIR}/generated-tests")
+  execute_process(
+    COMMAND "${Python3_EXECUTABLE}"
+            "${CMAKE_CURRENT_SOURCE_DIR}/gen_roundtrip_tests.py"
+            "${CORPUS_DIR}" "${GEN_DIR}"
+    RESULT_VARIABLE _gen_rc)
+  if(NOT _gen_rc EQUAL 0)
+    message(FATAL_ERROR "gen_roundtrip_tests.py failed (${_gen_rc})")
+  endif()
+  set(GENERATED_ROUNDTRIP_SOURCES
+    "${GEN_DIR}/roundtrip_python_sax.cpp"
+    "${GEN_DIR}/roundtrip_python_json.cpp"
+    "${GEN_DIR}/roundtrip_c_xml_expat.cpp"
+    "${GEN_DIR}/roundtrip_c_xml_expat_dom.cpp"
+    "${GEN_DIR}/roundtrip_c_json.cpp"
+    "${GEN_DIR}/roundtrip_java_json.cpp"
+    "${GEN_DIR}/roundtrip_java_xml.cpp"
+    "${GEN_DIR}/roundtrip_cpp_xml.cpp"
+    "${GEN_DIR}/roundtrip_cpp_json.cpp"
+    "${GEN_DIR}/roundtrip_ts_xml.cpp")
 
-add_executable(xsdb-test
-  roundtrip_util.cpp
-  generateTests.cpp
-  parserTests.cpp
-  resourceTests.cpp
-  ${GENERATED_ROUNDTRIP_SOURCES})
-add_dependencies(xsdb-test b64 ${EXPAT_EXTRA_DEP})
+  # node/tsc are probed at run time (programAvailable) so cases SKIP cleanly
+  # when absent; detect at configure too for an informative status line.
+  find_program(NODE_EXECUTABLE node)
+  find_program(NPM_EXECUTABLE npm)
+  if(NOT NODE_EXECUTABLE OR NOT NPM_EXECUTABLE)
+    message(STATUS "ts-xml round-trip: node/npm not found; cases will SKIP")
+  endif()
+
+  add_executable(xsdb-test
+    roundtrip_util.cpp
+    generateTests.cpp
+    facetTests.cpp
+    parserTests.cpp
+    resourceTests.cpp
+    ${GENERATED_ROUNDTRIP_SOURCES})
+  add_dependencies(xsdb-test b64 ${EXPAT_EXTRA_DEP} ${JSONC_EXTRA_DEP})
+endif()
 target_include_directories(xsdb-test PRIVATE
   "${CMAKE_CURRENT_SOURCE_DIR}" "${CMAKE_SOURCE_DIR}")
 target_link_libraries(xsdb-test PRIVATE xsdb-lib GTest::gtest_main xsd_flags)
 target_compile_definitions(xsdb-test PRIVATE
   TEMPLATES_DIR="${TEMPLATES_DIR}"
   XSD_CORPUS_DIR="${CORPUS_DIR}"
+  XSD_NEGATIVE_DIR="${NEGATIVE_DIR}"
   XSDPARSE_DIR="${XSDPARSE_DIR}"
   C_COMPILER="${CMAKE_C_COMPILER}"
+  CXX_COMPILER="${CMAKE_CXX_COMPILER}"
   LIBB64_INCLUDE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/libb64/include"
   LIBB64_ARCHIVE="$<TARGET_FILE:b64>"
   EXPAT_INCLUDE_DIR="${EXPAT_INCLUDE_DIR_VAL}"
   EXPAT_LINK="${EXPAT_LINK_VAL}"
-  JAVA_POM="${CMAKE_CURRENT_SOURCE_DIR}/java-json.org.tmpl/pom.xml")
+  JSONC_INCLUDE_DIR="${JSONC_INCLUDE_DIR_VAL}"
+  JSONC_LINK="${JSONC_LINK_VAL}"
+  JAVA_POM="${CMAKE_CURRENT_SOURCE_DIR}/java-json.org.tmpl/pom.xml"
+  JAVA_XML_POM="${CMAKE_CURRENT_SOURCE_DIR}/java-xml-stax.tmpl/pom.xml"
+  TS_PACKAGE_JSON="${CMAKE_CURRENT_SOURCE_DIR}/ts-xml/package.json"
+  TS_TSCONFIG="${CMAKE_CURRENT_SOURCE_DIR}/ts-xml/tsconfig.json")
 
 include(GoogleTest)
 gtest_discover_tests(xsdb-test)

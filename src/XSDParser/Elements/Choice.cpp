@@ -2,8 +2,8 @@
  * Choice.cpp
  *
  *  Created on: Jun 26, 2011
- *      Author: Ardavon Falls
- *   Copyright: (c)2011 Ardavon Falls
+ *      Author: QVXLabs LLC
+ *   Copyright: (c)2011 QVXLabs LLC
  *
  *  This file is part of xsd-tools.
  *
@@ -18,7 +18,7 @@
  *  GNU General Public License for more details.
  *
  *  You should have received a copy of the GNU General Public License
- *  along with Foobar.  If not, see <http://www.gnu.org/licenses/>.
+ *  along with xsd-tools.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 #ifndef TIXML_USE_STL
@@ -47,19 +47,16 @@ Choice::Choice(const Choice& rCpy)
 void
 Choice::ParseChildren(BaseProcessor& rProcessor) const noexcept(false) {
 	/* process children */
-	std::unique_ptr<Node> pNode(Node::FirstChild());
-	if (NULL != pNode.get()) {
-		do {
-			if (XSD_ISELEMENT(pNode.get(), Element) ||
-				XSD_ISELEMENT(pNode.get(), Choice) ||
-				XSD_ISELEMENT(pNode.get(), Annotation) ||
-				XSD_ISELEMENT(pNode.get(), Sequence) ||
-				XSD_ISELEMENT(pNode.get(), Any)) {
-				pNode->ParseElement(rProcessor);
-			} else
-				throw XMLException(pNode->GetXMLElm(), XMLException::InvallidChildXMLElement);
-		} while (NULL != (pNode = std::unique_ptr<Node>(pNode->NextSibling())).get());
-	}
+	eachChild_([&rProcessor](const Node& rNode) {
+		if (XSD_ISELEMENT(&rNode, Element) ||
+			XSD_ISELEMENT(&rNode, Choice) ||
+			XSD_ISELEMENT(&rNode, Annotation) ||
+			XSD_ISELEMENT(&rNode, Sequence) ||
+			XSD_ISELEMENT(&rNode, Any)) {
+			rNode.ParseElement(rProcessor);
+		} else
+			throw XMLException(rNode.GetXMLElm(), XMLException::InvallidChildXMLElement);
+	});
 }
 
 void
@@ -74,29 +71,14 @@ Choice::ParseElement(BaseProcessor& rProcessor) const noexcept(false) {
 	rProcessor.ProcessChoice(this);
 }
 
-Types::BaseType * 
-Choice::GetParentType() const noexcept(false) {
-	std::unique_ptr<Node> pParent(Node::Parent());
-	return pParent->GetParentType();
-}
-
 int
 Choice::MaxOccurs() const {
-	if (HasMaxOccurs()) {
-		if (strcmp(Node::GetAttribute<const char*>("maxOccurs"), "unbounded"))
-			return Node::GetAttribute<int>("maxOccurs");
-		else
-			return -1;
-	}
-	return 1;
+	return Node::maxOccurs_(1);
 }
 
 int
 Choice::MinOccurs() const {
-	if (HasMinOccurs()) {
-		return Node::GetAttribute<int>("minOccurs");
-	}
-	return 1;
+	return Node::minOccurs_(1);
 }
 
 bool
@@ -107,15 +89,5 @@ Choice::HasElements() const noexcept(false) {
 bool
 Choice::HasSequence() const noexcept(false) {
 	return Node::HasContent(Sequence::XSDTag());
-}
-
-bool
-Choice::HasMaxOccurs() const {
-	return Node::HasAttribute("maxOccurs");
-}
-
-bool
-Choice::HasMinOccurs() const {
-	return Node::HasAttribute("minOccurs");
 }
 

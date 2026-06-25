@@ -2,8 +2,8 @@
  * Element.hpp
  *
  *  Created on: Jun 25, 2011
- *      Author: Ardavon Falls
- *   Copyright: (c)2011 Ardavon Falls
+ *      Author: QVXLabs LLC
+ *   Copyright: (c)2011 QVXLabs LLC
  *
  *  This file is part of xsd-tools.
  *
@@ -18,7 +18,7 @@
  *  GNU General Public License for more details.
  *
  *  You should have received a copy of the GNU General Public License
- *  along with Xsd-Tools.  If not, see <http://www.gnu.org/licenses/>.
+ *  along with xsd-tools.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 #ifndef ELEMENT_HPP_
@@ -37,8 +37,8 @@ namespace XSD {
 			XSD_ELEMENT_TAG("element")
 		private:
 			Element();
-			Types::BaseType* _Type() const noexcept(false);;
-			static Types::BaseType* _ParseType(const Element& rElm) noexcept(false);;
+			Types::BaseType* Type_() const noexcept(false);;
+			static Types::BaseType* ParseType_(const Element& rElm) noexcept(false);;
 		public:
 			Element(const TiXmlElement& elm, const Parser& rParser);
 			Element( const Element& elm);
@@ -50,14 +50,20 @@ namespace XSD {
 			Element* SubstitutionGroup() const noexcept(false);;
 			bool VerifySubstitutionGroup() const noexcept(false);;
 			Types::BaseType* Type() const noexcept(false);;
+			/* Owning schema's targetNamespace URI; "" if none. */
+			std::string Namespace() const noexcept(false);
+			/* Qualified? local form= else elementFormDefault; default false. */
+			bool Qualified() const noexcept(false);
 			Element* RefElement() const noexcept(false);;
 			int MaxOccurs() const;
-			bool HasName() const;
-			bool HasSubstitutionGroup() const;
-			bool HasRef() const;
-			bool HasType() const;
+			int MinOccurs() const;
+			XSD_HAS_ATTR(HasName, "name")
+			XSD_HAS_ATTR(HasSubstitutionGroup, "substitutionGroup")
+			XSD_HAS_ATTR(HasRef, "ref")
+			XSD_HAS_ATTR(HasType, "type")
 			bool HasChildType() const;
-			bool HasMaxOccurs() const;
+			XSD_HAS_ATTR(HasMaxOccurs, "maxOccurs")
+			XSD_HAS_ATTR(HasMinOccurs, "minOccurs")
 		};
 	}
 }

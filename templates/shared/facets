@@ -1,0 +1,136 @@
+[@lua -- Facet helpers: derive integer bounds, narrowest int type, and an
+	-- ordered list of abstract validation checks from a type's `facets`
+	-- sub-table (bridged in D1). Pure: no code emission. Each target renders
+	-- the returned data in its own language/type vocabulary.
+
+	local function _num(facets, key)
+		local v = facets and facets[key]
+		return v and tonumber(v) or nil
+	end
+
+	-- Inclusive integer [lo, hi] from min/max In/Exclusive, or nil when no
+	-- numeric bound is present. Exclusive bounds are tightened by one (integer
+	-- model; decimal narrowing is out of scope).
+	function facets_intRange(facets)
+		if not facets then return nil end
+		local minE, maxE = _num(facets, 'minExclusive'), _num(facets, 'maxExclusive')
+		local lo = _num(facets, 'minInclusive') or (minE and minE + 1)
+		local hi = _num(facets, 'maxInclusive') or (maxE and maxE - 1)
+		if not lo and not hi then return nil end
+		return lo, hi
+	end
+
+	-- {bits = 8|16|32|64, signed = bool}: narrowest C-style integer holding the
+	-- whole [lo, hi], or nil if either end is unbounded. Targets lacking
+	-- unsigned/fixed-width ints map this requirement as they can (Java has only
+	-- signed byte/short/int/long; Python does not narrow).
+	function facets_narrowest(lo, hi)
+		if not lo or not hi then return nil end
+		local signed = lo < 0
+		for _, w in ipairs({8, 16, 32}) do
+			local hiLim = signed and 2 ^ (w - 1) - 1 or 2 ^ w - 1
+			local loLim = signed and -2 ^ (w - 1) or 0
+			if lo >= loLim and hi <= hiLim then
+				return {bits = w, signed = signed}
+			end
+		end
+		return {bits = 64, signed = signed}
+	end
+
+	-- 'bits|signed' key for the narrowest int holding the facet range, or nil
+	-- when unbounded. Targets map this key to their own narrowed type.
+	function facets_narrowKey(facets)
+		local n = facets_narrowest(facets_intRange(facets))
+		return n and (n.bits .. '|' .. tostring(n.signed))
+	end
+
+	-- Smallest SIGNED Java-style box ('Byte'/'Short'/'Integer'/'Long') whose
+	-- range holds the facet range, or nil when unbounded. Java has no unsigned
+	-- types, so (unlike facets_narrowest) this never picks an unsigned bucket.
+	function facets_narrowestSigned(facets)
+		local lo, hi = facets_intRange(facets)
+		if not lo or not hi then return nil end
+		if lo >= -128 and hi <= 127 then return 'Byte' end
+		if lo >= -32768 and hi <= 32767 then return 'Short' end
+		if lo >= -2147483648 and hi <= 2147483647 then return 'Integer' end
+		return 'Long'
+	end
+
+	-- Shared smallest-type lookup: when `base` is narrowable (`narrowable[base]`
+	-- truthy) return the narrowed type for `facets` from `narrowMap` (keyed by
+	-- facets_narrowKey), else `base` unchanged.
+	function facets_narrowType(base, facets, narrowMap, narrowable)
+		if not base or not (narrowable and narrowable[base]) then return base end
+		local key = facets_narrowKey(facets)
+		return (key and narrowMap[key]) or base
+	end
+
+	-- Group `keys` by sdbm_hash for a collision-safe switch. Returns `groups`
+	-- (hash -> {keys}), `order` (distinct hashes in first-seen order), and
+	-- `collision` (true if any two keys share a hash). Each C target emits its
+	-- own switch from this shared grouping.
+	function sdbm_group(keys)
+		local groups, order, collision = {}, {}, false
+		table.map(keys, function(_, k)
+			local h = sdbm_hash(k)
+			if groups[h] then collision = true
+			else groups[h] = {}; order[#order + 1] = h end
+			table.insert(groups[h], k)
+		end)
+		return groups, order, collision
+	end
+
+	-- Ordered list of abstract checks a target renders into validation code:
+	--   {kind = 'range',   lo =, hi =}             numeric inclusive bounds
+	--   {kind = 'length',  min =, max =, exact =}  string / list length
+	--   {kind = 'enum',    values = {...}}         allowed values
+	--   {kind = 'pattern', regexes = {...}}        XSD regexes (P3)
+	function facets_checks(facets)
+		local checks = {}
+		if not facets then return checks end
+		local lo, hi = facets_intRange(facets)
+		if lo or hi then
+			checks[#checks + 1] = {kind = 'range', lo = lo, hi = hi}
+		end
+		local lmin = _num(facets, 'minLength')
+		local lmax = _num(facets, 'maxLength')
+		local lexact = _num(facets, 'length')
+		if lmin or lmax or lexact then
+			checks[#checks + 1] =
+				{kind = 'length', min = lmin, max = lmax, exact = lexact}
+		end
+		if facets.enumeration then
+			checks[#checks + 1] = {kind = 'enum', values = facets.enumeration}
+		end
+		if facets.pattern then
+			checks[#checks + 1] = {kind = 'pattern', regexes = facets.pattern}
+		end
+		return checks
+	end
+
+	-- Facet-respecting sample values for test-vector generation (so the
+	-- positive round-trip feeds data that passes the emitted validation).
+	-- Return nil when no facet constrains the value; the caller then falls
+	-- back to its own random generator. Pattern facets (P3) are not modelled
+	-- here, so a sampler returns nil for pattern-only restrictions.
+
+	-- An integer literal (string) inside the range / enumeration.
+	function facets_sampleInt(facets)
+		if not facets then return nil end
+		if facets.enumeration then return facets.enumeration[1] end
+		local lo, hi = facets_intRange(facets)
+		if lo then return tostring(lo) end
+		if hi then return tostring(hi) end
+		return nil
+	end
+
+	-- A string satisfying the length / enumeration facets.
+	function facets_sampleString(facets)
+		if not facets then return nil end
+		if facets.enumeration then return facets.enumeration[1] end
+		local n = _num(facets, 'length') or _num(facets, 'maxLength')
+			or _num(facets, 'minLength')
+		if not n then return nil end
+		return string.rep('a', n)
+	end
+]

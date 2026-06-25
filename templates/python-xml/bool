@@ -15,8 +15,8 @@
 		unmarshal = {
 			attribute = function(attribName)
 				return table.concat({
-					"            if \"", attribName, "\" == attribute:\n",
-					"                self._", attribName, " = bool(\"\".join(attributes[attribute].split()))\n",
+					"        if \"", attribName, "\" in attributes:\n",
+					"            self._", attribName, " = bool(\"\".join(attributes[\"", attribName, "\"].split()))\n",
 				})
 			end,
 			content = function()

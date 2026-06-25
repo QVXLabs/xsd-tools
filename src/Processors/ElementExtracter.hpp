@@ -2,8 +2,8 @@
  * ElementExtracter.hpp
  *
  *  Created on: 02/28/14
- *      Author: Ardavon Falls
- *   Copyright: (c)2012 Ardavon Falls
+ *      Author: QVXLabs LLC
+ *   Copyright: (c)2012 QVXLabs LLC
  *
  *  This file is part of xsd-tools.
  *
@@ -18,7 +18,7 @@
  *  GNU General Public License for more details.
  *
  *  You should have received a copy of the GNU General Public License
- *  along with Xsd-Tools.  If not, see <http://www.gnu.org/licenses/>.
+ *  along with xsd-tools.  If not, see <http://www.gnu.org/licenses/>.
  */
  
 #ifndef ELEMENTEXTRACTER_HPP_
@@ -40,7 +40,7 @@ namespace Processors {
 		virtual void ProcessElement(const XSD::Elements::Element* pNode);
 		virtual void ProcessInclude(const XSD::Elements::Include* pNode);
 	private:
-		ElementLst m_elementLst;
+		ElementLst elementLst_;
 	};
 }
 #endif /* ELEMENTEXTRACTER_HPP_ */

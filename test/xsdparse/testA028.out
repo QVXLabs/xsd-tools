@@ -1,28 +1,33 @@
 AddressElm = {
+	attributes = {}
 	maxOccurs = 1
 	content = {
 		city = {
+			attributes = {}
 			maxOccurs = 1
 			content = {
 				string = {
+					attributes = {}
 					maxOccurs = 1
 					content = {}
-					attributes = {}
+					minOccurs = 1
 				}
 			}
-			attributes = {}
+			minOccurs = 1
 		}
 		street = {
+			attributes = {}
 			maxOccurs = 1
 			content = {
 				string = {
+					attributes = {}
 					maxOccurs = 1
 					content = {}
-					attributes = {}
+					minOccurs = 1
 				}
 			}
-			attributes = {}
+			minOccurs = 1
 		}
 	}
-	attributes = {}
+	minOccurs = 1
 }

@@ -3,6 +3,8 @@
 	schema = trnsfrm_oldFmt(schema)
 ][@lua --include any shared 'helper' templates
 	return include 'shared/schemaEx'
+][@lua --include facet helpers
+	include 'shared/facets'
 ][@lua --include xsd to c type mapping
 	return include 'c-xml-expat-sax/c_type_info'
 ][@lua --generate helper globals
@@ -47,14 +49,14 @@
 	local ID = 1
 	table.map(typeSansRoot, function(_, node)
 		-- build list of attributes to output test values for
-		valTbl = {'._eid = '..tostring(ID)}
+		valTbl = {'.eid_ = '..tostring(ID)}
 		local prcssType = function(ncname, xsdType)
-			local c_type = c_type_info[xsdType.type]
+			local c_type = c_narrowCType(xsdType.type, xsdType.facets)
 			if "c_list" == c_type.type then
 				local cVarName = listTypeVarMap[c_type]
 				table.insert(valTbl, c_type.buildVar('.',ncname)..' = '..c_type.test.assign(cVarName))
 			else
-				table.insert(valTbl, c_type.buildVar('.',ncname)..' = '..c_type.test.assign())
+				table.insert(valTbl, c_type.buildVar('.',ncname)..' = '..c_type.test.assign(xsdType.facets))
 			end
 		end
 		table.map(node.attributes, prcssType)
@@ -85,7 +87,7 @@ static void* reallocCb(struct xml_marshaller* pMarshaller, void* pMem, size_t si
 			"\t(void)pObj;\n",
 		}))
 		local prcssType = function(ncname, xsdtype)
-			local c_type = c_type_info[xsdtype.type]
+			local c_type = c_narrowCType(xsdtype.type, xsdtype.facets)
 			outbuf:append(c_type.test.assert(c_type.buildVar('pObj->', ncname), c_type.buildVar(node.name..'Tst'..'.', ncname)))
 		end
 		table.map(node.attributes, prcssType)
@@ -157,6 +159,6 @@ int main(void) {
 	/* test unmarshalling */
 	xml_unmarshal(&mrshllr, &output, 1);
 	/* clean up */
-	output.m_pBuf = realloc(output.m_pBuf, 0);
+	output.pBuf_ = realloc(output.pBuf_, 0);
 	return 0;
 }

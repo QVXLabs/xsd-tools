@@ -2,8 +2,8 @@
  * ComplexType.hpp
  *
  *  Created on: Jun 26, 2011
- *      Author: Ardavon Falls
- *   Copyright: (c)2011 Ardavon Falls
+ *      Author: QVXLabs LLC
+ *   Copyright: (c)2011 QVXLabs LLC
  *
  *  This file is part of xsd-tools.
  *
@@ -18,7 +18,7 @@
  *  GNU General Public License for more details.
  *
  *  You should have received a copy of the GNU General Public License
- *  along with Foobar.  If not, see <http://www.gnu.org/licenses/>.
+ *  along with xsd-tools.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 #ifndef COMPLEXTYPE_HPP_
@@ -51,7 +51,7 @@ namespace XSD {
 			bool HasSequence() const;
 			bool HasAttribute() const;
 			bool HasChoice() const;
-			bool HasName() const;
+			XSD_HAS_ATTR(HasName, "name")
 		};
 	}	/* namespace Elements */
 }	/* namespace XSD */

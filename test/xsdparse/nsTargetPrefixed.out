@@ -1,0 +1,47 @@
+record = {
+	attributes = {
+		id = {
+			string = {
+				attributes = {}
+				namespace = urn:example:phase0
+				use = optional
+				maxOccurs = 1
+				content = {}
+				minOccurs = 1
+			}
+		}
+	}
+	namespace = urn:example:phase0
+	maxOccurs = 1
+	content = {
+		count = {
+			attributes = {}
+			namespace = urn:example:phase0
+			maxOccurs = 1
+			content = {
+				integer = {
+					attributes = {}
+					maxOccurs = 1
+					content = {}
+					minOccurs = 1
+				}
+			}
+			minOccurs = 1
+		}
+		label = {
+			attributes = {}
+			namespace = urn:example:phase0
+			maxOccurs = 1
+			content = {
+				string = {
+					attributes = {}
+					maxOccurs = 1
+					content = {}
+					minOccurs = 1
+				}
+			}
+			minOccurs = 1
+		}
+	}
+	minOccurs = 1
+}

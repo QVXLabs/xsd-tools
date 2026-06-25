@@ -2,8 +2,8 @@
  * XSDException.cpp
  *
  *  Created on: Jun 25, 2011
- *      Author: Ardavon Falls
- *   Copyright: (c)2011 Ardavon Falls
+ *      Author: QVXLabs LLC
+ *   Copyright: (c)2011 QVXLabs LLC
  *
  *  This file is part of xsd-tools.
  *
@@ -18,14 +18,14 @@
  *  GNU General Public License for more details.
  *
  *  You should have received a copy of the GNU General Public License
- *  along with Foobar.  If not, see <http://www.gnu.org/licenses/>.
+ *  along with xsd-tools.  If not, see <http://www.gnu.org/licenses/>.
  */
 #include "./src/XSDParser/Exception.hpp"
 #define ENUM_STR(ENUM) #ENUM
 
 using namespace XSD;
 
-static const char* _ERRORTBL[] ={
+static const char* ERRORTBL_[] ={
 		ENUM_STR(TIXML_NO_ERROR),
 		ENUM_STR(TIXML_ERROR),
 		ENUM_STR(TIXML_ERROR_OPENING_FILE),
@@ -57,30 +57,31 @@ static const char* _ERRORTBL[] ={
 		ENUM_STR(URINotValid),
 		ENUM_STR(NamespaceMismatch),
 		ENUM_STR(InvalidAttributeValue),
+		ENUM_STR(CyclicTypeDefinition),
 };
 
 /*
  * XMLException - thrown due to tinyXML errors
  */
 XMLException::ErrorInfo::ErrorInfo(int id, int row, int col)
-	: m_errorId(id), m_docRow(row), m_docCol(col)
+	: errorId_(id), docRow_(row), docCol_(col)
 { }
 
 XMLException::ErrorInfo::ErrorInfo(const ErrorInfo& err)
-	: m_errorId(err.m_errorId), m_docRow(err.m_docRow), m_docCol(err.m_docCol)
+	: errorId_(err.errorId_), docRow_(err.docRow_), docCol_(err.docCol_)
 { }
 
 XMLException::XMLException(const TiXmlDocument& doc) throw ()
-	: m_errorInfo(doc.ErrorId(), doc.ErrorRow(), doc.ErrorCol())
-{ _createErrorString(); }
+	: errorInfo_(doc.ErrorId(), doc.ErrorRow(), doc.ErrorCol())
+{ createErrorString_(); }
 
 XMLException::XMLException(const XMLException& excpt) throw ()
-	: m_errorInfo(excpt.m_errorInfo)
-{ _createErrorString(); }
+	: errorInfo_(excpt.errorInfo_)
+{ createErrorString_(); }
 
 XMLException::XMLException(const TiXmlBase& elem, int id) throw()
-	: m_errorInfo(id, elem.Row(), elem.Column())
-{ _createErrorString(); }
+	: errorInfo_(id, elem.Row(), elem.Column())
+{ createErrorString_(); }
 
 /* virtual */
 XMLException::~XMLException() throw ()
@@ -88,19 +89,19 @@ XMLException::~XMLException() throw ()
 
 XMLException::ErrorInfo
 XMLException::QueryError() const throw() {
-	return m_errorInfo;
+	return errorInfo_;
 }
 
 /*virtual */const char*
 XMLException::what() const throw() {
-	return m_errorMsg.c_str();
+	return errorMsg_.c_str();
 }
 
 void
-XMLException::_createErrorString() throw (){
-	std::stringstream strStrm(m_errorMsg);
-	strStrm << "XSD Parse Error: " << _ERRORTBL[m_errorInfo.m_errorId]
-	        << "(" << m_errorInfo.m_errorId << ") row:" << m_errorInfo.m_docRow
-	        << " col: " << m_errorInfo.m_docCol << std::endl;
-	m_errorMsg = strStrm.str();
+XMLException::createErrorString_() throw (){
+	std::stringstream strStrm(errorMsg_);
+	strStrm << "XSD Parse Error: " << ERRORTBL_[errorInfo_.errorId_]
+	        << "(" << errorInfo_.errorId_ << ") row:" << errorInfo_.docRow_
+	        << " col: " << errorInfo_.docCol_ << std::endl;
+	errorMsg_ = strStrm.str();
 }

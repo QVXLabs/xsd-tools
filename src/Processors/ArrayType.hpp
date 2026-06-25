@@ -2,8 +2,8 @@
  * ArrayType.hpp
  *
  *  Created on: 01/23/12
- *      Author: Ardavon Falls
- *   Copyright: (c)2012 Ardavon Falls
+ *      Author: QVXLabs LLC
+ *   Copyright: (c)2012 QVXLabs LLC
  *
  *  This file is part of xsd-tools.
  *
@@ -18,7 +18,7 @@
  *  GNU General Public License for more details.
  *
  *  You should have received a copy of the GNU General Public License
- *  along with Xsd-Tools.  If not, see <http://www.gnu.org/licenses/>.
+ *  along with xsd-tools.  If not, see <http://www.gnu.org/licenses/>.
  */
  
 #ifndef ARRAYTYPE_HPP_
@@ -38,8 +38,8 @@ namespace Processors {
 			virtual const char* Name() const;
 			const XSD::Types::BaseType& Type() const;
 		private:
-			XSD::Types::BaseType* m_pBaseType;
-			std::string m_name;
+			XSD::Types::BaseType* pBaseType_;
+			std::string name_;
 		};
 	}
 }

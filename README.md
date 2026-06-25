@@ -2,19 +2,44 @@
 
 # xsd-tools
 ### Overview ###
-xsd-tools is a set of tools for generating code from xml xsd schema documents, mainly around generating marshalling & unmarshalling code. It is designed such that it can be easily extended by any user to enable code generation for any language. By default it has a support for a simple python-sax marshalling/unmarshalling code generator as well as a C based expat marshalling/unmarshalling code generator.
+xsd-tools is a set of tools for generating code from xml xsd schema documents, mainly around generating marshalling & unmarshalling code. It is designed such that it can be easily extended by any user to enable code generation for any language.
+
+It ships output targets covering the C / C++ / Python / Java / TypeScript languages, all round-trip tested:
+
+| Target template      | Language | Format | Library          |
+|----------------------|----------|--------|------------------|
+| `c-xml-expat`        | C        | XML    | expat            |
+| `c-json-jsonc`       | C        | JSON   | json-c           |
+| `cpp-xml-expat`      | C++11    | XML    | expat            |
+| `cpp-json-jsonc`     | C++11    | JSON   | json-c           |
+| `python-sax`         | Python   | XML    | stdlib `xml.sax` |
+| `python-json.tmpl`   | Python   | JSON   | stdlib `json`    |
+| `java-json.org.tmpl` | Java     | JSON   | org.json         |
+| `java-xml-stax.tmpl` | Java     | XML    | JDK StAX         |
+| `ts-xml.tmpl`        | TypeScript | XML  | fast-xml-parser  |
+
+Generated code constructs schema types through overridable factory methods, so consumers can subclass and inject custom types.
 
 It processes XSD schema documents and invokes a template file which outputs code. The templates files use Lua for scripting withing the template file. Custom user templates can be easily be created to extend the tool to generate different output code.
 
 ### Features ###
   * XSD schema parsing
-  * Easily Extendable
+  * Nine built-in output targets across C/C++/Python/Java/TypeScript,
+    easily extendable
+  * Generated unmarshallers enforce XSD restriction facets at parse time
+    (range, length, enumeration on elements and attributes) — invalid documents
+    are rejected.
+  * Facet-bounded integer fields narrow to the smallest fitting type
+    (e.g. `0..255` → `uint8_t` in C, `Short` in Java).
   * Simple Lua based templates for customizing code generation.
+  * Usable as a C++ library (`XsdTools::Generate()`) as well as a CLI.
   * Open Source!
 
 _Look at the Wiki section for more information._
 
-NOTE: Currently the tools are not namespace aware.
+Namespaces are supported: schemas with a `targetNamespace` resolve and the XML
+targets emit the right `xmlns`/prefixes, and `xs:import` brings in types from
+another namespace (`xs:include` continues to merge same-namespace documents).
 
 ### Sample Output ###
 ```
@@ -123,10 +148,24 @@ class xml_testA002(_handler, _xmlelement):
 
 To use xsd-tools, invoke xsdb using the following syntax from the console
 
-`# ./xsdb <template file> <xsd schema file>`
+`# ./xsdb [options] <template> <input.xsd> [k v ...]`
 
-#### example ####
-`# xsdb python-sax testA022.xsd`
+Generated code is printed to stdout. Trailing `k v` pairs are passed to the
+template as `__CMD_ARGS__`.
+
+Options:
+  * `--out-dir <dir>` — split multi-file output (the `/* FILE: name */` markers
+    some targets emit) into real files under `<dir>`.
+  * `--list` — list the available templates.
+  * `--version` — print the version.
+  * `-h`, `--help` — show usage.
+
+#### examples ####
+```
+# xsdb python-sax testA022.xsd                       # print Python to stdout
+# xsdb --out-dir out c-json-jsonc testA022.xsd        # write the C/JSON files
+# xsdb --list                                         # show templates
+```
 
 ### Install Instructions ###
 

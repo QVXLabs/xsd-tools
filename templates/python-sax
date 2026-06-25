@@ -1,17 +1,77 @@
-[@lua --include and transform old format
+[@lua -- E3c: snapshot element namespace/form BEFORE trnsfrm_old, which drops
+	-- the element-level namespace/qualified fields (it carries them only onto
+	-- leaf content/attributes). Build a stable name -> {ns, qualified} map and
+	-- record the document's target namespace from the single top-level element.
+	-- Gated entirely on a namespace being present: non-namespaced schemas leave
+	-- nsByName empty and emit byte-identical output.
+	nsByName = {}
+	nsTopLevel = {}
+	local function _nsCollect(name, node)
+		if type(node) ~= 'table' then return end
+		if node.namespace then
+			nsByName[name] = {ns = node.namespace, qualified = node.qualified}
+		end
+		table.map(node.content or {}, function(k, v) _nsCollect(k, v) end)
+	end
+	table.map(schema, function(k, v)
+		if type(v) == 'table' then
+			-- top-level elements are the document roots; only they declare xmlns
+			if v.namespace then nsTopLevel[k] = true end
+			_nsCollect(k, v)
+		end
+	end)
+	-- Deterministic synthesized prefix per URI (XSD source prefix is not in the
+	-- model); a single target NS gets "ns". Sort URIs for a stable nsN suffix.
+	local _uris = {}
+	table.map(nsByName, function(_, v) _uris[v.ns] = true end)
+	local _sorted = {}
+	table.map(_uris, function(uri, _) _sorted[#_sorted + 1] = uri end)
+	table.sort(_sorted)
+	nsPrefixOf = {}
+	for i, uri in ipairs(_sorted) do
+		nsPrefixOf[uri] = (#_sorted == 1) and 'ns' or ('ns' .. i)
+	end
+	-- Wire-tag for an element: prefixed when qualified, else bare local name.
+	function py_nsTag(localName)
+		local e = nsByName[localName]
+		if e and e.qualified then return nsPrefixOf[e.ns] .. ':' .. localName end
+		return localName
+	end
+	-- xmlns declaration(s) for the open tag (after "<tag"); "" except on a
+	-- top-level (document-root) element. Qualified roots bind a synthesized
+	-- prefix; unqualified roots bind the default xmlns so bare child tags
+	-- inherit the target NS.
+	function py_nsDecl(localName)
+		local e = nsByName[localName]
+		if not (e and nsTopLevel[localName]) then return '' end
+		if e.qualified then
+			return ' xmlns:' .. nsPrefixOf[e.ns] .. '="' .. e.ns .. '"'
+		end
+		return ' xmlns="' .. e.ns .. '"'
+	end
+][@lua --include and transform old format
 	include 'shared/trnsfrm_old'
 	schema = trnsfrm_oldFmt(schema)
 ][@lua --include any shared 'helper' templates
 	return include 'shared/schemaEx'
 ][@lua -- include python type info
+	include 'shared/facets'
 	include 'python-xml/python_type_info'
 ][@lua --rename any non-c-safe names to c-safe names & sort dependencies so that they are matched correctly
 	schema = schema.c_safeNames()
 	depOrder = schema.sortDependencies()
 	depOrderSansRoot = table.filter(depOrder, function(k,v) return v.name ~= schema.root and v or nil end)
-]import base64
-import binascii
-import xml.sax
+	-- gate binary-codec imports on actual type usage
+	local usedTypes = schema.uniqueTypes()
+	usesBase64 = usedTypes['base64Binary'] or usedTypes['list(base64Binary)']
+	usesHex = usedTypes['hexBinary'] or usedTypes['list(hexBinary)']
+][@lua
+	local imports = stringBuffer:new()
+	if usesBase64 then imports:append('import base64\n') end
+	if usesHex then imports:append('import binascii\n') end
+	imports:append('import xml.sax')
+	return imports:str()
+]
 
 
 class _handler(xml.sax.ContentHandler):
@@ -60,6 +120,50 @@ class _xmlelement:
 
 [@lua -- output class for each element
 	local outbuf = stringBuffer:new()
+	-- module-level frozensets for enum membership; emitted before the classes
+	local enumDefs = stringBuffer:new()
+	local enumSeq = 0
+	-- numeric py types compare enum values numerically (T1.4)
+	local numericPyTypes = {
+		[pythontype_int] = true, [pythontype_long] = true,
+		[pythontype_float] = true,
+	}
+	-- Render facet checks (D2) on the local `_v` into a validate() body.
+	-- Pattern facets (P3) are not enforced yet.
+	local function pyChecks(label, facets, isNumeric)
+		local out = stringBuffer:new()
+		-- emit a guard that raises unless the value-condition `cond` holds
+		local function guard(cond, msg)
+			out:append('        if _v is not None and not (' .. cond .. '):\n')
+			out:append('            raise ValueError("' .. label .. ': ' .. msg .. '")\n')
+		end
+		table.map(facets_checks(facets), function(_, c)
+			if c.kind == 'range' then
+				guard(c.lo and c.hi and (c.lo .. ' <= _v <= ' .. c.hi)
+					or c.lo and (c.lo .. ' <= _v') or ('_v <= ' .. c.hi),
+					'out of range')
+			elseif c.kind == 'length' then
+				local n, parts = 'len(str(_v))', {}
+				if c.exact then parts = {n .. ' == ' .. c.exact} end
+				if c.min then parts[#parts + 1] = n .. ' >= ' .. c.min end
+				if c.max then parts[#parts + 1] = n .. ' <= ' .. c.max end
+				guard(table.concat(parts, ' and '), 'bad length')
+			elseif c.kind == 'enum' then
+				-- numeric fields compare numerically (no str(_v)); strings
+				-- stay quoted. Membership via a module-level frozenset.
+				local vals = {}
+				table.map(c.values, function(_, v)
+					vals[#vals + 1] = isNumeric and v or ('"' .. v .. '"')
+				end)
+				enumSeq = enumSeq + 1
+				local name = '_enum' .. enumSeq
+				enumDefs:append(name .. ' = frozenset((' ..
+					table.concat(vals, ', ') .. ',))\n')
+				guard('_v in ' .. name, 'not permitted')
+			end
+		end)
+		return out:str()
+	end
 	table.map(depOrderSansRoot, function(_, node)
 		outbuf:append(table.concat({
 			'\n',
@@ -78,10 +182,12 @@ class _xmlelement:
 				end
 			end)
 		end
+		-- E3c: prefixed tag when qualified; xmlns decl on the document root.
 		outbuf:append(table.concat({
 			'\n',
 			'    def marshal(self, stream):\n',
-			'        stream.write(\'<', node.name, '\')\n',
+			'        stream.write(\'<', py_nsTag(node.name),
+				py_nsDecl(node.name), '\')\n',
 		}))
 		-- output marshal code for each element attribute
 		table.map(node.attributes, function(attributeName, attribute)
@@ -98,24 +204,41 @@ class _xmlelement:
 			}))
 		end
 		outbuf:append(table.concat({
-			'        stream.write(\'</', node.name, '>\')\n',
+			'        stream.write(\'</', py_nsTag(node.name), '>\')\n',
 			'\n',
 			'    def unmarshal(self, attributes, content):\n',
 		}))
-		-- output unmarshal code for each element attribute
-		if next(node.attributes) then
-			outbuf:append('        for attribute in attributes:\n')
-			table.map(node.attributes, function(attributeName, attribute)
-				local pyType = py_type_info[attribute.type]
-				outbuf:append(pyType.unmarshal.attribute(attributeName))
-			end)
-		end
+		-- output unmarshal code for each element attribute (direct dict lookup)
+		table.map(node.attributes, function(attributeName, attribute)
+			local pyType = py_type_info[attribute.type]
+			outbuf:append(pyType.unmarshal.attribute(attributeName))
+		end)
 		if next(node.content) then
 			outbuf:append(py_type_info[node.content.type].unmarshal.content())
 		else
 			outbuf:append(table.concat({
 				"        self._content = content\n"
 			}))
+		end
+		-- emit facet validation (D2) only when the node actually has facets;
+		-- skip the method + its call entirely otherwise (T3)
+		local checks = stringBuffer:new()
+		if node.content.facets then
+			checks:append('        _v = self._content[0] if self._content else None\n')
+			checks:append(pyChecks('content', node.content.facets,
+				numericPyTypes[py_type_info[node.content.type]]))
+		end
+		table.map(node.attributes, function(an, attr)
+			if attr.facets then
+				checks:append('        _v = self._' .. an .. '\n')
+				checks:append(pyChecks(an, attr.facets,
+					numericPyTypes[py_type_info[attr.type]]))
+			end
+		end)
+		if 0 ~= #checks:str() then
+			outbuf:append('        self.validate()\n')
+			outbuf:append('\n    def validate(self):\n')
+			outbuf:append(checks:str())
 		end
 		outbuf:append('\n')
 		-- output 'getters' code for each attribute
@@ -136,7 +259,7 @@ class _xmlelement:
 		end)
 		outbuf:append('\n')
 	end)
-	return outbuf:str()
+	return enumDefs:str() .. outbuf:str()
 ]
 class xml_[@lua return schema.root](_handler, _xmlelement):
     def __init__(self):

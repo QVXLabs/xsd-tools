@@ -3,7 +3,7 @@
 		marshal = {
 			attribute = function(attribName)
 				return table.concat({
-					"        stream.write(' ", attribName, "=\"' + \" \".join(self._", attribName, ") + '\"')\n",
+					"        stream.write(' ", attribName, "=\"' + \" \".join(self._", attribName, " or []) + '\"')\n",
 				})
 			end,
 			content = function()
@@ -15,7 +15,8 @@
 		unmarshal = {
 			attribute = function(attribName)
 				return table.concat({
-					"            self._", attribName," = attributes[attribute].split(\" \")\n",
+					"        if \"", attribName, "\" in attributes:\n",
+					"            self._", attribName," = attributes[\"", attribName, "\"].split(\" \")\n",
 				})
 			end,
 			content = function()

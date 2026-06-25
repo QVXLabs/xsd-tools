@@ -19,8 +19,16 @@ function integer:typeName()
    return ("xml_integer")
 end
 
+function integer:inlineScalar()
+   return true
+end
+
+function integer:cType()
+   return "int64_t"
+end
+
 function integer:typeDef()
-   return ("typedef int64_t * %s;\n"):format(self:typeName())
+   return self:scalarTypeDef()
 end
 
 function integer:typeFactoryMethods()
@@ -28,40 +36,20 @@ function integer:typeFactoryMethods()
 end
 
 function integer:defMarshal(elementName)
-   out = stringBuffer:new()
-   out:append("static void\n")
-   out:append("_xml_integer_marshal")
-   out:append("(const xml_integer pVal, char ** ppOut, const xml_typeFactory * pFactory) {\n")
-   out:append("  char num[64];\n")
-   out:append("  snprintf(num, 64, \"%\" PRId64, *pVal);\n")
-   out:append("  _cstr_append(ppOut, num, pFactory);\n")
-   out:append("}\n")   
-   return out:str()
+   return self:defScalarMarshal(function(v)
+      return ("  char num[64];\n  snprintf(num, 64, \"%%\" PRId64, %s);\n  cstr_append_(ppOut, num, pFactory);\n"):format(v)
+   end)
 end
 
 function integer:defUnmarshal(elementName)
-   out = stringBuffer:new()
-   out:append("static xml_integer\n")
-   out:append("_xml_integer_unmarshal(")
-   out:append("const char * pVal, const xml_typeFactory * pFactory) {\n")
-   out:append("  xml_integer val = ReallocateMemory(pFactory, NULL, sizeof(int64_t));\n")
-   out:append("  return (*val  = atoll(pVal)), val;\n")
-   out:append("}\n")
-   return out:str()
+   return self:defScalarUnmarshal("(int64_t)atoll(pVal)")
 end
 
 function integer:defDestroy()
-   out = stringBuffer:new()
-   out:append("static xml_integer\n")
-   out:append("_xml_integer_destroy")
-   out:append("(xml_integer pVal, const xml_typeFactory * pFactory) {\n")
-   out:append("  if (pVal) pVal = ReallocateMemory(pFactory, pVal, 0);\n")
-   out:append("  return pVal;\n")
-   out:append("}\n")
-   return out:str()
+   return self:defScalarDestroy()
 end
 
-function integer:test()
-   return "463"
+function integer:test(facets)
+   return facets_sampleInt(facets) or "463"
 end
 ]

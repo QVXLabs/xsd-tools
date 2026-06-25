@@ -1,0 +1,50 @@
+[@lua --define StAX hexBinary type (byte[])
+	javatype_hex = {
+		jtype = "byte[]",
+		field = function(attribName)
+			return table.concat({
+				"\tprivate byte[] _", attribName, ";\n",
+			})
+		end,
+		default = function(attribName, value)
+			return table.concat({
+				"\t\t_", attribName, " = Hex.decode(\"", value, "\");\n",
+			})
+		end,
+		marshal = {
+			attribute = function(attribName)
+				return table.concat({
+					"\t\tif (_", attribName,
+					" != null) w.writeAttribute(\"", attribName,
+					"\", Hex.encode(_", attribName, "));\n",
+				})
+			end,
+			content = function()
+				return table.concat({
+					"\t\tif (_text != null) w.writeCharacters(Hex.encode(_text));\n",
+				})
+			end,
+		},
+		unmarshal = {
+			attribute = function(attribName)
+				return table.concat({
+					"\t\t\tif (an.equals(\"", attribName, "\")) _",
+					attribName, " = Hex.decode(av.trim());\n",
+				})
+			end,
+			content = function()
+				return table.concat({
+					"\t\t_text = Hex.decode(_buf.toString().trim());\n",
+				})
+			end,
+		},
+		test = {
+			assign = function()
+				return string.format('%.4x%.4x%.4x',
+					math.random(0, 65535),
+					math.random(0, 65535),
+					math.random(0, 65535))
+			end,
+		},
+	}
+]

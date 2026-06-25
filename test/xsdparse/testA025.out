@@ -1,83 +1,98 @@
 letter = {
+	attributes = {}
 	maxOccurs = 1
 	content = {
 		shipdate = {
+			attributes = {}
 			maxOccurs = 1
 			content = {
 				date = {
+					attributes = {}
 					maxOccurs = 1
 					content = {}
-					attributes = {}
+					minOccurs = 1
 				}
 			}
-			attributes = {}
+			minOccurs = 1
 		}
 		string = {
+			attributes = {}
 			maxOccurs = 1
 			content = {}
-			attributes = {}
+			minOccurs = 1
 		}
 		name = {
+			attributes = {}
 			maxOccurs = 1
 			content = {
 				string = {
+					attributes = {}
 					maxOccurs = 1
 					content = {}
-					attributes = {}
+					minOccurs = 1
 				}
 			}
-			attributes = {}
+			minOccurs = 1
 		}
 		address = {
+			attributes = {}
 			maxOccurs = 1
 			content = {
 				state = {
+					attributes = {}
 					maxOccurs = 1
 					content = {
 						string = {
+							attributes = {}
 							maxOccurs = 1
 							content = {}
-							attributes = {}
+							minOccurs = 1
 						}
 					}
-					attributes = {}
+					minOccurs = 1
 				}
 				zipcode = {
+					attributes = {}
 					maxOccurs = 1
 					content = {
 						string = {
+							attributes = {}
 							maxOccurs = 1
 							content = {}
-							attributes = {}
+							minOccurs = 1
 						}
 					}
-					attributes = {}
+					minOccurs = 1
 				}
 				city = {
+					attributes = {}
 					maxOccurs = 1
 					content = {
 						string = {
+							attributes = {}
 							maxOccurs = 1
 							content = {}
-							attributes = {}
+							minOccurs = 1
 						}
 					}
-					attributes = {}
+					minOccurs = 1
 				}
 				street = {
+					attributes = {}
 					maxOccurs = 1
 					content = {
 						string = {
+							attributes = {}
 							maxOccurs = 1
 							content = {}
-							attributes = {}
+							minOccurs = 1
 						}
 					}
-					attributes = {}
+					minOccurs = 1
 				}
 			}
-			attributes = {}
+			minOccurs = 1
 		}
 	}
-	attributes = {}
+	minOccurs = 1
 }

@@ -2,8 +2,8 @@
  * Extension.hpp
  *
  *  Created on: Jul 18, 2011
- *      Author: Ardavon Falls
- *   Copyright: (c)2011 Ardavon Falls
+ *      Author: QVXLabs LLC
+ *   Copyright: (c)2011 QVXLabs LLC
  *
  *  This file is part of xsd-tools.
  *
@@ -18,7 +18,7 @@
  *  GNU General Public License for more details.
  *
  *  You should have received a copy of the GNU General Public License
- *  along with Foobar.  If not, see <http://www.gnu.org/licenses/>.
+ *  along with xsd-tools.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 #ifndef EXTENSION_HPP_
@@ -36,8 +36,8 @@ namespace XSD {
 			XSD_ELEMENT_TAG("extension")
 		private:
 			Extension();
-			static bool _checkForDuplicateNamedParticles(const TiXmlElement* pTreeBase, const TiXmlElement* pBase);
-			static bool _find(const char* pName, const TiXmlElement* pBase);
+			static bool checkForDuplicateNamedParticles_(const TiXmlElement* pTreeBase, const TiXmlElement* pBase);
+			static bool find_(const char* pName, const TiXmlElement* pBase);
 		public:
 			Extension(const TiXmlElement& elm, const Parser& rParser);
 			Extension(const Extension& rType);

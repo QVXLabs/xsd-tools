@@ -30,14 +30,38 @@ namespace xsdtest {
 	 * (marshal(unmarshal(x)) == x), assert clean exit. */
 	::testing::AssertionResult pythonRoundtrip(const std::string& xsdPath);
 
+	/* python-json: emit binding + self-checking driver, run the driver
+	 * (marshal(unmarshal(doc)) == doc), assert clean exit. */
+	::testing::AssertionResult pythonJsonRoundtrip(const std::string& xsdPath);
+
 	/* c-xml-expat / c-xml-expat-dom: emit + split multi-file C binding and
 	 * driver, compile (libb64 + expat) and run. */
 	::testing::AssertionResult cExpatRoundtrip(const std::string& xsdPath);
 	::testing::AssertionResult cExpatDomRoundtrip(const std::string& xsdPath);
 
+	/* c-json-jsonc: emit + split multi-file C binding and driver, compile
+	 * (libb64 + json-c) and run. */
+	::testing::AssertionResult cJsonRoundtrip(const std::string& xsdPath);
+
+	/* cpp-xml-expat: emit + split multi-file C++11 binding and driver,
+	 * compile (libb64 + expat) at -std=c++11 and run. */
+	::testing::AssertionResult cppXmlRoundtrip(const std::string& xsdPath);
+
+	/* cpp-json-jsonc: emit + split multi-file C++11 binding and driver,
+	 * compile (libb64 + json-c) at -std=c++11 and run. */
+	::testing::AssertionResult cppJsonRoundtrip(const std::string& xsdPath);
+
+	/* ts-xml: emit TS binding + driver into a pinned npm project (fast-xml-
+	 * parser), tsc + node and run. GTEST_SKIPs without node/tsc. */
+	::testing::AssertionResult tsXmlRoundtrip(const std::string& xsdPath);
+
 	/* java-json.org: emit binding + driver into a Maven project, mvn package
 	 * and run. Caller GTEST_SKIPs when mvn/JDK are unavailable. */
 	::testing::AssertionResult javaRoundtrip(const std::string& xsdPath);
+
+	/* java-xml-stax: emit StAX binding + driver into a Maven project (no
+	 * external deps), mvn package and run. GTEST_SKIPs without mvn/JDK. */
+	::testing::AssertionResult javaXmlRoundtrip(const std::string& xsdPath);
 }
 
 #endif /* XSDB_ROUNDTRIP_UTIL_HPP */

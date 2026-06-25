@@ -2,8 +2,8 @@
  * Attribute.cpp
  *
  *  Created on: Jun 26, 2011
- *      Author: Ardavon Falls
- *   Copyright: (c)2011 Ardavon Falls
+ *      Author: QVXLabs LLC
+ *   Copyright: (c)2011 QVXLabs LLC
  *
  *  This file is part of xsd-tools.
  *
@@ -18,7 +18,7 @@
  *  GNU General Public License for more details.
  *
  *  You should have received a copy of the GNU General Public License
- *  along with Foobar.  If not, see <http://www.gnu.org/licenses/>.
+ *  along with xsd-tools.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 #ifndef TIXML_USE_STL
@@ -47,16 +47,13 @@ Attribute::Attribute(const Attribute& rAttrib)
 void
 Attribute::ParseChildren(BaseProcessor& rProcessor) const noexcept(false) {
 	/* process children */
-	std::unique_ptr<Node> pNode(Node::FirstChild());
-	if (NULL != pNode.get()) {
-		do {
-			if (XSD_ISELEMENT(pNode.get(), SimpleType) ||
-				XSD_ISELEMENT(pNode.get(), Annotation)) {
-				rProcessor.ProcessSimpleType(static_cast<SimpleType*>(pNode.get()));
-			} else
-				throw XMLException(pNode->GetXMLElm(), XMLException::InvallidChildXMLElement);
-		} while (NULL != (pNode = std::unique_ptr<Node>(pNode->NextSibling())).get());
-	}
+	eachChild_([&rProcessor](const Node& rNode) {
+		if (XSD_ISELEMENT(&rNode, SimpleType) ||
+			XSD_ISELEMENT(&rNode, Annotation)) {
+			rProcessor.ProcessSimpleType(static_cast<const SimpleType*>(&rNode));
+		} else
+			throw XMLException(rNode.GetXMLElm(), XMLException::InvallidChildXMLElement);
+	});
 }
 
 void
@@ -91,15 +88,9 @@ Attribute::ParseElement(BaseProcessor& rProcessor) const noexcept(false) {
 	}
 }
 
-Types::BaseType * 
-Attribute::GetParentType() const noexcept(false) {
-	std::unique_ptr<Node> pParent(Node::Parent());
-	return pParent->GetParentType();
-}
-
 std::string
 Attribute::Name() const noexcept(false) {
-	return std::string(Node::GetAttribute<const char*>("name"));
+	return Node::name_();
 }
 
 Attribute*
@@ -111,10 +102,27 @@ Types::BaseType*
 Attribute::Type() const noexcept(false) {
 	if (HasRef()) {
 		std::unique_ptr<XSD::Elements::Attribute> pRefAttrib(RefAttribute());
-		return _parseType(*pRefAttrib);
+		return parseType_(*pRefAttrib);
 	} else {
-		return _parseType(*this);
+		return parseType_(*this);
 	}
+}
+
+std::string
+Attribute::Namespace() const noexcept(false) {
+	std::unique_ptr<Schema> pSchema(Node::GetSchema());
+	return pSchema->TargetNamespace();
+}
+
+bool
+Attribute::Qualified() const noexcept(false) {
+	/* a local form= attribute overrides the schema's attributeFormDefault */
+	if (Node::HasAttribute("form"))
+		return "qualified" == Node::GetAttribute<std::string>("form");
+	std::unique_ptr<Schema> pSchema(Node::GetSchema());
+	const char* pVal =
+		pSchema->GetXMLElm().Attribute("attributeFormDefault");
+	return pVal && 0 == strcmp(pVal, "qualified");
 }
 
 std::string
@@ -132,49 +140,20 @@ Attribute::Use() const noexcept(false) {
 	if (HasUse()) {
 		std::string use(Node::GetAttribute<const char*>("use"));
 		if (!use.compare("optional")) {
-			return Attribute::OPTIONAL;
+			return Attribute::Optional;
 		} else if (!use.compare("prohibited")) {
-			return Attribute::PROHIBITIED;
+			return Attribute::Prohibited;
 		} else if (!use.compare("required")) {
-			return Attribute::REQUIRED;
+			return Attribute::Required;
 		} else
 			throw XMLException(Node::GetXMLElm(), XMLException::InvalidAttributeValue);
 	}
-	return Attribute::OPTIONAL;
+	return Attribute::Optional;
 }
 
-bool
-Attribute::HasName() const {
-	return this->HasAttribute("name");
-}
-
-bool
-Attribute::HasRef() const {
-	return this->HasAttribute("ref");
-}
-
-bool
-Attribute::HasType() const {
-	return this->HasAttribute("type");
-}
-
-bool
-Attribute::HasDefault() const {
-	return this->HasAttribute("default");
-}
-
-bool
-Attribute::HasFixed() const {
-	return this->HasAttribute("fixed");
-}
-
-bool
-Attribute::HasUse() const {
-	return this->HasAttribute("use");
-}
 			
 Types::BaseType*
-Attribute::_type() const noexcept(false) {
+Attribute::type_() const noexcept(false) {
 	Types::BaseType* pType = Node::GetAttribute<Types::BaseType*>("type");
 	if (XSD_ISTYPE(pType, Types::Unknown)) {
 		delete pType;
@@ -186,9 +165,9 @@ Attribute::_type() const noexcept(false) {
 }
 
 /* static */ Types::BaseType*
-Attribute::_parseType(const Attribute& rAttrib) noexcept(false) {
+Attribute::parseType_(const Attribute& rAttrib) noexcept(false) {
 	if (rAttrib.HasContent(SimpleType::XSDTag()))
 		return new Types::SimpleType(rAttrib.FindXSDChildElm<SimpleType>());
 	else
-		return rAttrib._type();
+		return rAttrib.type_();
 }

@@ -1,0 +1,72 @@
+[@lua --define hex type (std::vector<uint8_t>)
+	ctype_hex = {
+		type = 'cpp_type',
+		tag = 'hex',
+		cpp_type = {
+			name = function() return 'std::vector<uint8_t>' end,
+			definition = function() return '' end,
+			statement = function(varName)
+				return 'std::vector<uint8_t>\t'..varName..'_;\n'
+			end,
+		},
+		buildVar = function(obj, member) return table.concat({obj, member, '_'}) end,
+		binding = {
+			marshal = {
+				definition = function()
+					return table.concat({
+						'json_object* _marshal_hex(const std::vector<uint8_t>& data) {\n',
+						'\tstatic const char tbl[] = "0123456789ABCDEF";\n',
+						'\tstd::string out;\n',
+						'\tout.reserve(data.size() * 2);\n',
+						'\tfor (size_t i = 0; i < data.size(); ++i) {\n',
+						'\t\tout.push_back(tbl[data[i] >> 4]);\n',
+						'\t\tout.push_back(tbl[data[i] & 0x0F]);\n',
+						'\t}\n',
+						'\treturn json_object_new_string(out.c_str());\n',
+						'}\n',
+					})
+				end,
+				value = function(obj) return '_marshal_hex('..obj..')' end,
+				statement = function(dst, key, obj)
+					return 'json_object_object_add('..dst..', '..key..', _marshal_hex('..obj..'));\n'
+				end,
+			},
+			unmarshal = {
+				definition = function()
+					return table.concat({
+						'int _hexNibble(char c) {\n',
+						'\tif (c >= \'0\' && c <= \'9\') return c - \'0\';\n',
+						'\tif (c >= \'a\' && c <= \'f\') return c - \'a\' + 10;\n',
+						'\tif (c >= \'A\' && c <= \'F\') return c - \'A\' + 10;\n',
+						'\treturn -1;\n',
+						'}\n',
+						'void _unmarshal_hex(const char* pStr, std::vector<uint8_t>& out) {\n',
+						'\tout.clear();\n',
+						'\tint hi = -1;\n',
+						'\tfor (; pStr && *pStr; ++pStr) {\n',
+						'\t\tconst int nib = _hexNibble(*pStr);\n',
+						'\t\tif (nib < 0) continue;\n',
+						'\t\tif (hi < 0) { hi = nib; }\n',
+						'\t\telse { out.push_back((uint8_t)((hi << 4) | nib)); hi = -1; }\n',
+						'\t}\n',
+						'}\n',
+					})
+				end,
+				statement = function(src, obj)
+					return '_unmarshal_hex(json_object_get_string('..src..'), '..obj..');\n'
+				end,
+			},
+		},
+		test = {
+			assign = function()
+				local n = math.random(1, 6)
+				local bytes = {}
+				for _ = 1, n do bytes[#bytes + 1] = math.random(0, 255) end
+				return '{ '..table.concat(bytes, ', ')..' }'
+			end,
+			assert = function(obj1, obj2)
+				return string.format("\tassert(%s == %s);\n", obj1, obj2)
+			end
+		},
+	}
+]

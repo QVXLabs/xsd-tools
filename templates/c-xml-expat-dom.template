@@ -1,5 +1,7 @@
 [@lua
+include 'shared/facets'
 include 'c-xml-expat-dom/shared'
+include 'c-xml-expat-dom/namespace'
 include 'c-xml-expat-dom/types'
 include 'c-xml-expat-dom/cstring'
 include 'c-xml-expat-dom/base64'
@@ -131,6 +133,29 @@ function countXMLTypes(XSDDoc)
    return numXmlTypes
 end
 
+-- Set of element names whose sdbm hash collides with another element name.
+-- The start/end dispatch keys on the hash; for a colliding name we add a
+-- strcmp confirm so distinct names sharing a hash can't misdispatch. Distinct
+-- (the common case) => no confirm, byte-identical output.
+function collidingElementNames(XSDDoc)
+   local byHash, colliding = {}, {}
+   topologicalSort(XSDDoc, function(name, ctype)
+      if isSimpleType(ctype._typedef) then return end
+      -- Collisions are over the wire tag (prefixed when qualified), since the
+      -- dispatch hashes it; the colliding set stays keyed by the bare local
+      -- name (how the dispatch looks it up).
+      local wire = c_nsTagName(name, ctype._typedef)
+      local h = sdbm_hash(wire)
+      if byHash[h] and byHash[h].wire ~= wire then
+         colliding[name] = true
+         colliding[byHash[h].name] = true
+      else
+         byHash[h] = { name = name, wire = wire }
+      end
+   end)
+   return colliding
+end
+
 function outputEnum(name, ctype)
    return ("  %s = (int32_t)0x%X,\n"):format(ctype:typeEnum(), ctype:typeHash())
 end
@@ -154,9 +179,9 @@ function outputDclrTypeMthds(name, ctype)
    return str:str()
 end
 
-function outputDefTypeMthds(name, ctype)
+function outputDefTypeMthds(name, ctype, parentName)
    local str = stringBuffer:new()
-   str:append(ctype:defMarshal(name))
+   str:append(ctype:defMarshal(name, parentName == nil))
    str:append("/* ------------ */\n")
    str:append(ctype:defUnmarshal(name))
    str:append("/* ------------ */\n")
@@ -172,14 +197,16 @@ function outputXmlDestroy(XSDDoc)
       "xml_destroy(xml_typelist ** ppDoc, const xml_typeFactory * pFactory) {\n"
    )
    str:append("  xml_typelist * pLst = *ppDoc;\n")
-   str:append("  for (; pLst->m_type; ++pLst) {\n")
-   str:append("    switch(pLst->m_type) {\n")
+   str:append("  for (; pLst->type_; ++pLst) {\n")
+   str:append("    switch(pLst->type_) {\n")
    str:append(
       topologicalSort(
          XSDDoc, 
          function(name, ctype)
             str:append(("    case %s:\n"):format(ctype:typeEnum()))
-            str:append(("      Destroy(%s, pLst->m_pData, pFactory);\n"):format(ctype:typeName()));
+            local destroyMacro = ctype:inlineScalar() and "DestroyScalar" or "Destroy"
+            str:append(("      %s(%s, pLst->pData_, pFactory);\n"):format(
+               destroyMacro, ctype:typeName()));
             str:append("      break;\n")
          end
       )
@@ -195,16 +222,19 @@ end
 function outputXmlTypelstMrhsll(XSDDoc)
    local str = stringBuffer:new()
    str:append("static void\n")
-   str:append("_xml_typelist_marshal(const xml_typelist * pItr, char **ppOut, const xml_typeFactory * pFactory) {\n")
-   str:append("  for ( ;pItr->m_type ; ++pItr) {\n")
-   str:append("    switch(pItr->m_type) {\n")
+   str:append("xml_typelist_marshal_(const xml_typelist * pItr, char **ppOut, const xml_typeFactory * pFactory) {\n")
+   str:append("  for ( ;pItr->type_ ; ++pItr) {\n")
+   str:append("    switch(pItr->type_) {\n")
    str:append(
       topologicalSort(
                       XSDDoc,
                       function(name, ctype)
                          str:append(("    case %s:\n"):format(ctype:typeEnum()))
-                         str:append(("      MarshalContent(%s, pItr->m_pData, ppOut, pFactory);\n"):format(ctype:typeName()));
-                         str:append("      break;\n")    
+                         local marshalMacro = ctype:inlineScalar()
+                            and "MarshalContentScalar" or "MarshalContent"
+                         str:append(("      %s(%s, pItr->pData_, ppOut, pFactory);\n"):format(
+                            marshalMacro, ctype:typeName()));
+                         str:append("      break;\n")
                       end
                      )
    )
@@ -220,30 +250,37 @@ function outputXmlStartElement(XSDDoc)
    local numXmlElements = 0;
    local ifCnt = 0
    str:append("static void\n")
-   str:append("_startElement(void * pUserData, const XML_Char * pElmName, const XML_Char ** ppAttribs) {\n")
-   str:append("  _xml_context_t * pCtx    = (_xml_context_t *)pUserData;\n")
-   str:append("  xml_typelist   * pTop    = _context_topElement(pCtx);\n")
-   str:append("  unsigned         elmName = _sdbmHash(pElmName);\n")
-   str:append("  unsigned         parent  = ((pTop) ? pTop->m_type : 0);\n")
-   str:append("  if (0 == pCtx->m_unknownElm) {\n")
+   str:append("startElement_(void * pUserData, const XML_Char * pElmName, const XML_Char ** ppAttribs) {\n")
+   str:append("  xml_context_t_ * pCtx    = (xml_context_t_ *)pUserData;\n")
+   str:append("  xml_typelist   * pTop    = context_topElement_(pCtx);\n")
+   str:append("  unsigned         elmName = sdbmHash_(pElmName);\n")
+   str:append("  unsigned         parent  = ((pTop) ? pTop->type_ : 0);\n")
+   local collisions = collidingElementNames(XSDDoc)
+   str:append("  if (0 == pCtx->unknownElm_) {\n")
    str:append(
       topologicalSort(
      XSDDoc,
      function(name, ctype, parentName, parentCType)
         if isSimpleType(ctype._typedef) then return end
-        local elemName = sdbm_hash(name)
+        -- Match the wire tag (prefixed when qualified); bare name otherwise.
+        local wire = c_nsTagName(name, ctype._typedef)
+        local elemName = sdbm_hash(wire)
+        local confirm = collisions[name]
+           and (" && !strcmp(pElmName, \"%s\")"):format(wire) or ""
         local parentEnum = parentName and parentCType:typeEnum() or "0"
         if ifCnt == 0 then
            str:append(
-          ("    if (%s == parent && 0x%x == elmName) {\n"):format(
+          ("    if (%s == parent && 0x%x == elmName%s) {\n"):format(
              parentEnum,
-             elemName)
+             elemName,
+             confirm)
            )
         else
            str:append(
-          ("    } else if (%s == parent && 0x%x == elmName) {\n"):format(
+          ("    } else if (%s == parent && 0x%x == elmName%s) {\n"):format(
              parentEnum,
-             elemName)
+             elemName,
+             confirm)
            )
         end
         if parentCType and isMixedType(parentCType._typedef) then
@@ -260,11 +297,11 @@ function outputXmlStartElement(XSDDoc)
    )
    if 0 < numXmlElements then
       str:append("    } else {\n")
-      str:append("      pCtx->m_unknownElm++;\n")
+      str:append("      pCtx->unknownElm_++;\n")
       str:append("    }\n")
    end
    str:append("  } else {\n")
-   str:append("    pCtx->m_unknownElm++;\n")
+   str:append("    pCtx->unknownElm_++;\n")
    str:append("  }\n")
    str:append("}\n")   
    return str:str()
@@ -275,34 +312,41 @@ function outputXmlEndElement(XSDDoc)
    local ifCnt = 0
    local numXmlElements = 0;
    str:append("static void\n")
-   str:append("_endElement(void * pUserData, const XML_Char * pElmName) {\n")
-   str:append("  _xml_context_t * pCtx        = (_xml_context_t *)pUserData;\n")
-   str:append("  unsigned         elmName     = _sdbmHash(pElmName);\n")
-   str:append("  xml_typelist   * pTop        = _context_topElement(pCtx);\n")
-   str:append("  const char     * pContentStr = _context_contentStr(pCtx);\n")
-   str:append("  if (pTop && 0 == pCtx->m_unknownElm) {\n")
+   str:append("endElement_(void * pUserData, const XML_Char * pElmName) {\n")
+   str:append("  xml_context_t_ * pCtx        = (xml_context_t_ *)pUserData;\n")
+   str:append("  unsigned         elmName     = sdbmHash_(pElmName);\n")
+   str:append("  xml_typelist   * pTop        = context_topElement_(pCtx);\n")
+   str:append("  const char     * pContentStr = context_contentStr_(pCtx);\n")
+   local collisions = collidingElementNames(XSDDoc)
+   str:append("  if (pTop && 0 == pCtx->unknownElm_) {\n")
    str:append(
       topologicalSort(
      XSDDoc,
      function(name, ctype, parentName, parentCType)
         if isSimpleType(ctype._typedef) then return end
-        local elemName = sdbm_hash(name)
+        -- Match the wire tag (prefixed when qualified); bare name otherwise.
+        local wire = c_nsTagName(name, ctype._typedef)
+        local elemName = sdbm_hash(wire)
+        local confirm = collisions[name]
+           and (" && !strcmp(pElmName, \"%s\")"):format(wire) or ""
         -- handle first if statment which doesn't use an 'else if'
         if ifCnt == 0 then
            str:append(
-          ("    if (0x%x == elmName && %s == pTop->m_type) {\n"):format(
+          ("    if (0x%x == elmName%s && %s == pTop->type_) {\n"):format(
              elemName,
+             confirm,
              ctype:typeEnum())
            )
         else
            str:append(
-          ("    } else if (0x%x == elmName && %s == pTop->m_type) {\n"):format(
+          ("    } else if (0x%x == elmName%s && %s == pTop->type_) {\n"):format(
              elemName,
+             confirm,
              ctype:typeEnum())
            )
         end
         -- if simple type as content or is mixed
-        local contentTypename, contentTypedef = getSimpleTypeContent(ctype._typedef) 
+        local contentTypename, contentTypedef = getSimpleTypeContent(ctype._typedef)
         if contentTypename then
            local mixedType = ctypes:getType(contentTypedef)
            str:append(
@@ -310,9 +354,10 @@ function outputXmlEndElement(XSDDoc)
              mixedType:typeName(),
              mixedType:typeEnum())
            )
+           str:append(c_facetChecks(name, "pContentStr", contentTypedef.facets, contentTypedef))
         end
         str:append(
-          ("      PopElement(%s, pTop->m_pData, pCtx);\n"):format(
+          ("      PopElement(%s, pTop->pData_, pCtx);\n"):format(
              ctype:typeName())
         );
         ifCnt = ifCnt + 1
@@ -324,7 +369,7 @@ function outputXmlEndElement(XSDDoc)
       str:append("    }\n")
    end
    str:append("  } else {\n")
-   str:append("    pCtx->m_unknownElm--;\n")
+   str:append("    pCtx->unknownElm_--;\n")
    str:append("  }\n")
    str:append("  (void)pContentStr;\n")
    str:append("}\n")
@@ -334,11 +379,11 @@ end
 function outputXmlElementContent(XSDDoc)
    local str = stringBuffer:new()
    str:append("static void\n")
-   str:append("_elementContent(void * pUserData, const XML_Char * pData, int len) {\n")
-   str:append("  _xml_context_t * pCtx    = (_xml_context_t *)pUserData;\n")
-   str:append("  xml_typelist   * pTop    = _context_topElement(pCtx);\n")
-   str:append("  if (pTop && (0 == pCtx->m_unknownElm)) {\n")
-   str:append("    switch(pTop->m_type) {\n")   
+   str:append("elementContent_(void * pUserData, const XML_Char * pData, int len) {\n")
+   str:append("  xml_context_t_ * pCtx    = (xml_context_t_ *)pUserData;\n")
+   str:append("  xml_typelist   * pTop    = context_topElement_(pCtx);\n")
+   str:append("  if (pTop && (0 == pCtx->unknownElm_)) {\n")
+   str:append("    switch(pTop->type_) {\n")   
    str:append(
       topologicalSort(
                       XSDDoc,
@@ -349,7 +394,7 @@ function outputXmlElementContent(XSDDoc)
                          end
                       )
    )
-   str:append("      _content_addContentStr(pCtx, pData, len);\n")
+   str:append("      content_addContentStr_(pCtx, pData, len);\n")
    str:append("      break;\n")
    str:append("    }\n")
    str:append("  }\n")
@@ -379,8 +424,8 @@ return str:str()
 ]
 /* ------------ */
 typedef struct {
-  unsigned	m_type;
-  void *	m_pData;
+  unsigned	type_;
+  void *	pData_;
 } xml_typelist;
 /* ------------ */
 [@lua return topologicalSort(schema, outputTypedef)
@@ -407,112 +452,176 @@ void xml_destroy(xml_typelist ** ppDoc, const xml_typeFactory *);
 #include "b64/cdecode.h"
 #include "xml_[@lua return schemaNameStripped()].h"
 /* ------------ */
-#define _FactoryMthdName(T, F) T##F
-#define _MarshalMthdName(T, S, B, F) _##T##_marshal(S, B, F)
-#define _UnmarshalMthdName(T, S, F) _##T##_unmarshal(S, F)
-#define _DestroyMthdName(T, D, F) _##T##_destroy((T)D, F)
+#define FactoryMthdName_(T, F) T##F
+#define MarshalMthdName_(T, S, B, F) T##_marshal_(S, B, F)
+#define UnmarshalMthdName_(T, S, F) T##_unmarshal_(S, F)
+#define DestroyMthdName_(T, D, F) T##_destroy_((T)D, F)
 /* Factory Helpers */
 #define ReallocateMemory(F, P, S) \
   (F && F->xml_realloc) ? F->xml_realloc(F, P, S, __FILE__, __LINE__) : realloc(P, S)
 #define AllocateElement(T, F)		   \
-  (F && F->_FactoryMthdName(T, Allocator)) \
-  ? F->_FactoryMthdName(T, Allocator)(F) : _alloc(sizeof(struct T), F)
+  (F && F->FactoryMthdName_(T, Allocator)) \
+  ? F->FactoryMthdName_(T, Allocator)(F) : alloc_(sizeof(struct T), F)
 #define ConstructElement(T, P, F)		\
-  if (F && F->_FactoryMthdName(T, Constructor))	\
-    F->_FactoryMthdName(T, Constructor)(F, P)
+  if (F && F->FactoryMthdName_(T, Constructor))	\
+    F->FactoryMthdName_(T, Constructor)(F, P)
 #define DestroyElement(T, P, F)		    \
-  (F && F->_FactoryMthdName(T, Destructor)) \
-  ? F->_FactoryMthdName(T, Destructor)(F, P) : ReallocateMemory(F, P, 0)
+  (F && F->FactoryMthdName_(T, Destructor)) \
+  ? F->FactoryMthdName_(T, Destructor)(F, P) : ReallocateMemory(F, P, 0)
 /* attribute Mashall/Unmarshal/Destroy */
-#define Default(T, A, D, F) (A) ? A : _UnmarshalMthdName(T,D,F)
-#define Unmarshal(T, S, F) _UnmarshalMthdName(T,S,F)
-#define UnmarshalAttribute(T, S, F) _UnmarshalMthdName(T,S,F)
+#define Default(T, A, D, F) (A) ? A : UnmarshalMthdName_(T,D,F)
+#define Unmarshal(T, S, F) UnmarshalMthdName_(T,S,F)
+#define UnmarshalAttribute(T, S, F) UnmarshalMthdName_(T,S,F)
 #define MarshalAttribute(N, T, A, B, F)				\
   if(A) {								\
-    _cstr_append(B, " "N"=\"",F);					\
-    _MarshalMthdName(T,A,B,F);						\
-    _cstr_append(B, "\"",F);						\
+    cstr_append_(B, " "N"=\"",F);					\
+    MarshalMthdName_(T,A,B,F);						\
+    cstr_append_(B, "\"",F);						\
   }
-#define MarshalContent(T, D, B, F) _##T##_marshal((const T)D, B, F)
-#define DestroyAttribute(T, A, F) _DestroyMthdName(T, A, F)
+#define MarshalContent(T, D, B, F) T##_marshal_((const T)D, B, F)
+/* Inline-scalar dispatch: the value lives in the typelist slot (D), so pass it
+   straight through with no typedef cast. */
+#define MarshalContentScalar(T, D, B, F) T##_marshal_(D, B, F)
+#define DestroyScalar(T, D, F) T##_destroy_(D, F)
+#define DestroyAttribute(T, A, F) DestroyMthdName_(T, A, F)
+/* Inline-or-heap scalar slot. A scalar whose size fits in a pointer is stored
+   directly in xml_typelist.pData_ (no per-scalar malloc); a wider scalar (e.g.
+   64-bit on a 32-bit target) falls back to heap with the slot holding the
+   pointer. sizeof folds the choice at compile time, so one body is correct on
+   both word sizes. */
+#define XML_SCALAR_FITS_(ctype) (sizeof(ctype) <= sizeof(void *))
+#define XML_SCALAR_ENCODE_(ctype, slot, val, F)		\
+  do {							\
+    ctype xsv_ = (val);					\
+    if (XML_SCALAR_FITS_(ctype)) {			\
+      (slot) = NULL;					\
+      memcpy(&(slot), &xsv_, sizeof(ctype));		\
+    } else {						\
+      (slot) = ReallocateMemory(F, NULL, sizeof(ctype));\
+      memcpy((slot), &xsv_, sizeof(ctype));		\
+    }							\
+  } while (0)
+#define XML_SCALAR_LOAD_(ctype, dst, slot)		\
+  do {							\
+    if (XML_SCALAR_FITS_(ctype))			\
+      memcpy(&(dst), &(slot), sizeof(ctype));		\
+    else						\
+      memcpy(&(dst), (slot), sizeof(ctype));		\
+  } while (0)
+#define XML_SCALAR_FREE_(ctype, slot, F)		\
+  do {							\
+    if (!XML_SCALAR_FITS_(ctype) && (slot))		\
+      (slot) = ReallocateMemory(F, (slot), 0);		\
+  } while (0)
+/* Scalar ATTRIBUTE codec. A scalar attribute that is required or has a default
+   is always present, so it is stored BY VALUE (no pointer, no NULL check); an
+   optional-no-default scalar keeps a pointer that is NULL when absent. Both
+   reuse the slot codec so the type-specific parse/serialize stays in one place.
+*/
+#define UnmarshalScalarValue(T, ctype, dst, S, F)	\
+  do {							\
+    void * xsa_ = T##_unmarshal_(S, F);			\
+    XML_SCALAR_LOAD_(ctype, dst, xsa_);			\
+    XML_SCALAR_FREE_(ctype, xsa_, F);			\
+  } while (0)
+#define MarshalScalarValue(N, T, ctype, V, B, F)	\
+  do {							\
+    void * xsa_;					\
+    XML_SCALAR_ENCODE_(ctype, xsa_, V, F);		\
+    cstr_append_(B, " "N"=\"", F);			\
+    T##_marshal_(xsa_, B, F);				\
+    cstr_append_(B, "\"", F);				\
+    XML_SCALAR_FREE_(ctype, xsa_, F);			\
+  } while (0)
 /* element Marshal/Unmarshal/Destroy */
 #define UnmarshalContent(C, T, TL, S)			\
   if (S) {							\
     xml_typelist content = { TL };			\
-    content.m_pData = Unmarshal(T, S, C->m_pFactory);	\
-    _context_addContent(C, content);			\
+    content.pData_ = Unmarshal(T, S, C->pFactory_);	\
+    context_addContent_(C, content);			\
   }
-#define Destroy(T, D, F) _DestroyMthdName(T,D,F)
+#define Destroy(T, D, F) DestroyMthdName_(T,D,F)
 #define PushElement(C, T, TL, A)					\
   {									\
     xml_typelist element = { TL };					\
-    element.m_pData = Unmarshal(T, A, C->m_pFactory);			\
-    _context_addContent(C, element);					\
-    _context_pushElement(C, element);					\
+    element.pData_ = Unmarshal(T, A, C->pFactory_);			\
+    context_addContent_(C, element);					\
+    context_pushElement_(C, element);					\
   }
 #define PushMixedContent(C)			\
-  if (_context_contentStr(C)) {			\
+  if (context_contentStr_(C)) {			\
     xml_typelist string = { XML_STRING };	\
-    string.m_pData = _content_popContentStr(C);	\
-    _context_addContent(C, string);		\
+    string.pData_ = content_popContentStr_(C);	\
+    context_addContent_(C, string);		\
   }
 #define PopElement(T, P , C)			\
-  _context_popElement(C);				\
-  ConstructElement(T, (T)P, C->m_pFactory)
+  context_popElement_(C);				\
+  ConstructElement(T, (T)P, C->pFactory_)
+/* ------------ */
+/* Amortized-doubling string buffer: {len,cap} header sits before the data;
+   the public pointer is the data, so it stays a NUL-terminated char *. */
+typedef struct {
+  size_t len_;
+  size_t cap_;
+} cstr_hdr_t_;
+#define CSTR_HDR_(P) ((cstr_hdr_t_ *)((char *)(P) - sizeof(cstr_hdr_t_)))
+#define CSTR_DATA_(H) ((char *)(H) + sizeof(cstr_hdr_t_))
 /* ------------ */
 typedef struct {
-  size_t m_elmSz;
-  unsigned m_alloc;
-  unsigned m_size;
-  uint8_t * m_pMem;
-} _xml_list_t;
+  size_t elmSz_;
+  unsigned alloc_;
+  unsigned size_;
+  uint8_t * pMem_;
+} xml_list_t_;
 /* ------------ */
 typedef struct {
-  char * m_pStr;
-  char * m_pItr;
-} _xml_tokenizer_t;
+  char * pStr_;
+  char * pItr_;
+} xml_tokenizer_t_;
 /* ------------ */
 typedef struct {
-  xml_typelist m_element;
-  _xml_list_t  m_cntntLst;
-  char       * m_pContent;
-} _xml_stack_t;
+  xml_typelist element_;
+  xml_list_t_  cntntLst_;
+  char       * pContent_;
+} xml_stack_t_;
 /* ------------ */
 typedef struct {
-  _xml_stack_t  m_stack[[@lua return maxElementDepth(schema)]];
-  unsigned      m_depth;
-  unsigned      m_unknownElm;
-  const xml_typeFactory * m_pFactory;
-} _xml_context_t;
+  xml_stack_t_  stack_[[@lua return maxElementDepth(schema)]];
+  unsigned      depth_;
+  unsigned      unknownElm_;
+  const xml_typeFactory * pFactory_;
+} xml_context_t_;
 /* ------------ */
-static unsigned _sdbmHash(const char *);
-static XML_Memory_Handling_Suite * _XML_initMemSuite(const xml_typeFactory *);
-static void * _xml_realloc(const xml_typeFactory *, void*, size_t, const char *, const unsigned);
-static void * _malloc(size_t);
-static void * _realloc(void *, size_t);
-static void _free(void*);
-static void * _alloc(size_t, const xml_typeFactory *);
-static _xml_list_t _list(const size_t, const xml_typeFactory *);
-static void _list_push(_xml_list_t *, const void * const, const xml_typeFactory *);
-static void _list_trim(_xml_list_t *, const xml_typeFactory *);
-static void * _list_carray(_xml_list_t *);
-static _xml_tokenizer_t _tokenizer(const char *, const xml_typeFactory *);
-static const char * _tokenizer_next(_xml_tokenizer_t * const);
-static void _tokenizer_destroy(_xml_tokenizer_t * const, const xml_typeFactory *);
-static xml_typelist * _context_topElement(_xml_context_t *);
-static void _context_popElement(_xml_context_t *);
-static void _context_addContent(_xml_context_t *, xml_typelist);
-static const char * _context_contentStr(_xml_context_t*);
-static void _content_addContentStr(_xml_context_t *, const char *, unsigned);
-static char * _content_popContentStr(_xml_context_t *);
-static char * _cstr_init(const char *, size_t, const xml_typeFactory *);
-static void _cstr_destroy(char **, const xml_typeFactory *);
-static void  _cstr_append(char **, const char *, const xml_typeFactory *);
-static void _cstr_appendEx(char **, const char *, unsigned, const xml_typeFactory *);
-static void _startElement(void *, const XML_Char *, const XML_Char **);
-static void _endElement(void *, const XML_Char *);
-static void _elementContent(void *, const XML_Char *, int);
-static void _xml_typelist_marshal(const xml_typelist *, char **, const xml_typeFactory *);
+static unsigned sdbmHash_(const char *);
+static void xml_invalid_(const char *);
+static XML_Memory_Handling_Suite * XML_initMemSuite_(const xml_typeFactory *);
+static void * xml_realloc_(const xml_typeFactory *, void*, size_t, const char *, const unsigned);
+static void * malloc_(size_t);
+static void * realloc_(void *, size_t);
+static void free_(void*);
+static void * alloc_(size_t, const xml_typeFactory *);
+static xml_list_t_ list_(const size_t, const xml_typeFactory *);
+static inline void list_push_(xml_list_t_ *, const void * const, const xml_typeFactory *);
+static void list_trim_(xml_list_t_ *, const xml_typeFactory *);
+static inline void * list_carray_(xml_list_t_ *);
+static xml_tokenizer_t_ tokenizer_(const char *, const xml_typeFactory *);
+static const char * tokenizer_next_(xml_tokenizer_t_ * const);
+static void tokenizer_destroy_(xml_tokenizer_t_ * const, const xml_typeFactory *);
+static xml_typelist * context_topElement_(xml_context_t_ *);
+static void context_popElement_(xml_context_t_ *);
+static void context_addContent_(xml_context_t_ *, xml_typelist);
+static const char * context_contentStr_(xml_context_t_*);
+static void content_addContentStr_(xml_context_t_ *, const char *, unsigned);
+static char * content_popContentStr_(xml_context_t_ *);
+static inline void cstr_reserve_(char **, size_t, const xml_typeFactory *);
+static char * cstr_init_(const char * restrict, size_t, const xml_typeFactory *);
+static void cstr_destroy_(char **, const xml_typeFactory *);
+static inline void  cstr_append_(char ** restrict, const char * restrict, const xml_typeFactory *);
+static inline void cstr_appendEx_(char ** restrict, const char * restrict, unsigned, const xml_typeFactory *);
+static void startElement_(void *, const XML_Char *, const XML_Char **);
+static void endElement_(void *, const XML_Char *);
+static void elementContent_(void *, const XML_Char *, int);
+static void xml_typelist_marshal_(const xml_typelist *, char **, const xml_typeFactory *);
 [@lua return topologicalSort(schema, outputDclrTypeMthds)]
 /* ------------ */
 __thread const xml_typeFactory * gspFactory = NULL;
@@ -520,53 +629,66 @@ __thread const xml_typeFactory * gspFactory = NULL;
 xml_typelist *
 xml_unmarshal(const char * pBuf, size_t size, const xml_typeFactory * pFactory) {
   xml_typelist * pRetObj = ReallocateMemory(pFactory, 0, sizeof(xml_typelist) * 2);
-  _xml_context_t ctx = { 
-    .m_depth = 0, 
-    .m_unknownElm = 0, 
-    .m_pFactory = pFactory 
+  xml_context_t_ ctx = { 
+    .depth_ = 0, 
+    .unknownElm_ = 0, 
+    .pFactory_ = pFactory 
   };
-  XML_Parser parser = XML_ParserCreate_MM(NULL, _XML_initMemSuite(pFactory), NULL);
+  XML_Parser parser = XML_ParserCreate_MM(NULL, XML_initMemSuite_(pFactory), NULL);
   /* zero out return block */
   memset(pRetObj, 0, sizeof(xml_typelist) * 2);
   /* parse xml document */
   gspFactory = pFactory;
   XML_SetUserData(parser, &ctx);
-  XML_SetElementHandler(parser, _startElement, _endElement);
-  XML_SetCharacterDataHandler(parser, _elementContent);
+  XML_SetElementHandler(parser, startElement_, endElement_);
+  XML_SetCharacterDataHandler(parser, elementContent_);
   XML_Parse(parser, pBuf, size, XML_TRUE);
   XML_ParserFree(parser);
   /* return root element */
-  *pRetObj = ctx.m_stack[0].m_element;
+  *pRetObj = ctx.stack_[0].element_;
   return pRetObj;
 }
 /* ------------ */
 char *
 xml_marshal(const xml_typelist * pDoc, const xml_typeFactory * pFactory) {
-  char * pRet = _cstr_init("<?xml version=\"1.0\" encoding=\"UTF-8\" ?>\n", -1, pFactory);
-  _xml_typelist_marshal(pDoc, &pRet, pFactory);
+  char * pBuf = cstr_init_("<?xml version=\"1.0\" encoding=\"UTF-8\" ?>\n", -1, pFactory);
+  char * pRet;
+  size_t len;
+  xml_typelist_marshal_(pDoc, &pBuf, pFactory);
+  /* Hand back a plain buffer (no hidden header) so callers can free() it. */
+  len = CSTR_HDR_(pBuf)->len_;
+  pRet = memcpy(ReallocateMemory(pFactory, NULL, len + 1), pBuf, len + 1);
+  cstr_destroy_(&pBuf, pFactory);
   return pRet;
 }
 /* ------------ */
 static unsigned 
-_sdbmHash(const char * pStr) {
+sdbmHash_(const char * pStr) {
   unsigned hash = 0;
   for (; *pStr; ++pStr)
     hash = (unsigned)(*pStr) + (hash << 6) + (hash << 16) - hash;
   return hash;
 }
 /* ------------ */
+/* Facet validation failure: no exceptions in C, so abort the parse. */
+static void
+xml_invalid_(const char * pWhat) {
+  fprintf(stderr, "xml: facet violation (%s)\n", pWhat);
+  exit(1);
+}
+/* ------------ */
 static XML_Memory_Handling_Suite *
-_XML_initMemSuite(const xml_typeFactory * pFactory) {
+XML_initMemSuite_(const xml_typeFactory * pFactory) {
   static XML_Memory_Handling_Suite gsMemSuite = {
-    .malloc_fcn = _malloc,
-    .realloc_fcn = _realloc,
-    .free_fcn = _free
+    .malloc_fcn = malloc_,
+    .realloc_fcn = realloc_,
+    .free_fcn = free_
   };
   return &gsMemSuite;
 }
 /* ------------ */
 static void *
-_xml_realloc(const xml_typeFactory * pFactory, void * pMem, size_t size, const char * pFileName, const unsigned lineNo) {
+xml_realloc_(const xml_typeFactory * pFactory, void * pMem, size_t size, const char * pFileName, const unsigned lineNo) {
   if (pFactory && pFactory->xml_realloc)
     return pFactory->xml_realloc(pFactory, pMem, size, pFileName, lineNo);
   else {
@@ -577,167 +699,194 @@ _xml_realloc(const xml_typeFactory * pFactory, void * pMem, size_t size, const c
 }
 /* ------------ */
 static void * 
-_malloc(size_t size) {
-  return _xml_realloc(gspFactory, NULL, size, __FILE__, __LINE__);
+malloc_(size_t size) {
+  return xml_realloc_(gspFactory, NULL, size, __FILE__, __LINE__);
 }
 /* ------------ */
 static void * 
-_realloc(void * pMem, size_t size) {
-  return _xml_realloc(gspFactory, pMem, size, __FILE__, __LINE__);
+realloc_(void * pMem, size_t size) {
+  return xml_realloc_(gspFactory, pMem, size, __FILE__, __LINE__);
 }
 /* ------------ */
 static void 
-_free(void* pMem) {
-  _xml_realloc(gspFactory, pMem, 0, __FILE__, __LINE__);
+free_(void* pMem) {
+  xml_realloc_(gspFactory, pMem, 0, __FILE__, __LINE__);
 }
 /* ------------ */
 static void *
-_alloc(size_t size, const xml_typeFactory * pFactory) {
+alloc_(size_t size, const xml_typeFactory * pFactory) {
   return memset(ReallocateMemory(pFactory, NULL, size), 0, size);
 }
 /* ------------ */
-static _xml_list_t 
-_list(const size_t elmsz, const xml_typeFactory * pFactory) {
-  _xml_list_t ret = { 
-    .m_elmSz = elmsz, 
-    .m_alloc = 4, 
-    .m_size = 0,
-    .m_pMem = ReallocateMemory(pFactory, NULL, ret.m_alloc * ret.m_elmSz)
+static xml_list_t_ 
+list_(const size_t elmsz, const xml_typeFactory * pFactory) {
+  xml_list_t_ ret = { 
+    .elmSz_ = elmsz, 
+    .alloc_ = 4, 
+    .size_ = 0,
+    .pMem_ = ReallocateMemory(pFactory, NULL, ret.alloc_ * ret.elmSz_)
   };
   return ret;
 }
 /* ------------ */
-static void 
-_list_push(_xml_list_t * pLst, const void * const pObj, const xml_typeFactory * pFactory) {
-  if (pLst->m_size == pLst->m_alloc) {
-    pLst->m_pMem = ReallocateMemory(pFactory, pLst->m_pMem, (pLst->m_alloc <<=1) * pLst->m_elmSz);
+static inline void
+list_push_(xml_list_t_ * pLst, const void * const pObj, const xml_typeFactory * pFactory) {
+  if (pLst->size_ == pLst->alloc_) {
+    pLst->pMem_ = ReallocateMemory(pFactory, pLst->pMem_, (pLst->alloc_ <<=1) * pLst->elmSz_);
   }
-  memcpy(pLst->m_pMem + (pLst->m_elmSz * pLst->m_size), pObj, pLst->m_elmSz);
-  pLst->m_size++;
+  memcpy(pLst->pMem_ + (pLst->elmSz_ * pLst->size_), pObj, pLst->elmSz_);
+  pLst->size_++;
 }
 /* ------------ */
-static void 
-_list_trim(_xml_list_t * pLst, const xml_typeFactory * pFactory) {
-  pLst->m_alloc = pLst->m_size;
-  pLst->m_pMem = ReallocateMemory(pFactory, pLst->m_pMem, pLst->m_alloc * pLst->m_elmSz);
+/* Realloc-down to exact size: used by LIST-type unmarshal whose c-array is
+   iterated by count (no sentinel). The DOM content list is sentinel-
+   terminated and skips this, so this is unused for list-free schemas. */
+__attribute__((__unused__)) static void
+list_trim_(xml_list_t_ * pLst, const xml_typeFactory * pFactory) {
+  pLst->alloc_ = pLst->size_;
+  pLst->pMem_ = ReallocateMemory(pFactory, pLst->pMem_, pLst->alloc_ * pLst->elmSz_);
 }
 /* ------------ */
-static void * 
-_list_carray(_xml_list_t * pLst) {
-  return pLst->m_pMem;
+static inline void *
+list_carray_(xml_list_t_ * pLst) {
+  return pLst->pMem_;
 }
 /* ------------ */
 // __attribute__((__unused__)) static void 
 /* ------------ */
-__attribute__((__unused__)) static _xml_tokenizer_t
-_tokenizer(const char * pStr, const xml_typeFactory * pFactory) {
-  _xml_tokenizer_t ret;
-  ret.m_pItr = ret.m_pStr = _cstr_init(pStr, -1, pFactory);
+__attribute__((__unused__)) static xml_tokenizer_t_
+tokenizer_(const char * pStr, const xml_typeFactory * pFactory) {
+  xml_tokenizer_t_ ret;
+  ret.pItr_ = ret.pStr_ = cstr_init_(pStr, -1, pFactory);
   return ret;
 }
 /* ------------ */
 __attribute__((__unused__)) static const char *
-_tokenizer_next(_xml_tokenizer_t * const pTknzr) {
-  const char * pRetStr = pTknzr->m_pItr;  
+tokenizer_next_(xml_tokenizer_t_ * const pTknzr) {
+  const char * pRetStr = pTknzr->pItr_;  
   if (*pRetStr) {
-    for (; *pTknzr->m_pItr && !isspace(*pTknzr->m_pItr); ++pTknzr->m_pItr) {}
-    for (; *pTknzr->m_pItr && isspace(*pTknzr->m_pItr); ++pTknzr->m_pItr) {
-      *pTknzr->m_pItr = 0;
+    for (; *pTknzr->pItr_ && !isspace(*pTknzr->pItr_); ++pTknzr->pItr_) {}
+    for (; *pTknzr->pItr_ && isspace(*pTknzr->pItr_); ++pTknzr->pItr_) {
+      *pTknzr->pItr_ = 0;
     }
   } 
   return pRetStr;
 }
 /* ------------ */
 __attribute__((__unused__)) void 
-_tokenizer_destroy(_xml_tokenizer_t * const pTknzr, const xml_typeFactory * pFactory) {
-  _cstr_destroy(&pTknzr->m_pStr, pFactory);
+tokenizer_destroy_(xml_tokenizer_t_ * const pTknzr, const xml_typeFactory * pFactory) {
+  cstr_destroy_(&pTknzr->pStr_, pFactory);
 }
 /* ------------ */
 static void
-_context_pushElement(_xml_context_t * pCtx, xml_typelist element) {
-  const unsigned ndx = pCtx->m_depth++;
-  pCtx->m_stack[ndx].m_element = element;
-  pCtx->m_stack[ndx].m_cntntLst = _list(sizeof(xml_typelist), pCtx->m_pFactory);
-  pCtx->m_stack[ndx].m_pContent = NULL;
+context_pushElement_(xml_context_t_ * pCtx, xml_typelist element) {
+  const unsigned ndx = pCtx->depth_++;
+  pCtx->stack_[ndx].element_ = element;
+  pCtx->stack_[ndx].cntntLst_ = list_(sizeof(xml_typelist), pCtx->pFactory_);
+  pCtx->stack_[ndx].pContent_ = NULL;
 }
 /* ------------ */
 static xml_typelist *
-_context_topElement(_xml_context_t * pCtx) {
-  const int ndx = pCtx->m_depth - 1;
-  return (ndx > - 1) ? &pCtx->m_stack[ndx].m_element : NULL;
+context_topElement_(xml_context_t_ * pCtx) {
+  const int ndx = pCtx->depth_ - 1;
+  return (ndx > - 1) ? &pCtx->stack_[ndx].element_ : NULL;
 }
 /* ------------ */
 static void
-_context_popElement(_xml_context_t * pCtx) {
-  _xml_stack_t  * pStack     = &pCtx->m_stack[--(pCtx->m_depth)];
-  xml_typelist ** ppCntntLst = (xml_typelist **)pStack->m_element.m_pData;
+context_popElement_(xml_context_t_ * pCtx) {
+  xml_stack_t_  * pStack     = &pCtx->stack_[--(pCtx->depth_)];
+  xml_typelist ** ppCntntLst = (xml_typelist **)pStack->element_.pData_;
   xml_typelist term = { 0, NULL };
-  _list_push(&pStack->m_cntntLst, &term, pCtx->m_pFactory);
-  _list_trim(&pStack->m_cntntLst, pCtx->m_pFactory);
-  *ppCntntLst = _list_carray(&pStack->m_cntntLst);
-  _cstr_destroy(&pStack->m_pContent, pCtx->m_pFactory);
+  /* Terminator-pushed list iterates to the {0,NULL} sentinel, so the spare
+     capacity past size_ is never read — skip the realloc-down trim. */
+  list_push_(&pStack->cntntLst_, &term, pCtx->pFactory_);
+  *ppCntntLst = list_carray_(&pStack->cntntLst_);
+  cstr_destroy_(&pStack->pContent_, pCtx->pFactory_);
 }
 /* ------------ */
 static void
-_context_addContent(_xml_context_t * pCtx, xml_typelist content) {
-  const int ndx      = pCtx->m_depth - 1;
+context_addContent_(xml_context_t_ * pCtx, xml_typelist content) {
+  const int ndx      = pCtx->depth_ - 1;
   if (ndx > -1) {
-    _xml_list_t  * pContent = &pCtx->m_stack[ndx].m_cntntLst;
-    _list_push(pContent, &content, pCtx->m_pFactory);
+    xml_list_t_  * pContent = &pCtx->stack_[ndx].cntntLst_;
+    list_push_(pContent, &content, pCtx->pFactory_);
   }
 }
 /* ------------ */
 static const char *
-_context_contentStr(_xml_context_t * pCtx) {
-  const int ndx = pCtx->m_depth - 1;
-  return (ndx > -1) ? pCtx->m_stack[ndx].m_pContent : NULL;
+context_contentStr_(xml_context_t_ * pCtx) {
+  const int ndx = pCtx->depth_ - 1;
+  return (ndx > -1) ? pCtx->stack_[ndx].pContent_ : NULL;
 }
 /* ------------ */
 static void
-_content_addContentStr(_xml_context_t * pCtx, const char * pStr, unsigned len) {
-  const int ndx = pCtx->m_depth - 1;
+content_addContentStr_(xml_context_t_ * pCtx, const char * pStr, unsigned len) {
+  const int ndx = pCtx->depth_ - 1;
   if (ndx > -1)
-    _cstr_appendEx(&pCtx->m_stack[ndx].m_pContent, pStr, len, pCtx->m_pFactory);
+    cstr_appendEx_(&pCtx->stack_[ndx].pContent_, pStr, len, pCtx->pFactory_);
 }
 /* ------------ */
 __attribute__((__unused__)) static char *
-_content_popContentStr(_xml_context_t * pCtx) {
-  const int ndx = pCtx->m_depth - 1;
+content_popContentStr_(xml_context_t_ * pCtx) {
+  const int ndx = pCtx->depth_ - 1;
   char * pRetVal = NULL;
   if (ndx > -1) {
-    pRetVal = pCtx->m_stack[ndx].m_pContent;
-    pCtx->m_stack[ndx].m_pContent = NULL;
+    pRetVal = pCtx->stack_[ndx].pContent_;
+    pCtx->stack_[ndx].pContent_ = NULL;
   }
   return pRetVal;
 }
 /* ------------ */
+/* Grow buffer behind *ppDst to hold len_ + extra bytes; doubling capacity. */
+static inline void
+cstr_reserve_(char ** ppDst, size_t extra, const xml_typeFactory * pFactory) {
+  cstr_hdr_t_ * pHdr = *ppDst ? CSTR_HDR_(*ppDst) : NULL;
+  size_t len = pHdr ? pHdr->len_ : 0;
+  size_t cap = pHdr ? pHdr->cap_ : 0;
+  if (len + extra + 1 > cap) {
+    cap = cap ? cap : 16;
+    while (len + extra + 1 > cap) cap <<= 1;
+    pHdr = ReallocateMemory(pFactory, pHdr, sizeof(cstr_hdr_t_) + cap);
+    pHdr->len_ = len;
+    pHdr->cap_ = cap;
+    *ppDst = CSTR_DATA_(pHdr);
+  }
+}
+/* ------------ */
 static char *
-_cstr_init(const char * pSrc, size_t len, const xml_typeFactory * pFactory) {
+cstr_init_(const char * restrict pSrc, size_t len, const xml_typeFactory * pFactory) {
   size_t strLen = ((len == -1) ? strlen(pSrc) : len);
-  return memcpy(_alloc(strLen + 1, pFactory), pSrc, strLen);
+  char * pRet = NULL;
+  cstr_reserve_(&pRet, strLen, pFactory);
+  memcpy(pRet, pSrc, strLen);
+  pRet[strLen] = 0;
+  CSTR_HDR_(pRet)->len_ = strLen;
+  return pRet;
 }
 /* ------------ */
 static void
-_cstr_destroy(char ** ppSrc, const xml_typeFactory * pFactory) {
-  if (*ppSrc) *ppSrc = ReallocateMemory(pFactory, (void *)*ppSrc, 0);
+cstr_destroy_(char ** ppSrc, const xml_typeFactory * pFactory) {
+  if (*ppSrc) {
+    ReallocateMemory(pFactory, CSTR_HDR_(*ppSrc), 0);
+    *ppSrc = NULL;
+  }
 }
 /* ------------ */
-static void
-_cstr_append(char ** ppDst, const char * pSrc, const xml_typeFactory * pFactory) {
-  int len[2] = { *ppDst ? strlen(*ppDst) : 0, pSrc ? strlen(pSrc) : 0 };
-  int newLen = len[0] + len[1];
-  *ppDst = ReallocateMemory(pFactory, *ppDst, newLen + 1);
-  memcpy(*ppDst + len[0], pSrc, len[1]); 
-  (*ppDst)[newLen] = 0;
+static inline void
+cstr_appendEx_(char ** restrict ppDst, const char * restrict pSrc, unsigned size, const xml_typeFactory * pFactory) {
+  size_t add = pSrc ? size : 0;
+  size_t len;
+  cstr_reserve_(ppDst, add, pFactory);
+  len = CSTR_HDR_(*ppDst)->len_;
+  memcpy(*ppDst + len, pSrc, add);
+  len += add;
+  (*ppDst)[len] = 0;
+  CSTR_HDR_(*ppDst)->len_ = len;
 }
 /* ------------ */
-static void 
-_cstr_appendEx(char ** ppDst, const char * pSrc, unsigned size, const xml_typeFactory * pFactory) {
-  int len[2] = { *ppDst ? strlen(*ppDst) : 0, pSrc ? size : 0};
-  int newLen = len[0] + len[1];
-  *ppDst = ReallocateMemory(pFactory, *ppDst, newLen + 1);
-  memcpy(*ppDst + len[0], pSrc, len[1]); 
-  (*ppDst)[newLen] = 0;
+static inline void
+cstr_append_(char ** restrict ppDst, const char * restrict pSrc, const xml_typeFactory * pFactory) {
+  cstr_appendEx_(ppDst, pSrc, pSrc ? (unsigned)strlen(pSrc) : 0, pFactory);
 }
 /* ------------ */
 [@lua return outputXmlDestroy(schema)]

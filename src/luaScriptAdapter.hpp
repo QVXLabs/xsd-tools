@@ -2,8 +2,8 @@
  * luaScriptAdapter.hpp
  *
  *  Created on: 01/27/12
- *      Author: Ardavon Falls
- *   Copyright: (c)2012 Ardavon Falls
+ *      Author: QVXLabs LLC
+ *   Copyright: (c)2012 QVXLabs LLC
  *
  *  This file is part of xsd-tools.
  *
@@ -18,7 +18,7 @@
  *  GNU General Public License for more details.
  *
  *  You should have received a copy of the GNU General Public License
- *  along with Foobar.  If not, see <http://www.gnu.org/licenses/>.
+ *  along with xsd-tools.  If not, see <http://www.gnu.org/licenses/>.
  */
  
 #ifndef LUASCRIPTADAPTER_HPP_
@@ -36,7 +36,7 @@ namespace Core {
 		virtual ~LuaException() noexcept;
 		virtual const char* what() const noexcept;
 	private:
-		std::string	m_errorMsg;
+		std::string	errorMsg_;
 	};
 	class LuaScriptAdapter {
 	public:
@@ -51,7 +51,7 @@ namespace Core {
 		void SetSchemaName(const std::string& schemaName) noexcept;
 		lua_State* LuaState() noexcept;
 	private:
-		lua_State*	m_pLuaState;
+		lua_State*	pLuaState_;
 		LuaScriptAdapter();
 		LuaScriptAdapter(const LuaScriptAdapter&);
 		static int luaSDBMHash(lua_State*);

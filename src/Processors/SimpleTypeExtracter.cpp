@@ -2,8 +2,8 @@
  * SimpleTypeExtracter.cpp
  *
  *  Created on: 01/23/12
- *      Author: Ardavon Falls
- *   Copyright: (c)2012 Ardavon Falls
+ *      Author: QVXLabs LLC
+ *   Copyright: (c)2012 QVXLabs LLC
  *
  *  This file is part of xsd-tools.
  *
@@ -18,7 +18,7 @@
  *  GNU General Public License for more details.
  *
  *  You should have received a copy of the GNU General Public License
- *  along with Foobar.  If not, see <http://www.gnu.org/licenses/>.
+ *  along with xsd-tools.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 #include "./src/XSDParser/Elements/Union.hpp"
@@ -34,27 +34,27 @@ using namespace std;
 using namespace Processors;
 
 SimpleTypeExtracter::SimpleTypeExtracter()
-	: LuaProcessorBase(NULL), m_pType(NULL)
+	: LuaProcessorBase(NULL), pType_(NULL)
 { }
 
 SimpleTypeExtracter::SimpleTypeExtracter(const SimpleTypeExtracter& rProcessor)
- 	: LuaProcessorBase(rProcessor), m_pType(rProcessor.m_pType->clone())
+ 	: LuaProcessorBase(rProcessor), pType_(rProcessor.pType_->clone())
  {}
  
 /* virtual */
 SimpleTypeExtracter::~SimpleTypeExtracter() {
-	delete m_pType;
+	delete pType_;
 }
 
 const XSD::Types::BaseType&
 SimpleTypeExtracter::Extract(const XSD::Types::BaseType& rXSDType) {
-	_parseType(rXSDType);
-	return *m_pType;
+	parseType_(rXSDType);
+	return *pType_;
 }
 
 /* virtual */ void
 SimpleTypeExtracter::ProcessUnion(const XSD::Elements::Union* pNode) {
-	m_pType = new XSD::Types::String();
+	pType_ = new XSD::Types::String();
 }
 
 /* virtual */ void
@@ -63,7 +63,7 @@ SimpleTypeExtracter::ProcessRestriction(const XSD::Elements::Restriction* pNode 
 		pNode->ParseChildren(*this);
 	else {
 		unique_ptr<XSD::Types::BaseType> pType(pNode->Base());
-		_parseType(*pType);
+		parseType_(*pType);
 	}
 }
 
@@ -72,7 +72,7 @@ SimpleTypeExtracter::ProcessList(const XSD::Elements::List* pNode) {
 	unique_ptr<XSD::Types::BaseType> pTypeLst(pNode->ItemType());
 	/* extract xsd native type from simple type */
 	SimpleTypeExtracter typeXtr;
-	_parseType(Types::ArrayType(typeXtr.Extract(*pTypeLst)));
+	parseType_(Types::ArrayType(typeXtr.Extract(*pTypeLst)));
 }
 
 /* virtual */ void
@@ -82,14 +82,14 @@ SimpleTypeExtracter::ProcessInclude(const XSD::Elements::Include* pNode) {
 }
 
 void 
-SimpleTypeExtracter::_parseType(const XSD::Types::BaseType& rXSDType) {
+SimpleTypeExtracter::parseType_(const XSD::Types::BaseType& rXSDType) {
 	if(XSD_ISTYPE(&rXSDType, XSD::Types::SimpleType)) {
 		const XSD::Types::SimpleType* pSimpleType = static_cast<const XSD::Types::SimpleType*>(&rXSDType);
-		pSimpleType->m_pValue->ParseElement(*this);
+		pSimpleType->pValue_->ParseElement(*this);
 	} else if(XSD_ISTYPE(&rXSDType, XSD::Types::ComplexType)) {
 		const XSD::Types::ComplexType* pComplexType = static_cast<const XSD::Types::ComplexType*>(&rXSDType);
-		pComplexType->m_pValue->ParseElement(*this);
+		pComplexType->pValue_->ParseElement(*this);
 	} else {
-		m_pType = rXSDType.clone();
+		pType_ = rXSDType.clone();
 	}
 }

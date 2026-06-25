@@ -15,8 +15,16 @@ function float:typeName()
    return ("xml_float")
 end
 
+function float:inlineScalar()
+   return true
+end
+
+function float:cType()
+   return "float"
+end
+
 function float:typeDef()
-   return ("typedef float * %s;\n"):format(self:typeName())
+   return self:scalarTypeDef()
 end
 
 function float:typeFactoryMethods()
@@ -24,37 +32,17 @@ function float:typeFactoryMethods()
 end
 
 function float:defMarshal(elementName)
-   out = stringBuffer:new()
-   out:append("static void")
-   out:append("_xml_float_marshal")
-   out:append("(const xml_float pVal, char ** ppOut, const xml_typeFactory * pFactory) {\n")
-   out:append("  char num[64];\n")
-   out:append("  snprintf(num, 64, \"%f\", *pVal);\n")
-   out:append("  _cstr_append(ppOut, num, pFactory);\n")
-   out:append("}\n")   
-   return out:str()
+   return self:defScalarMarshal(function(v)
+      return ("  char num[64];\n  snprintf(num, 64, \"%%f\", %s);\n  cstr_append_(ppOut, num, pFactory);\n"):format(v)
+   end)
 end
 
 function float:defUnmarshal(elementName)
-   out = stringBuffer:new()
-   out:append("static xml_float\n")
-   out:append("_xml_float_unmarshal(")
-   out:append("const char * pVal, const xml_typeFactory * pFactory) {\n")
-   out:append("  xml_float val = ReallocateMemory(pFactory, NULL, sizeof(float));\n")
-   out:append("  return (*val  = atof(pVal)), val;\n")
-   out:append("}\n")
-   return out:str()
+   return self:defScalarUnmarshal("(float)atof(pVal)")
 end
 
 function float:defDestroy()
-   out = stringBuffer:new()
-   out:append("static xml_float\n")
-   out:append("_xml_float_destroy")
-   out:append("(xml_float pVal, const xml_typeFactory * pFactory) {\n")
-   out:append("  if (pVal) pVal = ReallocateMemory(pFactory, pVal, 0);\n")
-   out:append("  return pVal;\n")
-   out:append("}\n")
-   return out:str()
+   return self:defScalarDestroy()
 end
 
 function float:test()

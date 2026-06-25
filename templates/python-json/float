@@ -1,0 +1,37 @@
+[@lua --define python float type (JSON)
+	pyjsontype_float = {
+		marshal = {
+			attribute = function(attribName)
+				return table.concat({
+					"        attrs[\"", attribName, "\"] = float(self._", attribName, ")\n",
+				})
+			end,
+			content = function()
+				return table.concat({
+					"        content = self._content[0]\n"
+				})
+			end,
+		},
+		unmarshal = {
+			attribute = function(attribName)
+				return table.concat({
+					"            if \"", attribName, "\" == attribute:\n",
+					"                self._", attribName, " = float(attributes[attribute])\n",
+				})
+			end,
+			content = function()
+				return table.concat({
+					"        self._content = [float(content)]\n"
+				})
+			end
+		},
+		default = function(attribName, value)
+			return table.concat({"        self._", attribName, " = ", value, "\n"})
+		end,
+		test = {
+			assign = function()
+				return tostring(math.random() * math.random(-127, 127))
+			end,
+		},
+	}
+]

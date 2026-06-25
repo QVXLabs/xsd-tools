@@ -1,5 +1,6 @@
 cmake_minimum_required(VERSION 3.16)
-project(xsd-tools CXX C)
+include(${CMAKE_CURRENT_LIST_DIR}/cmake/GitVersion.cmake)
+project(xsd-tools VERSION ${XSD_VERSION} LANGUAGES CXX C)
 
 # Some vendored deps (googletest 1.11, expat R_2_4_1) declare a pre-3.5
 # cmake_minimum_required, which CMake 4.x rejects. Treat such floors as 3.5.
@@ -26,11 +27,15 @@ option(XSD_WERROR "Treat warnings as errors (GCC/Clang only)" ON)
 include(CTest)  # defines BUILD_TESTING (default ON)
 
 # ---------------------------------------------------------------------------
-# C++ standard (the sources are C++11; safeEnv.lua/luac require Lua 5.1)
+# Language standards (C++ sources are C++11; the bundled lua + the generated
+# C output build as C11). Pin both so the build is captured, not host-default.
 # ---------------------------------------------------------------------------
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
+# C extensions stay ON (gnu11): the bundled lua needs POSIX (dlopen/popen).
+set(CMAKE_C_STANDARD 11)
+set(CMAKE_C_STANDARD_REQUIRED ON)
 
 # ---------------------------------------------------------------------------
 # Build configurations. Single-config generators bake one type per build dir;
@@ -112,9 +117,17 @@ set(FETCHCONTENT_BASE_DIR "${CMAKE_BINARY_DIR}/third-party"
 # over the upstream tree's missing CMakeLists.txt.
 function(fetch_third_party name url sha256 overlay provided iface)
   cmake_parse_arguments(ARG "" "" "PATCH" ${ARGN})
+  # Windows' GNU patch (Strawberry, 2.5.9) defaults to text mode and asserts
+  # on the LNUM patch's hunks against the LF-only upstream tarball
+  # ("Expression: hunk", patch.c:354); --binary makes it match byte-for-byte.
+  # macOS/BSD patch has no such flag, so apply it on Windows only.
+  set(patch_prog patch)
+  if(WIN32)
+    set(patch_prog patch --binary)
+  endif()
   set(patch_cmd "")
   foreach(p IN LISTS ARG_PATCH)
-    list(APPEND patch_cmd patch -p1 -i "${p}" COMMAND)
+    list(APPEND patch_cmd ${patch_prog} -p1 -i "${p}" COMMAND)
   endforeach()
   list(APPEND patch_cmd ${CMAKE_COMMAND} -E copy_if_different
        "${overlay}" "<SOURCE_DIR>/CMakeLists.txt")
@@ -265,9 +278,10 @@ add_custom_command(
 add_custom_target(luascript DEPENDS "${LUASCRIPT_LUAC}")
 
 # ---------------------------------------------------------------------------
-# Prefix-aware runtime template path -> resource_config.hpp
+# Version + prefix-aware runtime template path -> resource_config.hpp
 # ---------------------------------------------------------------------------
 include(GNUInstallDirs)
+set(XSDTOOLS_VERSION "${XSD_VERSION_FULL}")
 set(XSDTOOLS_GLOBAL_TEMPLATE_PATH
   "${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_DATADIR}/xsdtools/templates")
 configure_file(
@@ -316,6 +330,7 @@ set(LIBXSDB_SOURCES
   src/XSDParser/Elements/Enumeration.cpp
   src/XSDParser/Elements/AttributeGroup.cpp
   src/XSDParser/Elements/Include.cpp
+  src/XSDParser/Elements/Import.cpp
   src/XSDParser/Elements/Annotation.cpp
   src/XSDParser/Elements/Documentation.cpp
   src/XSDParser/Elements/All.cpp
@@ -330,11 +345,21 @@ set(LIBXSDB_SOURCES
 
 add_library(xsdb-lib STATIC ${LIBXSDB_SOURCES})
 add_dependencies(xsdb-lib luascript)
+# Build-tree include roots resolve our "./src/..." includes and the generated
+# resource_config.hpp. Wrapped in BUILD_INTERFACE so they don't leak into the
+# installed export; consumers get the install-tree include dir added below.
 target_include_directories(xsdb-lib PUBLIC
-  "${CMAKE_CURRENT_SOURCE_DIR}"            # so "./src/..." includes resolve
-  "${CMAKE_BINARY_DIR}/generated")         # resource_config.hpp
+  "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>"
+  "$<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/generated>")
+# Deps are needed to build the archive but xsdb-lib is static; consumers
+# relink their own deps. BUILD_INTERFACE keeps the export self-contained.
 target_link_libraries(xsdb-lib PUBLIC
-  xsd_lua xsd_tinyxml xsd_boost PRIVATE xsd_incbin xsd_flags)
+  "$<BUILD_INTERFACE:xsd_lua>"
+  "$<BUILD_INTERFACE:xsd_tinyxml>"
+  "$<BUILD_INTERFACE:xsd_boost>"
+  PRIVATE
+  "$<BUILD_INTERFACE:xsd_incbin>"
+  "$<BUILD_INTERFACE:xsd_flags>")
 
 # -- Embed luascript.luac into resource.cpp --
 if(MSVC)
@@ -345,8 +370,15 @@ if(MSVC)
   set(_incbin_data "${CMAKE_BINARY_DIR}/generated/luascript_data.c")
   add_custom_command(
     OUTPUT "${_incbin_data}"
+    # No -I: incbin's open_file only falls back to the bare path when it has
+    # zero search dirs, so with WORKING_DIRECTORY=<build> it opens the absolute
+    # resource.cpp and the relative luascript.luac (generated in <build>)
+    # directly — same lookup the POSIX .incbin directive uses.
+    # -p _binary_ matches INCBIN_PREFIX below so the emitted data symbols
+    # (_binary_luascript_luacData/Size) resolve resource.cpp's externs;
+    # incbin's default prefix is "g", which would not match.
     COMMAND incbin-tool "${CMAKE_CURRENT_SOURCE_DIR}/src/resource.cpp"
-            -I "${CMAKE_CURRENT_SOURCE_DIR}/third-party/incbin"
+            -p _binary_
             -o "${_incbin_data}"
     DEPENDS "${LUASCRIPT_LUAC}" incbin-tool
     WORKING_DIRECTORY "${CMAKE_BINARY_DIR}"
@@ -368,12 +400,30 @@ endif()
 add_executable(xsdb src/main.cpp)
 target_link_libraries(xsdb PRIVATE xsdb-lib xsd_flags)
 
+# Consumers link the public Generate()/SplitMarkedFiles() API via this alias.
+add_library(xsdtools::xsdtools ALIAS xsdb-lib)
+
 # ---------------------------------------------------------------------------
 # Install
 # ---------------------------------------------------------------------------
 install(TARGETS xsdb RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}")
 install(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/templates/"
   DESTINATION "${CMAKE_INSTALL_DATADIR}/xsdtools/templates")
+
+# ---------------------------------------------------------------------------
+# Library export: downstream C++ links xsdtools::xsdtools for Generate() /
+# SplitMarkedFiles() and includes <xsdtools/xsdtools.hpp>.
+# ---------------------------------------------------------------------------
+target_include_directories(xsdb-lib PUBLIC
+  "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>")
+install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/src/xsdtools.hpp"
+  DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/xsdtools")
+install(TARGETS xsdb-lib EXPORT xsdtools-targets
+  ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}")
+install(EXPORT xsdtools-targets
+  FILE xsdtools-targets.cmake
+  NAMESPACE xsdtools::
+  DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/xsdtools")
 
 # ---------------------------------------------------------------------------
 # Tests

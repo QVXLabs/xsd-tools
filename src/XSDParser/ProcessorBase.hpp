@@ -2,8 +2,8 @@
  * ProcessorBase.hpp
  *
  *  Created on: Jun 24, 2011
- *      Author: Ardavon Falls
- *   Copyright: (c)2011 Ardavon Falls
+ *      Author: QVXLabs LLC
+ *   Copyright: (c)2011 QVXLabs LLC
  *
  *  This file is part of xsd-tools.
  *
@@ -18,7 +18,7 @@
  *  GNU General Public License for more details.
  *
  *  You should have received a copy of the GNU General Public License
- *  along with Foobar.  If not, see <http://www.gnu.org/licenses/>.
+ *  along with xsd-tools.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 #ifndef PROCESSORBASE_HPP_
@@ -55,6 +55,7 @@ namespace XSD {
 		class WhiteSpace;
 		class AttributeGroup;
 		class Include;
+		class Import;
 		class Annotation;
 		class Documentation;
 		class All;
@@ -92,6 +93,9 @@ namespace XSD {
 		virtual void ProcessWhiteSpace(const Elements::WhiteSpace* pNode) = 0;
 		virtual void ProcessAttributeGroup(const Elements::AttributeGroup* pNode) = 0;
 		virtual void ProcessInclude(const Elements::Include* pNode) = 0;
+		/* Non-pure so existing processors need no update; xs:import resolution
+		 * happens lazily in FindXSDElm_, so the default visit is a no-op. */
+		virtual void ProcessImport(const Elements::Import* pNode) {}
 		virtual void ProcessAnnotation(const Elements::Annotation* pNode) = 0;
 		virtual void ProcessDocumentation(const Elements::Documentation* pNode) = 0;
 		virtual void ProcessAll(const Elements::All* pNode) = 0;

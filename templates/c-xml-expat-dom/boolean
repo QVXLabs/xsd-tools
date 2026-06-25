@@ -15,8 +15,16 @@ function boolean:typeName()
    return ("xml_boolean")
 end
 
+function boolean:inlineScalar()
+   return true
+end
+
+function boolean:cType()
+   return "unsigned"
+end
+
 function boolean:typeDef()
-   return ("typedef unsigned * %s;\n"):format(self:typeName())
+   return self:scalarTypeDef()
 end
 
 function boolean:typeFactoryMethods()
@@ -24,39 +32,26 @@ function boolean:typeFactoryMethods()
 end
 
 function boolean:defMarshal(elementName)
-   out = stringBuffer:new()
-   out:append("static void\n")
-   out:append("_xml_boolean_marshal")
-   out:append("(const xml_boolean pVal, char ** ppOut, const xml_typeFactory * pFactory) {\n")
-   out:append("  _cstr_append(ppOut, (*pVal ? \"true\" : \"false\"), pFactory);\n")
-   out:append("}\n")   
-   return out:str()
+   return self:defScalarMarshal(function(v)
+      return ("  cstr_append_(ppOut, (%s ? \"true\" : \"false\"), pFactory);\n"):format(v)
+   end)
 end
 
 function boolean:defUnmarshal(elementName)
    out = stringBuffer:new()
-   out:append("static xml_boolean\n")
-   out:append("_xml_boolean_unmarshal(")
-   out:append("const char * pStr, const xml_typeFactory * pFactory) {\n")
-   out:append("  xml_boolean pVal = ReallocateMemory(pFactory, NULL, sizeof(unsigned));\n")
-   out:append("  *pVal = (unsigned)strtoul(pStr, NULL, 10);\n")
-   out:append("  if (!*pVal) {\n")
-   out:append("    *pVal = (0 == strncasecmp(pStr, \"true\", 6));\n")
-   out:append("  }\n")
-   out:append("  return pVal;\n")
+   out:append("static void *\n")
+   out:append("xml_boolean_unmarshal_(const char * pStr, const xml_typeFactory * pFactory) {\n")
+   out:append("  void * slot;\n")
+   out:append("  unsigned v = (unsigned)strtoul(pStr, NULL, 10);\n")
+   out:append("  if (!v) v = (0 == strncasecmp(pStr, \"true\", 6));\n")
+   out:append("  XML_SCALAR_ENCODE_(unsigned, slot, v, pFactory);\n")
+   out:append("  return slot;\n")
    out:append("}\n")
    return out:str()
 end
 
 function boolean:defDestroy()
-   out = stringBuffer:new()
-   out:append("static xml_boolean\n")
-   out:append("_xml_boolean_destroy")
-   out:append("(xml_boolean pVal, const xml_typeFactory * pFactory) {\n")
-   out:append("  if (pVal) pVal = ReallocateMemory(pFactory, pVal, 0);\n")
-   out:append("  return pVal;\n")
-   out:append("}\n")
-   return out:str()
+   return self:defScalarDestroy()
 end
 
 function boolean:test()

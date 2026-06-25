@@ -1,195 +1,265 @@
 test3 = {
+	attributes = {}
 	maxOccurs = 1
 	content = {
 		int = {
+			attributes = {}
+			facets = {
+				minExclusive = 0
+				enumeration = { 1, 2, 3, 4 }
+				maxInclusive = 10
+			}
 			maxOccurs = 1
 			content = {}
-			attributes = {}
+			minOccurs = 1
 		}
 	}
-	attributes = {}
+	minOccurs = 1
 }
 test1 = {
+	attributes = {}
 	maxOccurs = 1
 	content = {
 		int = {
+			attributes = {}
+			facets = {
+				minExclusive = 0
+				enumeration = { 1, 2, 3, 4 }
+				maxInclusive = 10
+			}
 			maxOccurs = 1
 			content = {}
-			attributes = {}
+			minOccurs = 1
 		}
 	}
-	attributes = {}
+	minOccurs = 1
 }
 test2 = {
+	attributes = {}
 	maxOccurs = 1
 	content = {
 		int = {
+			attributes = {}
+			facets = {
+				minExclusive = 0
+				enumeration = { 1, 2, 3, 4 }
+				maxInclusive = 10
+			}
 			maxOccurs = 1
 			content = {}
-			attributes = {}
+			minOccurs = 1
 		}
 	}
-	attributes = {}
+	minOccurs = 1
 }
 root = {
+	attributes = {}
 	maxOccurs = 1
 	content = {
 		test3 = {
+			attributes = {}
 			maxOccurs = 1
 			content = {
 				int = {
+					attributes = {}
+					facets = {
+						minExclusive = 0
+						enumeration = { 1, 2, 3, 4 }
+						maxInclusive = 10
+					}
 					maxOccurs = 1
 					content = {}
-					attributes = {}
+					minOccurs = 1
 				}
 			}
-			attributes = {}
+			minOccurs = 1
 		}
 		test1 = {
+			attributes = {}
 			maxOccurs = 1
 			content = {
 				int = {
+					attributes = {}
+					facets = {
+						minExclusive = 0
+						enumeration = { 1, 2, 3, 4 }
+						maxInclusive = 10
+					}
 					maxOccurs = 1
 					content = {}
-					attributes = {}
+					minOccurs = 1
 				}
 			}
-			attributes = {}
+			minOccurs = 1
 		}
 		test2 = {
+			attributes = {}
 			maxOccurs = 1
 			content = {
 				int = {
+					attributes = {}
+					facets = {
+						minExclusive = 0
+						enumeration = { 1, 2, 3, 4 }
+						maxInclusive = 10
+					}
 					maxOccurs = 1
 					content = {}
-					attributes = {}
+					minOccurs = 1
 				}
 			}
-			attributes = {}
+			minOccurs = 1
 		}
 		test5 = {
+			attributes = {}
 			maxOccurs = 1
 			content = {
 				y = {
+					attributes = {}
 					maxOccurs = 1
 					content = {
 						string = {
+							attributes = {}
 							maxOccurs = 1
 							content = {}
-							attributes = {}
+							minOccurs = 1
 						}
 					}
-					attributes = {}
+					minOccurs = 0
 				}
 				x = {
+					attributes = {}
 					maxOccurs = 2
 					content = {
 						string = {
+							attributes = {}
 							maxOccurs = 1
 							content = {}
-							attributes = {}
+							minOccurs = 1
 						}
 					}
-					attributes = {}
+					minOccurs = 0
 				}
 			}
-			attributes = {}
+			minOccurs = 1
 		}
 		test4 = {
+			attributes = {}
 			maxOccurs = 1
 			content = {
 				y = {
+					attributes = {}
 					maxOccurs = 1
 					content = {
 						string = {
+							attributes = {}
 							maxOccurs = 1
 							content = {}
-							attributes = {}
+							minOccurs = 1
 						}
 					}
-					attributes = {}
+					minOccurs = 0
 				}
 				x = {
+					attributes = {}
 					maxOccurs = 2
 					content = {
 						string = {
+							attributes = {}
 							maxOccurs = 1
 							content = {}
-							attributes = {}
+							minOccurs = 1
 						}
 					}
-					attributes = {}
+					minOccurs = 0
 				}
 			}
-			attributes = {}
+			minOccurs = 1
 		}
 	}
-	attributes = {}
+	minOccurs = 1
 }
 sa = {
+	attributes = {}
 	maxOccurs = 1
 	content = {
 		int = {
+			attributes = {}
+			facets = {
+				minExclusive = 0
+				enumeration = { 1, 2, 3, 4 }
+				maxInclusive = 10
+			}
 			maxOccurs = 1
 			content = {}
-			attributes = {}
+			minOccurs = 1
 		}
 	}
-	attributes = {}
+	minOccurs = 1
 }
 test5 = {
+	attributes = {}
 	maxOccurs = 1
 	content = {
 		y = {
+			attributes = {}
 			maxOccurs = 1
 			content = {
 				string = {
+					attributes = {}
 					maxOccurs = 1
 					content = {}
-					attributes = {}
+					minOccurs = 1
 				}
 			}
-			attributes = {}
+			minOccurs = 0
 		}
 		x = {
+			attributes = {}
 			maxOccurs = 2
 			content = {
 				string = {
+					attributes = {}
 					maxOccurs = 1
 					content = {}
-					attributes = {}
+					minOccurs = 1
 				}
 			}
-			attributes = {}
+			minOccurs = 0
 		}
 	}
-	attributes = {}
+	minOccurs = 1
 }
 test4 = {
+	attributes = {}
 	maxOccurs = 1
 	content = {
 		y = {
+			attributes = {}
 			maxOccurs = 1
 			content = {
 				string = {
+					attributes = {}
 					maxOccurs = 1
 					content = {}
-					attributes = {}
+					minOccurs = 1
 				}
 			}
-			attributes = {}
+			minOccurs = 0
 		}
 		x = {
+			attributes = {}
 			maxOccurs = 2
 			content = {
 				string = {
+					attributes = {}
 					maxOccurs = 1
 					content = {}
-					attributes = {}
+					minOccurs = 1
 				}
 			}
-			attributes = {}
+			minOccurs = 0
 		}
 	}
-	attributes = {}
+	minOccurs = 1
 }

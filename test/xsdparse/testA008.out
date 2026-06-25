@@ -1,11 +1,13 @@
 fooTest = {
+	attributes = {}
 	maxOccurs = 1
 	content = {
 		list(positiveInteger) = {
+			attributes = {}
 			maxOccurs = 1
 			content = {}
-			attributes = {}
+			minOccurs = 1
 		}
 	}
-	attributes = {}
+	minOccurs = 1
 }

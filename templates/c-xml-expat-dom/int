@@ -15,8 +15,16 @@ function int:typeName()
    return ("xml_int")
 end
 
+function int:inlineScalar()
+   return true
+end
+
+function int:cType()
+   return "int32_t"
+end
+
 function int:typeDef()
-   return ("typedef int32_t * %s;\n"):format(self:typeName())
+   return self:scalarTypeDef()
 end
 
 function int:typeFactoryMethods()
@@ -24,40 +32,20 @@ function int:typeFactoryMethods()
 end
 
 function int:defMarshal(elementName)
-   out = stringBuffer:new()
-   out:append("static void\n")
-   out:append("_xml_int_marshal")
-   out:append("(const xml_int pVal, char ** ppOut, const xml_typeFactory * pFactory) {\n")
-   out:append("  char num[32];\n")
-   out:append("  snprintf(num, 32, \"%d\", *pVal);\n")
-   out:append("  _cstr_append(ppOut, num, pFactory);\n")
-   out:append("}\n")   
-   return out:str()
+   return self:defScalarMarshal(function(v)
+      return ("  char num[32];\n  snprintf(num, 32, \"%%d\", %s);\n  cstr_append_(ppOut, num, pFactory);\n"):format(v)
+   end)
 end
 
 function int:defUnmarshal(elementName)
-   out = stringBuffer:new()
-   out:append("static xml_int\n")
-   out:append("_xml_int_unmarshal(")
-   out:append("const char * pVal, const xml_typeFactory * pFactory) {\n")
-   out:append("  xml_int val = ReallocateMemory(pFactory, NULL, sizeof(int32_t));\n")
-   out:append("  return (*val  = atoi(pVal)), val;\n")
-   out:append("}\n")
-   return out:str()
+   return self:defScalarUnmarshal("(int32_t)atoll(pVal)")
 end
 
 function int:defDestroy()
-   out = stringBuffer:new()
-   out:append("static xml_int\n")
-   out:append("_xml_int_destroy")
-   out:append("(xml_int pVal, const xml_typeFactory * pFactory) {\n")
-   out:append("  if (pVal) pVal = ReallocateMemory(pFactory, pVal, 0);\n")
-   out:append("  return pVal;\n")
-   out:append("}\n")
-   return out:str()
+   return self:defScalarDestroy()
 end
 
-function int:test()
-   return "29832"
+function int:test(facets)
+   return facets_sampleInt(facets) or "29832"
 end
 ]

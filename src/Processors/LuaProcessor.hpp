@@ -2,8 +2,8 @@
  * LuaProcessor.hpp
  *
  *  Created on: Jun 25, 2011
- *      Author: Ardavon Falls
- *   Copyright: (c)2012 Ardavon Falls
+ *      Author: QVXLabs LLC
+ *   Copyright: (c)2012 QVXLabs LLC
  *
  *  This file is part of xsd-tools.
  *
@@ -18,14 +18,19 @@
  *  GNU General Public License for more details.
  *
  *  You should have received a copy of the GNU General Public License
- *  along with Foobar.  If not, see <http://www.gnu.org/licenses/>.
+ *  along with xsd-tools.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 #ifndef LUAPROCESSOR_HPP_
 #define LUAPROCESSOR_HPP_
 
+#include <memory>
+#include <set>
 #include "./src/XSDParser/Types.hpp"
 #include "./src/Processors/LuaProcessorBase.hpp"
+#include "./src/Processors/LuaAdapter.hpp"
+
+namespace XSD { namespace Elements { class Node; } }
 
 namespace Processors {
 	class LuaProcessor : public LuaProcessorBase {
@@ -48,11 +53,35 @@ namespace Processors {
 		virtual void ProcessAttributeGroup(const XSD::Elements::AttributeGroup* pNode);
 		virtual void ProcessInclude(const XSD::Elements::Include* pNode);
 		virtual void ProcessAll(const XSD::Elements::All* pNode);
+		/* facet callbacks: record values into the facet accumulator */
+		virtual void ProcessMinExclusive(const XSD::Elements::MinExclusive* pNode);
+		virtual void ProcessMaxExclusive(const XSD::Elements::MaxExclusive* pNode);
+		virtual void ProcessMinInclusive(const XSD::Elements::MinInclusive* pNode);
+		virtual void ProcessMaxInclusive(const XSD::Elements::MaxInclusive* pNode);
+		virtual void ProcessMinLength(const XSD::Elements::MinLength* pNode);
+		virtual void ProcessMaxLength(const XSD::Elements::MaxLength* pNode);
+		virtual void ProcessLength(const XSD::Elements::Length* pNode);
+		virtual void ProcessEnumeration(const XSD::Elements::Enumeration* pNode);
+		virtual void ProcessPattern(const XSD::Elements::Pattern* pNode);
+		virtual void ProcessTotalDigits(const XSD::Elements::TotalDigits* pNode);
+		virtual void ProcessFractionDigits(const XSD::Elements::FractionDigits* pNode);
+		virtual void ProcessWhiteSpace(const XSD::Elements::WhiteSpace* pNode);
 	protected:
 		LuaProcessor(LuaAdapter * pLuaAdapter);
-		virtual void _parseType(const XSD::Types::BaseType& rXSDType);
+		virtual void parseType_(const XSD::Types::BaseType& rXSDType);
 	private:
 		LuaProcessor();
+		/* dispatch a restriction's facet children to this processor */
+		void walkFacets_(const XSD::Elements::Node* pNode);
+		/* accumulate an attribute's restriction facets onto facets_ */
+		void walkAttributeFacets_(const XSD::Types::BaseType* pType);
+		/* facets accumulated across a restriction derivation chain */
+		LuaFacets facets_;
+		/* types currently being expanded on the active path; shared across
+		 * the nested processors of one generation so a type that re-enters
+		 * its own expansion (a cyclic schema) is rejected instead of
+		 * recursing until the stack overflows */
+		std::shared_ptr<std::set<const void*> > activePath_;
 	};
 }	/* using namespace Processors */
 #endif /* LUAPROCESSOR_HPP_ */

@@ -2,8 +2,8 @@
  * Include.hpp
  *
  *  Created on: Aug 10, 2011
- *      Author: Ardavon Falls
- *   Copyright: (c)2011 Ardavon Falls
+ *      Author: QVXLabs LLC
+ *   Copyright: (c)2011 QVXLabs LLC
  *
  *  This file is part of xsd-tools.
  *
@@ -18,7 +18,7 @@
  *  GNU General Public License for more details.
  *
  *  You should have received a copy of the GNU General Public License
- *  along with Foobar.  If not, see <http://www.gnu.org/licenses/>.
+ *  along with xsd-tools.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 #ifndef INCLUDE_HPP_
@@ -28,7 +28,6 @@
 #endif /* TIXML_USE_STL */
 #include <string>
 #include <tinyxml.h>
-#include "./src/XSDParser/Exception.hpp"
 #include "./src/XSDParser/Elements/Node.hpp"
 #include "./src/XSDParser/Elements/Schema.hpp"
 
@@ -37,22 +36,16 @@ namespace XSD {
 		class Include : public Node {
 			XSD_ELEMENT_TAG("include")
 		private:
-			mutable Schema*	m_pSchema;
-			Parser	m_parser;
+			mutable Schema*	pSchema_;
 			Include();
-			std::string _schemaURI() const noexcept(false);;
-			static std::string _extractURIPath(const std::string& uri);
-			static bool _isFileURI(const std::string& uri);
-			static std::string _extractQuery(const std::string& uri);
 		public:
 			Include(const TiXmlElement& elm, const Parser& rParser);
 			Include(const Include& elm);
 			virtual ~Include();
 			void ParseChildren(BaseProcessor& rProcessor) const noexcept(false);;
 			void ParseElement(BaseProcessor& rProcessor) const noexcept(false);;
-			Types::BaseType * GetParentType() const noexcept(false);;
 			const Schema* QuerySchema() const noexcept(false);;
-			bool HasSchema() const;
+			XSD_HAS_ATTR(HasSchema, "schemaLocation")
 		};
 	}	/* namespace Elements */
 }	/* namespace XSD */

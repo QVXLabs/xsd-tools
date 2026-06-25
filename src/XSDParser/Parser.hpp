@@ -2,8 +2,8 @@
  * Parser.hpp
  *
  *  Created on: Jun 27, 2011
- *      Author: Ardavon Falls
- *   Copyright: (c)2011 Ardavon Falls
+ *      Author: QVXLabs LLC
+ *   Copyright: (c)2011 QVXLabs LLC
  *
  *  This file is part of xsd-tools.
  *
@@ -18,11 +18,12 @@
  *  GNU General Public License for more details.
  *
  *  You should have received a copy of the GNU General Public License
- *  along with Foobar.  If not, see <http://www.gnu.org/licenses/>.
+ *  along with xsd-tools.  If not, see <http://www.gnu.org/licenses/>.
  */
 #ifndef PARSER_HPP_
 #define PARSER_HPP_
 
+#include <map>
 #include <string>
 #include <vector>
 #include "./src/XSDParser/TypesDB.hpp"
@@ -35,18 +36,22 @@ namespace XSD {
 	class Parser {
 	private:
 		struct DocumentRecord {
-			TiXmlDocument *	m_pDocument;
-			std::string 	m_uri;
+			TiXmlDocument *	pDocument_;
+			std::string 	uri_;
 			DocumentRecord(TiXmlDocument *	pDocument, const std::string& uri) 
-				: m_pDocument(pDocument), m_uri(uri) 
+				: pDocument_(pDocument), uri_(uri) 
 			{ }
 			virtual ~DocumentRecord() {
-				delete m_pDocument;
+				delete pDocument_;
 			}
 		};
 		typedef std::vector<DocumentRecord *> XmlDocList;
-		Types::TypesDB 		m_typesDb;
-	    mutable XmlDocList	m_docLst;
+		Types::TypesDB 		typesDb_;
+	    mutable XmlDocList	docLst_;
+		/* xs:import index: imported targetNamespace URI -> document URI. */
+		mutable std::map<std::string, std::string> nsIndex_;
+		DocumentRecord* findByUri_(const std::string& rUri) const;
+		DocumentRecord* findByDoc_(const TiXmlDocument& document) const;
 	public:
 		Parser();
 		virtual ~Parser();
@@ -58,6 +63,11 @@ namespace XSD {
 		std::string GetUri(const TiXmlDocument& document) const;
 		const TiXmlDocument * GetDocument(const std::string& rUri) const;
 		bool isRootDocument(const TiXmlDocument& document) const;
+		/* Record an xs:import: map its targetNamespace URI to the loaded doc. */
+		void RegisterNamespace(const std::string& rNamespace,
+			const std::string& rUri) const;
+		/* The document URI registered for an imported namespace ("" if none). */
+		std::string GetNamespaceUri(const std::string& rNamespace) const;
 	};
 }	/* namespace XSD */
 

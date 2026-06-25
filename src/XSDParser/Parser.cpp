@@ -2,8 +2,8 @@
  * Parser.cpp
  *
  *  Created on: Jul 3, 2011
- *      Author: Ardavon Falls
- *   Copyright: (c)2011 Ardavon Falls
+ *      Author: QVXLabs LLC
+ *   Copyright: (c)2011 QVXLabs LLC
  *
  *  This file is part of xsd-tools.
  *
@@ -18,7 +18,7 @@
  *  GNU General Public License for more details.
  *
  *  You should have received a copy of the GNU General Public License
- *  along with Foobar.  If not, see <http://www.gnu.org/licenses/>.
+ *  along with xsd-tools.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 #include "./src/XSDParser/Parser.hpp"
@@ -29,12 +29,12 @@
 using namespace XSD;
 
 Parser::Parser()
-  : m_typesDb(), m_docLst()
+  : typesDb_(), docLst_(), nsIndex_()
 { }
 
 /* virtual */
 Parser::~Parser() {
-	for (XmlDocList::iterator i = m_docLst.begin(); i != m_docLst.end(); ++i) {
+	for (XmlDocList::iterator i = docLst_.begin(); i != docLst_.end(); ++i) {
 		delete *i;
 	}
 }
@@ -45,14 +45,33 @@ Parser::Parse(const char* pUri) const noexcept(false) {
 	return Parse(uri);
 }
 
+Parser::DocumentRecord*
+Parser::findByUri_(const std::string& rUri) const {
+	for (XmlDocList::iterator i = docLst_.begin(); i != docLst_.end(); ++i) {
+		if ((*i)->uri_ == rUri)
+			return *i;
+	}
+	return NULL;
+}
+
+Parser::DocumentRecord*
+Parser::findByDoc_(const TiXmlDocument& document) const {
+	for (XmlDocList::iterator i = docLst_.begin(); i != docLst_.end(); ++i) {
+		if ((*i)->pDocument_ == &document)
+			return *i;
+	}
+	return NULL;
+}
+
 Elements::Schema*
 Parser::Parse(const std::string& rUri) const noexcept(false) {
 	/* search if the document has already been parsed */
-	if (HasDocument(rUri)) {
-		return new Elements::Schema(*(GetDocument(rUri)->RootElement()), *this, rUri);
+	if (DocumentRecord* pRec = findByUri_(rUri)) {
+		return new Elements::Schema(*(pRec->pDocument_->RootElement()),
+			*this, rUri);
 	} else {
-		m_docLst.push_back(new DocumentRecord(new TiXmlDocument(), rUri));
-		TiXmlDocument * pDoc = m_docLst.back()->m_pDocument;
+		docLst_.push_back(new DocumentRecord(new TiXmlDocument(), rUri));
+		TiXmlDocument * pDoc = docLst_.back()->pDocument_;
 		pDoc->SetTabSize(4);
 		/* parse protocol portion */
 		if (0 == rUri.find(PROTO_FILE)) {
@@ -74,47 +93,47 @@ Parser::Parse(const std::string& rUri) const noexcept(false) {
 
 const Types::TypesDB&
 Parser::QueryTypesDb() const throw() {
-	return m_typesDb;
+	return typesDb_;
 }
 
-bool 
+bool
 Parser::HasDocument(const TiXmlDocument& document) const {
-	for (XmlDocList::iterator i = m_docLst.begin(); i != m_docLst.end(); ++i) {
-		if ((*i)->m_pDocument == &document) 
-			return true;
-	}
-	return false;
+	return NULL != findByDoc_(document);
 }
 
-bool 
+bool
 Parser::HasDocument(const std::string& rUri) const {
-	for (XmlDocList::iterator i = m_docLst.begin(); i != m_docLst.end(); ++i) {
-		if ((*i)->m_uri == rUri) 
-			return true;
-	}
-	return false;
+	return NULL != findByUri_(rUri);
 }
 
-std::string 
+std::string
 Parser::GetUri(const TiXmlDocument& document) const {
-	for (XmlDocList::iterator i = m_docLst.begin(); i != m_docLst.end(); ++i) {
-		if ((*i)->m_pDocument == &document) 
-			return (*i)->m_uri;
-	}
-	return std::string("unknown");
+	DocumentRecord* pRec = findByDoc_(document);
+	return pRec ? pRec->uri_ : std::string("unknown");
 }
 
 const TiXmlDocument *
 Parser::GetDocument(const std::string& rUri) const {
-	for (XmlDocList::iterator i = m_docLst.begin(); i != m_docLst.end(); ++i) {
-		if ((*i)->m_uri == rUri) 
-			return (*i)->m_pDocument;
-	}
-	return NULL;
+	DocumentRecord* pRec = findByUri_(rUri);
+	return pRec ? pRec->pDocument_ : NULL;
 }
 
-bool 
+bool
 Parser::isRootDocument(const TiXmlDocument& document) const {
-	return ((*(m_docLst.begin()))->m_pDocument == &document);
+	return ((*(docLst_.begin()))->pDocument_ == &document);
+}
+
+void
+Parser::RegisterNamespace(const std::string& rNamespace,
+		const std::string& rUri) const {
+	if (!rNamespace.empty())
+		nsIndex_[rNamespace] = rUri;
+}
+
+std::string
+Parser::GetNamespaceUri(const std::string& rNamespace) const {
+	std::map<std::string, std::string>::const_iterator it =
+		nsIndex_.find(rNamespace);
+	return (it != nsIndex_.end()) ? it->second : std::string("");
 }
 

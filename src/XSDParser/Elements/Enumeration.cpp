@@ -2,8 +2,8 @@
  * Enumeration.cpp
  *
  *  Created on: Aug 3, 2011
- *      Author: Ardavon Falls
- *   Copyright: (c)2011 Ardavon Falls
+ *      Author: QVXLabs LLC
+ *   Copyright: (c)2011 QVXLabs LLC
  *
  *  This file is part of xsd-tools.
  *
@@ -18,62 +18,34 @@
  *  GNU General Public License for more details.
  *
  *  You should have received a copy of the GNU General Public License
- *  along with Foobar.  If not, see <http://www.gnu.org/licenses/>.
+ *  along with xsd-tools.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 #ifndef TIXML_USE_STL
 #	define TIXML_USE_STL
 #endif /* TIXML_USE_STL */
-#include <memory>
 #include <string.h>
 #include <string>
 #include <tinyxml.h>
 #include "./src/XSDParser/Elements/Enumeration.hpp"
-#include "./src/XSDParser/Elements/Annotation.hpp"
 
 using namespace XSD;
 using namespace XSD::Elements;
 
 Enumeration::Enumeration(const TiXmlElement& elm, const Parser& rParser)
-	: Node(elm, rParser)
+	: FacetNode(elm, rParser)
 { }
 
 Enumeration::Enumeration(const Enumeration& cpy)
-	: Node(cpy)
+	: FacetNode(cpy)
 { }
-
-void
-Enumeration::ParseChildren(BaseProcessor& rProcessor) const noexcept(false) {
-	/* no children allowed */
-	std::unique_ptr<Node> pNode(Node::FirstChild());
-	if (NULL != pNode.get()) {
-		do {
-			if (XSD_ISELEMENT(pNode.get(), Annotation))
-				pNode->ParseChildren(rProcessor);
-			else
-				throw XMLException(pNode->GetXMLElm(), XMLException::InvallidChildXMLElement);
-			break;
-		} while (NULL != (pNode = std::unique_ptr<Node>(pNode->NextSibling())).get());
-	}
-}
 
 void
 Enumeration::ParseElement(BaseProcessor& rProcessor) const noexcept(false) {
 	rProcessor.ProcessEnumeration(this);
 }
 
-Types::BaseType * 
-Enumeration::GetParentType() const noexcept(false) {
-	std::unique_ptr<Node> pParent(Node::Parent());
-	return pParent->GetParentType();
-}
-
 std::string
 Enumeration::Value() const noexcept(false) {
 	return std::string(Node::GetAttribute<const char*>("value"));
-}
-
-bool
-Enumeration::HasValue() const {
-	return Node::HasAttribute("value");
 }

@@ -1,31 +1,39 @@
 message = {
-	maxOccurs = 1
-	content = {
-		string = {
-			maxOccurs = 1
-			content = {}
-			attributes = {}
-		}
-	}
 	attributes = {
 		date = {
 			dateTime = {
 				attributes = {}
+				use = optional
 				maxOccurs = 1
 				content = {}
-				use = optional
+				minOccurs = 1
 			}
 		}
 	}
-}
-changeMessage = {
 	maxOccurs = 1
 	content = {
 		string = {
+			attributes = {}
 			maxOccurs = 1
 			content = {}
-			attributes = {}
+			minOccurs = 1
 		}
 	}
+	minOccurs = 1
+}
+changeMessage = {
 	attributes = {}
+	maxOccurs = 1
+	content = {
+		string = {
+			attributes = {}
+			facets = {
+				length = 256
+			}
+			maxOccurs = 1
+			content = {}
+			minOccurs = 1
+		}
+	}
+	minOccurs = 1
 }

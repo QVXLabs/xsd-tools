@@ -2,8 +2,8 @@
  * Any.hpp
  *
  *  Created on: Jul 10, 2011
- *      Author: Ardavon Falls
- *   Copyright: (c)2011 Ardavon Falls
+ *      Author: QVXLabs LLC
+ *   Copyright: (c)2011 QVXLabs LLC
  *
  *  This file is part of xsd-tools.
  *
@@ -18,7 +18,7 @@
  *  GNU General Public License for more details.
  *
  *  You should have received a copy of the GNU General Public License
- *  along with Foobar.  If not, see <http://www.gnu.org/licenses/>.
+ *  along with xsd-tools.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 #ifndef ANY_HPP_
@@ -36,27 +36,26 @@ namespace XSD {
 			XSD_ELEMENT_TAG("any")
 		private:
 			Any();
-			static Element * _findParentElement(const Node * pNode);
+			static Element * findParentElement_(const Node * pNode);
 		public:
 			typedef enum {
-				STRICT,
-				LAX,
-				SKIP
+				Strict,
+				Lax,
+				Skip
 			} ContentValidation;
 			Any(const TiXmlElement& elm, const Parser& rParser);
 			Any(const Any& cpy);
 			void ParseChildren(BaseProcessor& rProcessor) const noexcept(false);;
 			void ParseElement(BaseProcessor& rProcessor) const noexcept(false);;
-			Types::BaseType * GetParentType() const noexcept(false);;
 			Processors::ElementExtracter::ElementLst GetAllowedElements() const;
 			int MaxOccurs() const;
 			int MinOccurs() const;
 			std::string Namespace() const;
 			ContentValidation ProcessContents() const;
-			bool HasMaxOccurs() const;
-			bool HasMinOccurs() const;
-			bool HasNamespace() const;
-			bool HasProcessContents() const;
+			XSD_HAS_ATTR(HasMaxOccurs, "maxOccurs")
+			XSD_HAS_ATTR(HasMinOccurs, "minOccurs")
+			XSD_HAS_ATTR(HasNamespace, "namespace")
+			XSD_HAS_ATTR(HasProcessContents, "processContents")
 		};
 	}	/* namespace Elements */
 }	/* namespace XSD */

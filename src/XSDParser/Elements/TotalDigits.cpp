@@ -2,8 +2,8 @@
  * TotalDigits.cpp
  *
  *  Created on: Dec 30, 2011
- *      Author: Ardavon Falls
- *   Copyright: (c)2011 Ardavon Falls
+ *      Author: QVXLabs LLC
+ *   Copyright: (c)2011 QVXLabs LLC
  *
  *  This file is part of xsd-tools.
  *
@@ -18,7 +18,7 @@
  *  GNU General Public License for more details.
  *
  *  You should have received a copy of the GNU General Public License
- *  along with Foobar.  If not, see <http://www.gnu.org/licenses/>.
+ *  along with xsd-tools.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 
@@ -36,45 +36,15 @@ using namespace XSD;
 using namespace XSD::Elements;
 
 TotalDigits::TotalDigits(const TiXmlElement& elm, const Parser& rParser)
-	: Node(elm, rParser)
+	: FacetNode(elm, rParser)
 { }
 
 TotalDigits::TotalDigits(const TotalDigits& cpy)
-	: Node(cpy)
+	: FacetNode(cpy)
 { }
-
-void
-TotalDigits::ParseChildren(BaseProcessor& rProcessor) const noexcept(false) {
-	/* no children allowed */
-	std::unique_ptr<Node> pNode(Node::FirstChild());
-	if (NULL != pNode.get()) {
-		do {
-			if (XSD_ISELEMENT(pNode.get(), Annotation))
-				pNode->ParseElement(rProcessor);
-			else
-				throw XMLException(pNode->GetXMLElm(), XMLException::InvallidChildXMLElement);
-			break;
-		} while (NULL != (pNode = std::unique_ptr<Node>(pNode->NextSibling())).get());
-	}
-}
 
 void
 TotalDigits::ParseElement(BaseProcessor& rProcessor) const noexcept(false) {
 	rProcessor.ProcessTotalDigits(this);
 }
 
-Types::BaseType * 
-TotalDigits::GetParentType() const noexcept(false) {
-	std::unique_ptr<Node> pParent(Node::Parent());
-	return pParent->GetParentType();
-}
-
-uint64_t
-TotalDigits::Value() const noexcept(false) {
-	return Node::GetAttribute<uint64_t>("value");
-}
-
-bool
-TotalDigits::HasValue() const {
-	return Node::HasAttribute("value");
-}

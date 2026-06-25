@@ -1,0 +1,38 @@
+[@lua --define python boolean type (JSON)
+	pyjsontype_bool = {
+		marshal = {
+			attribute = function(attribName)
+				return table.concat({
+					"        attrs[\"", attribName, "\"] = bool(self._", attribName, ")\n",
+				})
+			end,
+			content = function()
+				return table.concat({
+					"        content = bool(self._content[0])\n"
+				})
+			end,
+		},
+		unmarshal = {
+			attribute = function(attribName)
+				return table.concat({
+					"            if \"", attribName, "\" == attribute:\n",
+					"                self._", attribName, " = bool(attributes[attribute])\n",
+				})
+			end,
+			content = function()
+				return table.concat({
+					"        self._content = [bool(content)]\n"
+				})
+			end
+		},
+		default = function(attribName, value)
+			return table.concat({"        self._", attribName, " = ", value, "\n"})
+		end,
+		test = {
+			assign = function()
+				local tbl = { 'true', 'false', 'True', 'False', '0', '1', 'TRUE', 'FALSE'}
+				return tbl[tostring(math.random(0, #tbl))]
+			end,
+		},
+	}
+]

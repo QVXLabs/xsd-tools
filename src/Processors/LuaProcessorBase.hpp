@@ -2,8 +2,8 @@
  * LuaProcBase.hpp
  *
  *  Created on: Dec 15, 2011
- *      Author: Ardavon Falls
- *   Copyright: (c)2012 Ardavon Falls
+ *      Author: QVXLabs LLC
+ *   Copyright: (c)2012 QVXLabs LLC
  *
  *  This file is part of xsd-tools.
  *
@@ -18,7 +18,7 @@
  *  GNU General Public License for more details.
  *
  *  You should have received a copy of the GNU General Public License
- *  along with Xsd-Tools.  If not, see <http://www.gnu.org/licenses/>.
+ *  along with xsd-tools.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 #ifndef LUAPROCBASE_HPP_
@@ -70,9 +70,9 @@ namespace Processors {
 		virtual void ProcessAll(const XSD::Elements::All* pNode);
 		virtual void ProcessAppInfo(const XSD::Elements::AppInfo* pNode);
 	protected:
-		LuaAdapter *  	_luaAdapter() const;
+		LuaAdapter *  	luaAdapter_() const;
 	private:
-		mutable LuaAdapter * m_pLuaAdapter;
+		mutable LuaAdapter * pLuaAdapter_;
 	};
 }
 #endif /* LUAPROCBASE_HPP_ */

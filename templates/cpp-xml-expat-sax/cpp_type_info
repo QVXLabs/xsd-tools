@@ -1,0 +1,260 @@
+[@lua -- XSD -> C++11 type descriptors for the cpp-xml-expat target.
+	-- Mirrors c-xml-expat-sax/c_type_info in shape (a table keyed by XSD type
+	-- name plus a narrowing helper) but each descriptor emits modern C++:
+	-- std::string / fixed-width ints / std::vector<uint8_t> / std::vector<T>.
+	-- A descriptor provides:
+	--   type      'cpp_type' | 'cpp_list'
+	--   cppType() member declaration type (e.g. 'std::string', 'int32_t')
+	--   marshal(obj)        expression: value -> std::string fragment
+	--   parse(src, obj)     statement(s): assign parsed `src` (std::string) into
+	--                       `obj`
+	--   numeric             true for arithmetic scalars (facet enum compares the
+	--                       value, not its text)
+	--   test.assign(facets) C++ initializer expression for a test value
+	--   test.assert(a, b)   throw-on-mismatch C++ statement
+	-- Lists also expose baseType().
+
+	-- scalar string-like (xs:string, dates, URIs, ...)
+	local function makeStr()
+		return {
+			type = 'cpp_type',
+			cppType = function() return 'std::string' end,
+			numeric = false,
+			marshal = function(obj) return obj end,
+			parse = function(src, obj)
+				return obj..' = '..src..';\n'
+			end,
+			test = {
+				assign = function(facets)
+					local s = facets_sampleString(facets)
+					if s then return '"'..s..'"' end
+					local tbl = {'"arch"', '"Ancestor"', '"Interaction"',
+						'"Productivity"', '"Jelly"', '"Glue"', '"Way"'}
+					return tbl[math.random(1, #tbl)]
+				end,
+				assert = function(a, b)
+					return '\tif ('..a..' != '..b..') throw std::runtime_error('
+						..'"mismatch");\n'
+				end,
+			},
+		}
+	end
+
+	-- integer / floating scalar; `name` is the C++ type, `fmt` the strto* call
+	local function makeNum(name, parseFn, isFloat)
+		return {
+			type = 'cpp_type',
+			cppType = function() return name end,
+			numeric = true,
+			marshal = function(obj) return 'std::to_string('..obj..')' end,
+			parse = function(src, obj)
+				return obj..' = ('..name..')'..parseFn..'('..src..');\n'
+			end,
+			test = {
+				assign = function(facets)
+					if isFloat then
+						return string.format('%.1f',
+							math.random() * 1000.0)
+					end
+					return facets_sampleInt(facets)
+						or string.format('%.0f',
+							math.floor(math.random() * 2147483647.0))
+				end,
+				assert = function(a, b)
+					return '\tif ('..a..' != '..b..') throw std::runtime_error('
+						..'"mismatch");\n'
+				end,
+			},
+		}
+	end
+
+	-- xs:boolean -> bool
+	local cpp_bool = {
+		type = 'cpp_type',
+		cppType = function() return 'bool' end,
+		numeric = false,
+		marshal = function(obj) return '('..obj..' ? "true" : "false")' end,
+		parse = function(src, obj)
+			return obj..' = ('..src..' == "true" || '..src..' == "1");\n'
+		end,
+		test = {
+			assign = function() return tostring(math.random(0, 1) == 1) end,
+			assert = function(a, b)
+				return '\tif ('..a..' != '..b..') throw std::runtime_error('
+					..'"mismatch");\n'
+			end,
+		},
+	}
+
+	-- xs:base64Binary -> std::vector<uint8_t>, encoded via libb64
+	local cpp_base64 = {
+		type = 'cpp_type',
+		cppType = function() return 'std::vector<uint8_t>' end,
+		numeric = false,
+		marshal = function(obj) return 'xml_b64Encode('..obj..')' end,
+		parse = function(src, obj)
+			return obj..' = xml_b64Decode('..src..');\n'
+		end,
+		test = {
+			assign = function()
+				local str = string.format('%X%X', math.random(0, 65535),
+					math.random(0, 65535))
+				local bytes = {}
+				for i = 1, #str do
+					bytes[#bytes + 1] = string.byte(str, i)
+				end
+				return '{'..table.concat(bytes, ',')..'}'
+			end,
+			assert = function(a, b)
+				return '\tif ('..a..' != '..b..') throw std::runtime_error('
+					..'"mismatch");\n'
+			end,
+		},
+	}
+
+	-- xs:hexBinary -> std::vector<uint8_t>, hex-encoded inline
+	local cpp_hex = {
+		type = 'cpp_type',
+		cppType = function() return 'std::vector<uint8_t>' end,
+		numeric = false,
+		marshal = function(obj) return 'xml_hexEncode('..obj..')' end,
+		parse = function(src, obj)
+			return obj..' = xml_hexDecode('..src..');\n'
+		end,
+		test = cpp_base64.test,
+	}
+
+	-- list(T) -> std::vector<T>, space-separated text. Encode/decode are
+	-- self-contained lambdas that delegate to the base descriptor's
+	-- marshal/parse, so any scalar base (string, numeric, base64/hex) works.
+	cpp_list = {}
+	function cpp_list:new(base)
+		local vecT = 'std::vector<'..base.cppType()..'>'
+		return {
+			type = 'cpp_list',
+			numeric = false,
+			cppType = function() return vecT end,
+			baseType = function() return base end,
+			marshal = function(obj)
+				return '([&]{ std::string _s; for (std::size_t _i = 0; _i < '
+					..obj..'.size(); ++_i) { if (_i) _s += " "; _s += '
+					..base.marshal(obj..'[_i]')..'; } return _s; }())'
+			end,
+			parse = function(src, obj)
+				return obj..'.clear();\n'
+					..'\t{ std::size_t _i = 0; const std::string& _t = '..src
+					..'; while (_i < _t.size()) {\n'
+					..'\t\twhile (_i < _t.size() && std::isspace((unsigned char)'
+					..'_t[_i])) ++_i;\n'
+					..'\t\tstd::size_t _j = _i;\n'
+					..'\t\twhile (_j < _t.size() && !std::isspace((unsigned char)'
+					..'_t[_j])) ++_j;\n'
+					..'\t\tif (_j > _i) { '..base.cppType()..' _e{}; std::string '
+					..'_tok = _t.substr(_i, _j - _i); '
+					..base.parse('_tok', '_e')..' '..obj..'.push_back(_e); }\n'
+					..'\t\t_i = _j;\n\t} }\n'
+			end,
+			test = {
+				assign = function()
+					return '{'..base.test.assign()..','
+						..base.test.assign()..'}'
+				end,
+				assert = function(a, b)
+					return '\tif ('..a..' != '..b..') throw '
+						..'std::runtime_error("mismatch");\n'
+				end,
+			},
+		}
+	end
+
+	local cpp_str = makeStr()
+	local cpp_int8 = makeNum('int8_t', 'std::stol')
+	local cpp_int16 = makeNum('int16_t', 'std::stol')
+	local cpp_int32 = makeNum('int32_t', 'std::stol')
+	local cpp_int64 = makeNum('int64_t', 'std::stoll')
+	local cpp_uint8 = makeNum('uint8_t', 'std::stoul')
+	local cpp_uint16 = makeNum('uint16_t', 'std::stoul')
+	local cpp_uint32 = makeNum('uint32_t', 'std::stoul')
+	local cpp_uint64 = makeNum('uint64_t', 'std::stoull')
+	local cpp_float = makeNum('float', 'std::stof', true)
+	local cpp_double = makeNum('double', 'std::stod', true)
+	local cpp_ldouble = makeNum('long double', 'std::stold', true)
+
+	cpp_type_info = {
+		['anySimpleType']		= cpp_str,
+		['anyAtomicType']		= cpp_str,
+		['anyURI']				= cpp_str,
+		['boolean']				= cpp_bool,
+		['date']				= cpp_str,
+		['dateTime']			= cpp_str,
+		['dateTimeStamp']		= cpp_str,
+		['duration']			= cpp_str,
+		['dayTimeDuration']		= cpp_str,
+		['yearMonthDuration']	= cpp_str,
+		['gDay']				= cpp_str,
+		['gMonth']				= cpp_str,
+		['gMonthDay']			= cpp_str,
+		['gYear']				= cpp_str,
+		['gYearMonth']			= cpp_str,
+		['NOTATION']			= cpp_str,
+		['QName']				= cpp_str,
+		['string']				= cpp_str,
+		['normalizedString']	= cpp_str,
+		['token']				= cpp_str,
+		['language']			= cpp_str,
+		['name']				= cpp_str,
+		['NCName']				= cpp_str,
+		['ENTITY']				= cpp_str,
+		['ID']					= cpp_str,
+		['IDREF']				= cpp_str,
+		['NMTOKEN']				= cpp_str,
+		['time']				= cpp_str,
+		['ENTITIES']			= cpp_str,
+		['IDREFS']				= cpp_str,
+		['NMTOKENS']			= cpp_str,
+		['decimal']				= cpp_ldouble,
+		['integer']				= cpp_int64,
+		['long']				= cpp_int64,
+		['int']					= cpp_int32,
+		['short']				= cpp_int16,
+		['byte']				= cpp_int8,
+		['positiveInteger']		= cpp_uint64,
+		['unsignedLong']		= cpp_uint64,
+		['unsignedInt']			= cpp_uint32,
+		['unsignedShort']		= cpp_uint16,
+		['unsignedByte']		= cpp_uint8,
+		['negativeInteger']		= cpp_int8,
+		['double']				= cpp_double,
+		['float']				= cpp_float,
+		['precisionDecimal']	= cpp_ldouble,
+		['nonPositiveInteger']	= cpp_int64,
+		['nonNegativeInteger']	= cpp_uint64,
+		['base64Binary']		= cpp_base64,
+		['hexBinary']			= cpp_hex,
+	}
+
+	-- list(T) entries: snapshot the scalar names first (mutating cpp_type_info
+	-- while iterating it is undefined in Lua), then add one list per scalar.
+	local scalarNames = {}
+	table.map(cpp_type_info, function(name, _) scalarNames[#scalarNames + 1] = name end)
+	table.map(scalarNames, function(_, name)
+		cpp_type_info['list('..name..')'] = cpp_list:new(cpp_type_info[name])
+	end)
+
+	-- D2b narrowing: pick the narrowest fixed-width int for a known facet range.
+	local cpp_narrowMap = {
+		['8|true'] = cpp_int8,   ['16|true'] = cpp_int16,
+		['32|true'] = cpp_int32, ['64|true'] = cpp_int64,
+		['8|false'] = cpp_uint8, ['16|false'] = cpp_uint16,
+		['32|false'] = cpp_uint32, ['64|false'] = cpp_uint64,
+	}
+	local cpp_intTypes = {
+		[cpp_int8]=true, [cpp_int16]=true, [cpp_int32]=true, [cpp_int64]=true,
+		[cpp_uint8]=true, [cpp_uint16]=true, [cpp_uint32]=true,
+		[cpp_uint64]=true,
+	}
+	function cpp_narrowCType(xsdType, facets)
+		return facets_narrowType(cpp_type_info[xsdType], facets,
+			cpp_narrowMap, cpp_intTypes)
+	end
+]

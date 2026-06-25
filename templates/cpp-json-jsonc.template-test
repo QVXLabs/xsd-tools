@@ -1,0 +1,169 @@
+[@lua --include and transform old format
+	include 'shared/trnsfrm_old'
+	schema = trnsfrm_oldFmt(schema)
+][@lua --include any shared 'helper' templates
+	return include 'shared/schemaEx'
+][@lua --include facet helpers + xsd to c++ type mapping
+	include 'shared/facets'
+	return include 'cpp-json-jsonc/cpp_type_info'
+][@lua --generate helper globals
+	schema = schema.c_safeNames()
+	uniqueXSDTypes = schema.uniqueTypes()
+	uniqueCTypes = {}
+	table.map(uniqueXSDTypes, function(_, v)
+		local ctype = cpp_type_info[v]
+		uniqueCTypes[ctype] = ctype
+		if 'cpp_list' == ctype.type then
+			local baseType = ctype.baseType()
+			uniqueCTypes[baseType] = baseType
+		end
+	end)
+	-- typeSansRoot in dependency order so child Tst objects precede parents
+	depOrder = schema.sortDependencies()
+	typeSansRoot = table.filter(depOrder, function(k,v) return v.name ~= schema.root and v or nil end)
+][@lua -- create friendly root schema name
+	schemaName = schema.types[schema.root].name:gsub("_xsd$", "")
+]
+#include <cstdio>
+#include <cstring>
+#include <cstdlib>
+#include <cassert>
+#include "json_[@lua return schemaName].hpp"
+
+[@lua -- output test data: one <name>Tst instance per type, fields assigned
+	local outbuf = stringBuffer:new()
+	local ID = 1
+	table.map(typeSansRoot, function(_, node)
+		outbuf:append('static json_'..node.name..' make_'..node.name..'Tst() {\n')
+		outbuf:append('\tjson_'..node.name..' o;\n')
+		local hasMembers = next(node.attributes) or next(node.content)
+		if next(node.dependents) or not hasMembers then
+			outbuf:append('\to.eid_ = '..tostring(ID)..';\n')
+		end
+		local prcssType = function(ncname, xsdType)
+			local cpp = cpp_narrowType(xsdType.type, xsdType.facets)
+			local lhs = cpp.buildVar('o.', ncname)
+			if 'cpp_list' == cpp.type then
+				outbuf:append('\t'..lhs..' = '..cpp.cpp_type.name()..' '..cpp.test.assign()..';\n')
+			elseif cpp == ctype_base64 or cpp == ctype_hex then
+				outbuf:append('\t'..lhs..' = std::vector<uint8_t>'..cpp.test.assign()..';\n')
+			else
+				outbuf:append('\t'..lhs..' = '..cpp.test.assign(xsdType.facets)..';\n')
+			end
+		end
+		table.map(node.attributes, prcssType)
+		if next(node.content) then
+			prcssType("Content", node.content)
+		end
+		outbuf:append('\treturn o;\n}\n')
+		ID = ID + 1
+	end)
+	-- materialize the instances once
+	table.map(typeSansRoot, function(_, node)
+		outbuf:append('static const json_'..node.name..' '..node.name..'Tst = make_'..node.name..'Tst();\n')
+	end)
+	return outbuf:str()
+]
+
+[@lua -- output unmarshal callbacks (assert round-tripped fields match)
+	local outbuf = stringBuffer:new()
+	table.map(typeSansRoot, function(_, node)
+		outbuf:append('static void unmarshal_'..node.name..'(json_marshaller* pMarshaller, const json_'..node.name..'* pObj, uint32_t parent) {\n')
+		outbuf:append('\t(void)pMarshaller; (void)parent; (void)pObj;\n')
+		local prcssType = function(ncname, xsdtype)
+			local cpp = cpp_narrowType(xsdtype.type, xsdtype.facets)
+			outbuf:append(cpp.test.assert(cpp.buildVar('pObj->', ncname), cpp.buildVar(node.name..'Tst.', ncname)))
+		end
+		table.map(node.attributes, prcssType)
+		if next(node.content) then
+			prcssType("Content", node.content)
+		end
+		outbuf:append('}\n')
+	end)
+	return outbuf:str()
+]
+
+/* Exercise the overridable Factory: a subclass counts create()s and returns an
+ * instrumented subtype whose dtor counts destructions, so we can assert the
+ * inject path is taken and that every created object is freed. */
+static int g_createCnt = 0;
+static int g_destroyCnt = 0;
+
+[@lua -- build the override Factory subclass
+	local outbuf = stringBuffer:new()
+	-- one instrumented subtype per complex type that counts its own destruction
+	table.map(typeSansRoot, function(_, node)
+		outbuf:append('struct Counting_'..node.name..' : json_'..node.name..' {\n')
+		outbuf:append('\t~Counting_'..node.name..'() override { ++g_destroyCnt; }\n')
+		outbuf:append('};\n')
+	end)
+	outbuf:append('class CountingFactory : public Factory {\npublic:\n')
+	table.map(typeSansRoot, function(_, node)
+		outbuf:append('\tstd::unique_ptr<json_'..node.name..'> create_'..node.name..'() const override {\n')
+		outbuf:append('\t\t++g_createCnt;\n')
+		outbuf:append('\t\treturn std::unique_ptr<json_'..node.name..'>(new Counting_'..node.name..'());\n\t}\n')
+	end)
+	outbuf:append('};\n')
+	return outbuf:str()
+]
+
+int main() {
+	json_marshaller mrshllr;
+[@lua --assign unmarshal callbacks
+	local tbl = {}
+	table.map(typeSansRoot, function(_, node)
+		table.insert(tbl, '\tmrshllr.unmarshal_'..node.name..' = unmarshal_'..node.name..';')
+	end)
+	return table.concat(tbl, '\n')
+]
+
+	/* test marshalling */
+[@lua --output marshalling struct declrs
+	local outbuf = stringBuffer:new()
+	table.map(typeSansRoot, function(_,node)
+		if next(node.dependents) then
+			outbuf:append('\tjson_marshal_'..node.name..' '..node.name..';\n')
+		end
+	end)
+	return outbuf:str()
+][@lua -- output marshalling start
+	if next(schema.types[schema.root].dependents) then
+		return '\tjson_marshal_'..schema.root..' '..schema.root..' = json_marshal(mrshllr);\n'
+	else
+		return '\tjson_marshal(mrshllr);\n'
+	end
+][@lua --output marshalling statements
+	local outbuf = stringBuffer:new()
+	local function marshalRec(parent, node)
+		if next(node.dependents) then
+			outbuf:append('\t'..node.name..' = '..parent..'.marshal_'..node.name..'(&mrshllr, &'..node.name..'Tst, '..parent..'.pSelf);\n')
+		else
+			outbuf:append('\t'..parent..'.marshal_'..node.name..'(&mrshllr, &'..node.name..'Tst, '..parent..'.pSelf);\n')
+		end
+		table.map(node.dependents, function(k, v)
+			if next(v.dependents) then
+				outbuf:append('\t'..node.name..'.marshal_'..k..'(&mrshllr, &'..k..'Tst, '..node.name..'.pSelf);\n')
+			end
+		end)
+		table.map(node.dependents, function(_,v) marshalRec(node.name, v) end)
+	end
+	table.map(schema.types[schema.root].dependents, function(_,v) marshalRec(schema.root, v) end)
+	return outbuf:str()
+]	json_buffer output = json_marshal_flush(mrshllr, true);
+
+	/* test unmarshalling through the default factory */
+	json_unmarshal(mrshllr, output, true);
+	/* re-run through the override Factory to exercise the inject path */
+	CountingFactory overrides;
+	json_unmarshal_ex(mrshllr, output, true, overrides);
+[@lua -- assert the override path ran (skip when schema has no elements)
+	if next(typeSansRoot) then
+		return table.concat({
+			'\tassert(g_createCnt > 0);\n',
+			'\tassert(g_createCnt == g_destroyCnt);\n',
+		})
+	end
+	return ''
+]
+	return 0;
+}

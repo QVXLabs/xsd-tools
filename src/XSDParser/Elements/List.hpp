@@ -2,8 +2,8 @@
  * List.hpp
  *
  *  Created on: Jun 26, 2011
- *      Author: Ardavon Falls
- *   Copyright: (c)2011 Ardavon Falls
+ *      Author: QVXLabs LLC
+ *   Copyright: (c)2011 QVXLabs LLC
  *
  *  This file is part of xsd-tools.
  *
@@ -18,7 +18,7 @@
  *  GNU General Public License for more details.
  *
  *  You should have received a copy of the GNU General Public License
- *  along with Foobar.  If not, see <http://www.gnu.org/licenses/>.
+ *  along with xsd-tools.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 #ifndef LIST_HPP_
@@ -34,14 +34,14 @@ namespace XSD {
 			XSD_ELEMENT_TAG("list")
 		private:
 			List();
-			Types::BaseType* _type() const noexcept(false);;
+			Types::BaseType* type_() const noexcept(false);;
 		public:
 			List(const TiXmlElement& elm, const Parser& rParser);
 			List(const List& lst);
 			void ParseChildren(BaseProcessor& rProcessor) const noexcept(false);;
 			void ParseElement(BaseProcessor& rProcessor) const noexcept(false);;
 			Types::BaseType * GetParentType(void) const noexcept(false);;
-			bool HasItemType() const;
+			XSD_HAS_ATTR(HasItemType, "itemType")
 			Types::BaseType* ItemType() const noexcept(false);;
 		};
 	}	/* namespace Elements */

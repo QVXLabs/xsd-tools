@@ -1,0 +1,68 @@
+[@lua --define long double type
+	ctype_longdouble = {
+		type = 'c_type',
+		c_type = {
+			name = function()
+				return 'long double'
+			end,
+			definition = function()
+				return ''
+			end,
+			statement = function(varName)
+				return table.concat({
+					'long double\t', varName, '_;\n',
+				})
+			end,
+		},
+		delete = {
+			definition = function()
+				return ''
+			end,
+			statement = function(obj)
+				return ''
+			end,
+		},
+		buildVar = function(obj, member)
+			return table.concat({obj,member,'_'})
+		end,
+		binding = {
+			marshal = {
+				definition = function()
+					return table.concat({
+						'static struct json_object* _marshal_ctype_longdouble(const long double val) {\n',
+						'\tchar valBuf[512];\n',
+						'\tsnprintf(valBuf, sizeof(valBuf), "%.21Lg", val);\n',
+						'\treturn json_object_new_string(valBuf);\n',
+						'}\n',
+					})
+				end,
+				value = function(obj)
+					return table.concat({'_marshal_ctype_longdouble(', obj, ')'})
+				end,
+				statement = function(dst, key, obj)
+					return table.concat({
+						'json_object_object_add(', dst, ', ', key, ', _marshal_ctype_longdouble(', obj, '));\n',
+					})
+				end,
+			},
+			unmarshal = {
+				definition = function()
+					return ''
+				end,
+				statement = function(src, obj)
+					return table.concat({
+						obj, ' = (long double)strtold(json_object_get_string(', src, '), NULL);\n',
+					})
+				end,
+			},
+		},
+		test = {
+			assign = function()
+				return tostring(math.random() * math.random(-2147483647, 2147483647))
+			end,
+			assert = function(obj1, obj2)
+				return string.format("\tassert(%s == %s);\n", obj1, obj2)
+			end
+		},
+	}
+]

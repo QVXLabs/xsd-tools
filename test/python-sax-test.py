@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 
-# Copyright: (c)2012 Ardavon Falls
+# Copyright: (c)2012 QVXLabs LLC
 #
 # This file is part of xsd-tools.
 #
@@ -15,7 +15,7 @@
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with Foobar.  If not, see <http://www.gnu.org/licenses/>.
+# along with xsd-tools.  If not, see <http://www.gnu.org/licenses/>.
 
 import glob
 import difflib

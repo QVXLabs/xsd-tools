@@ -1,0 +1,114 @@
+[@lua --include and transform old format
+	include 'shared/trnsfrm_old'
+	schema = trnsfrm_oldFmt(schema)
+][@lua --include any shared 'helper' templates
+	return include 'shared/schemaEx'
+][@lua --include Java/StAX type info
+	include 'shared/facets'
+	include 'java-xml-stax/java_type_info'
+][@lua --c-safe names
+	javaPKGName = "com.mobitv.app"
+	include 'java-xml-stax/java_safe_name'
+	schema = schema.c_safeNames()
+]package com.mobitv.app;
+
+/* Round-trip driver: build a sample tree, marshal it to XML via StAX, unmarshal
+ * back through the overridable Factory, re-marshal, and print true/false per
+ * top-level root element (the harness greps stdout for "false"). */
+public class RunTest {
+
+[@lua -- emit a builder method per complex type
+	local outbuf = stringBuffer:new()
+	local depOrder = schema.sortDependencies()
+	local depOrderSansRoot = table.filter(depOrder, function(k,v)
+		return v.name ~= schema.root and v or nil end)
+	-- Facet-aware test value: prefer a facet-satisfying sample so the value
+	-- passes the emitted validation; fall back to the type's random gen.
+	local function sampleFor(ti, facets)
+		if facets then
+			local s = (ti.jtype == "Integer" or ti.jtype == "Long")
+				and facets_sampleInt(facets) or facets_sampleString(facets)
+			if s then return s end
+		end
+		return ti.test.assign()
+	end
+	-- D2b: narrowed boxed type + primitive cast for numeric facet ranges,
+	-- mirroring the binding so builder temporaries match the setter signature.
+	local javaSigned = {
+		Byte    = {box = "Byte",    prim = "byte"},
+		Short   = {box = "Short",   prim = "short"},
+		Integer = {box = "Integer", prim = "int"},
+		Long    = {box = "Long",    prim = "long"},
+	}
+	local function javaNumType(ti, facets)
+		if ti.jtype ~= "Integer" and ti.jtype ~= "Long" then return nil end
+		local box = facets_narrowestSigned(facets)
+		return box and javaSigned[box]
+	end
+	-- Emit a `<box> tmp = ...;` assignment matching the (possibly narrowed)
+	-- field type, then return it. Narrowed numerics use a primitive cast so
+	-- both int- and long-sourced samples assign cleanly.
+	local function assignTmp(ti, facets)
+		local nw = javaNumType(ti, facets)
+		if nw then
+			return table.concat({
+				"\t\t\t", nw.box, " tmp = (", nw.prim, ") ",
+				sampleFor(ti, facets), ";\n",
+			})
+		end
+		local assign = ti.default("__T__", sampleFor(ti, facets))
+		return "\t\t\t" .. ti.jtype .. " tmp;\n"
+			.. assign:gsub("_+__T__", "tmp")
+	end
+	table.map(depOrderSansRoot, function(_, node)
+		local hasContent = next(node.content) ~= nil
+		local jn = javaSafeName(node.name)
+		outbuf:append(table.concat({
+			"\tstatic ", jn, " build_", node.name, "() {\n",
+			"\t\t", jn, " e = new ", jn, "();\n",
+		}))
+		table.map(node.attributes, function(attribName, attribute)
+			local ti = java_type_info[attribute.type]
+			outbuf:append(table.concat({
+				"\t\t{\n",
+				assignTmp(ti, attribute.facets),
+				"\t\t\te.set_", attribName, "(tmp);\n",
+				"\t\t}\n",
+			}))
+		end)
+		if hasContent then
+			local ti = java_type_info[node.content.type]
+			outbuf:append(table.concat({
+				"\t\t{\n",
+				assignTmp(ti, node.content.facets),
+				"\t\t\te.set_text(tmp);\n",
+				"\t\t}\n",
+			}))
+		end
+		table.map(node.dependents, function(depName, dep)
+			outbuf:append(table.concat({
+				"\t\te.children().add(build_", dep.name, "());\n",
+			}))
+		end)
+		outbuf:append("\t\treturn e;\n\t}\n\n")
+	end)
+	return outbuf:str()
+]
+	public static void main(String[] args) throws Exception {
+		Document doc = new Document();
+[@lua -- one round-trip per top-level root element
+	local outbuf = stringBuffer:new()
+	table.map(schema.types[schema.root].dependents, function(name, node)
+		outbuf:append(table.concat({
+			"\t\t{\n",
+			"\t\t\tElement root = build_", node.name, "();\n",
+			"\t\t\tString s1 = doc.marshal(root);\n",
+			"\t\t\tElement back = doc.unmarshal(s1);\n",
+			"\t\t\tString s2 = doc.marshal(back);\n",
+			"\t\t\tSystem.out.println(s1.equals(s2));\n",
+			"\t\t}\n",
+		}))
+	end)
+	return outbuf:str()
+]	}
+}

@@ -1,0 +1,42 @@
+[@lua --define python hex type (JSON)
+	pyjsontype_hex = {
+		marshal = {
+			attribute = function(attributeName)
+				return table.concat({
+					"        attrs[\"", attributeName, "\"] = binascii.hexlify(self._", attributeName, ").decode('utf-8')\n",
+				})
+			end,
+			content = function()
+				return table.concat({
+					"        content = binascii.hexlify(self.getContent()[0]).decode('utf-8')\n",
+				})
+			end,
+		},
+		unmarshal = {
+			attribute = function(attribName)
+				return table.concat({
+					"            if \"", attribName, "\" == attribute:\n",
+					"                self._", attribName, " = bytes.fromhex(\"\".join(attributes[attribute].split()))\n",
+				})
+			end,
+			content = function()
+				return table.concat({
+					"        self._content = [bytes.fromhex(\"\".join(content.split()))]\n"
+				})
+			end
+		},
+		default = function(attribName, value)
+			return table.concat({"        self._", attribName, " = bytes.fromhex(\"\".join(\"", value, "\".split()))\n"})
+		end,
+		test = {
+			assign = function()
+				return string.format(
+					'%.4x%.4x%.4x',
+					math.random(0, 65535),
+					math.random(0, 65535),
+					math.random(0, 65535)
+				)
+			end,
+		},
+	}
+]

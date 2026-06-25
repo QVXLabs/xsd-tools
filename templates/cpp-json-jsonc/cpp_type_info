@@ -1,0 +1,141 @@
+[@lua --C++ type mapping objects
+	include 'shared/facets'
+	include 'cpp-json-jsonc/char_p'
+	include 'cpp-json-jsonc/bool'
+	include 'cpp-json-jsonc/longdouble'
+	include 'cpp-json-jsonc/int64t'
+	include 'cpp-json-jsonc/uint64t'
+	include 'cpp-json-jsonc/int32t'
+	include 'cpp-json-jsonc/uint32t'
+	include 'cpp-json-jsonc/int16t'
+	include 'cpp-json-jsonc/uint16t'
+	include 'cpp-json-jsonc/int8t'
+	include 'cpp-json-jsonc/uint8t'
+	include 'cpp-json-jsonc/float'
+	include 'cpp-json-jsonc/double'
+	include 'cpp-json-jsonc/hex'
+	include 'cpp-json-jsonc/base64'
+	include 'cpp-json-jsonc/list'
+	cpp_type_info = {
+		['anySimpleType']		= ctype_char_p,
+		['anyAtomicType']		= ctype_char_p,
+		['anyURI']				= ctype_char_p,
+		['boolean']				= ctype_bool,
+		['date']				= ctype_char_p,
+		['dateTime']			= ctype_char_p,
+		['dateTimeStamp']		= ctype_char_p,
+		['duration']			= ctype_char_p,
+		['dayTimeDuration']		= ctype_char_p,
+		['yearMonthDuration']	= ctype_char_p,
+		['gDay']				= ctype_char_p,
+		['gMonth']				= ctype_char_p,
+		['gMonthDay']			= ctype_char_p,
+		['gYear']				= ctype_char_p,
+		['gYearMonth']			= ctype_char_p,
+		['NOTATION']			= ctype_char_p,
+		['QName']				= ctype_char_p,
+		['string']				= ctype_char_p,
+		['normalizedString']	= ctype_char_p,
+		['token']				= ctype_char_p,
+		['language']			= ctype_char_p,
+		['name']				= ctype_char_p,
+		['NCName']				= ctype_char_p,
+		['ENTITY']				= ctype_char_p,
+		['ID']					= ctype_char_p,
+		['IDREF']				= ctype_char_p,
+		['NMTOKEN']				= ctype_char_p,
+		['time']				= ctype_char_p,
+		['ENTITIES']			= ctype_char_p,
+		['IDREFS']				= ctype_char_p,
+		['NMTOKENS']			= ctype_char_p,
+		['decimal'] 			= ctype_longdouble,
+		['integer'] 			= ctype_int64t,
+		['long'] 				= ctype_int64t,
+		['int'] 				= ctype_int32t,
+		['short'] 				= ctype_int16t,
+		['byte'] 				= ctype_int8t,
+		['positiveInteger']		= ctype_uint64t,
+		['unsignedLong']		= ctype_uint64t,
+		['unsignedInt']			= ctype_uint32t,
+		['unsignedShort'] 		= ctype_uint16t,
+		['unsignedByte']		= ctype_uint8t,
+		['negativeInteger']		= ctype_int8t,
+		['double']				= ctype_double,
+		['float'] 				= ctype_float,
+		['precisionDecimal']	= ctype_longdouble,
+		['nonPositiveInteger'] 	= ctype_int64t,
+		['nonNegativeInteger'] 	= ctype_uint64t,
+		['base64Binary']		= ctype_base64,
+		['hexBinary'] 			= ctype_hex,
+		['list(anySimpleType)']		= cpp_list:new(ctype_char_p),
+		['list(anyAtomicType)']		= cpp_list:new(ctype_char_p),
+		['list(anyURI)']			= cpp_list:new(ctype_char_p),
+		['list(boolean)']			= cpp_list:new(ctype_bool),
+		['list(date)']				= cpp_list:new(ctype_char_p),
+		['list(dateTime)']			= cpp_list:new(ctype_char_p),
+		['list(dateTimeStamp)']		= cpp_list:new(ctype_char_p),
+		['list(duration)']			= cpp_list:new(ctype_char_p),
+		['list(dayTimeDuration)']	= cpp_list:new(ctype_char_p),
+		['list(yearMonthDuration)']	= cpp_list:new(ctype_char_p),
+		['list(gDay)']				= cpp_list:new(ctype_char_p),
+		['list(gMonth)']			= cpp_list:new(ctype_char_p),
+		['list(gMonthDay)']			= cpp_list:new(ctype_char_p),
+		['list(gYear)']				= cpp_list:new(ctype_char_p),
+		['list(gYearMonth)']		= cpp_list:new(ctype_char_p),
+		['list(NOTATION)']			= cpp_list:new(ctype_char_p),
+		['list(QName)']				= cpp_list:new(ctype_char_p),
+		['list(string)']			= cpp_list:new(ctype_char_p),
+		['list(normalizedString)']	= cpp_list:new(ctype_char_p),
+		['list(token)']				= cpp_list:new(ctype_char_p),
+		['list(language)']			= cpp_list:new(ctype_char_p),
+		['list(name)']				= cpp_list:new(ctype_char_p),
+		['list(NCName)']			= cpp_list:new(ctype_char_p),
+		['list(ENTITY)']			= cpp_list:new(ctype_char_p),
+		['list(ID)']				= cpp_list:new(ctype_char_p),
+		['list(IDREF)']				= cpp_list:new(ctype_char_p),
+		['list(NMTOKEN)']			= cpp_list:new(ctype_char_p),
+		['list(time)']				= cpp_list:new(ctype_char_p),
+		['list(ENTITIES)']			= cpp_list:new(ctype_char_p),
+		['list(IDREFS)']			= cpp_list:new(ctype_char_p),
+		['list(NMTOKENS)']			= cpp_list:new(ctype_char_p),
+		['list(decimal)'] 			= cpp_list:new(ctype_longdouble),
+		['list(integer)'] 			= cpp_list:new(ctype_int64t),
+		['list(long)'] 				= cpp_list:new(ctype_int64t),
+		['list(int)'] 				= cpp_list:new(ctype_int32t),
+		['list(short)'] 			= cpp_list:new(ctype_int16t),
+		['list(byte)'] 				= cpp_list:new(ctype_int8t),
+		['list(positiveInteger)']	= cpp_list:new(ctype_uint64t),
+		['list(unsignedLong)']		= cpp_list:new(ctype_uint64t),
+		['list(unsignedInt)']		= cpp_list:new(ctype_uint32t),
+		['list(unsignedShort)'] 	= cpp_list:new(ctype_uint16t),
+		['list(unsignedByte)']		= cpp_list:new(ctype_uint8t),
+		['list(negativeInteger)']	= cpp_list:new(ctype_int8t),
+		['list(double)']			= cpp_list:new(ctype_double),
+		['list(float)'] 			= cpp_list:new(ctype_float),
+		['list(precisionDecimal)']	= cpp_list:new(ctype_longdouble),
+		['list(nonPositiveInteger)']= cpp_list:new(ctype_int64t),
+		['list(nonNegativeInteger)']= cpp_list:new(ctype_uint64t),
+		['list(base64Binary)']		= cpp_list:new(ctype_base64),
+		['list(hexBinary)'] 		= cpp_list:new(ctype_hex),
+	}
+
+	-- D2b: map a {bits, signed} narrowing to its fixed-width ctype.
+	local cpp_narrowMap = {
+		['8|true'] = ctype_int8t,   ['16|true'] = ctype_int16t,
+		['32|true'] = ctype_int32t, ['64|true'] = ctype_int64t,
+		['8|false'] = ctype_uint8t, ['16|false'] = ctype_uint16t,
+		['32|false'] = ctype_uint32t, ['64|false'] = ctype_uint64t,
+	}
+
+	-- Effective ctype for an XSD type given its facets: the narrowest int that
+	-- holds the facet range when both bounds are known, else the default. Only
+	-- narrows scalar integer ctypes (skips strings, floats, lists, base64/hex).
+	local cpp_intTypes = {
+		[ctype_int8t]=true, [ctype_int16t]=true, [ctype_int32t]=true,
+		[ctype_int64t]=true, [ctype_uint8t]=true, [ctype_uint16t]=true,
+		[ctype_uint32t]=true, [ctype_uint64t]=true,
+	}
+	function cpp_narrowType(xsdType, facets)
+		return facets_narrowType(cpp_type_info[xsdType], facets, cpp_narrowMap, cpp_intTypes)
+	end
+]

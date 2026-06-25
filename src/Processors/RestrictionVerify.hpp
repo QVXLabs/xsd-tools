@@ -2,8 +2,8 @@
  * RestrictionVerify.hpp
  *
  *  Created on: 3/3/14
- *      Author: Ardavon Falls
- *   Copyright: (c)2012 Ardavon Falls
+ *      Author: QVXLabs LLC
+ *   Copyright: (c)2012 QVXLabs LLC
  *
  *  This file is part of xsd-tools.
  *
@@ -18,7 +18,7 @@
  *  GNU General Public License for more details.
  *
  *  You should have received a copy of the GNU General Public License
- *  along with Xsd-Tools.  If not, see <http://www.gnu.org/licenses/>.
+ *  along with xsd-tools.  If not, see <http://www.gnu.org/licenses/>.
  */
  
 #ifndef RESTRICTIONVERIFY_HPP_
@@ -46,7 +46,7 @@ namespace Processors {
 	protected:
 		RestrictionVerify(const XSD::Elements::Node* pSubTree);
 	private:
-		const XSD::Elements::Node * m_pSubTree;
+		const XSD::Elements::Node * pSubTree_;
 	};
 }
 #endif /* RESTRICTIONVERIFY_HPP_ */

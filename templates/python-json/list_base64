@@ -1,0 +1,47 @@
+[@lua --define python list base64 type (JSON)
+	pyjsontype_listBase64 = {
+		marshal = {
+			attribute = function(attribName)
+				return table.concat({
+					"        attrs[\"", attribName, "\"] = [base64.b64encode(x).decode('utf-8') for x in self._", attribName, "]\n",
+				})
+			end,
+			content = function()
+				return table.concat({
+					"        content = [base64.b64encode(x).decode('utf-8') for x in self.getContent()]\n",
+				})
+			end,
+		},
+		unmarshal = {
+			attribute = function(attribName)
+				return table.concat({
+					"            if \"", attribName, "\" == attribute:\n",
+					"                self._", attribName, " = [base64.b64decode(x.encode('utf-8')) for x in attributes[attribute]]\n"
+				})
+			end,
+			content = function()
+				return table.concat({
+					"        self._content = [base64.b64decode(x.encode('utf-8')) for x in content]\n",
+				})
+			end
+		},
+		default = function(attribName, value)
+			return table.concat({"        self._", attribName, " = [base64.b64decode(x.encode('utf-8')) for x in \"", value, "\".split(\" \")]\n"})
+		end,
+		test = {
+			assign = function()
+			       local ret = {
+			       	     "Q3yj/lYzNI0Fp0SrC8sctw==\\n",
+				     "kpxzQiW1uLkFessP+5xZjQ==\\n",
+				     "/kFxXF8edN6Dt3L99Y6aFQ==\\n",
+				     "PceWThKB0OQoYk6O0nigSw==\\n",
+				     "KDk10Nf+vS+JrzsYzRuDRw==\\n" }
+				return table.concat({
+				       ret[math.random(1, 5)],
+				       ret[math.random(1, 5)],
+				       ret[math.random(1, 5)],
+				}, " ")
+			end,
+		}
+	}
+]

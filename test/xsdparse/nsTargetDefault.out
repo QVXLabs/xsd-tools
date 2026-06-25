@@ -1,0 +1,22 @@
+record = {
+	attributes = {}
+	namespace = urn:example:phase0default
+	maxOccurs = 1
+	content = {
+		label = {
+			attributes = {}
+			namespace = urn:example:phase0default
+			maxOccurs = 1
+			content = {
+				string = {
+					attributes = {}
+					maxOccurs = 1
+					content = {}
+					minOccurs = 1
+				}
+			}
+			minOccurs = 1
+		}
+	}
+	minOccurs = 1
+}

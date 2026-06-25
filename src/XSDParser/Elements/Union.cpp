@@ -2,8 +2,8 @@
  * Union.cpp
  *
  *  Created on: Jun 26, 2011
- *      Author: Ardavon Falls
- *   Copyright: (c)2011 Ardavon Falls
+ *      Author: QVXLabs LLC
+ *   Copyright: (c)2011 QVXLabs LLC
  *
  *  This file is part of xsd-tools.
  *
@@ -18,7 +18,7 @@
  *  GNU General Public License for more details.
  *
  *  You should have received a copy of the GNU General Public License
- *  along with Foobar.  If not, see <http://www.gnu.org/licenses/>.
+ *  along with xsd-tools.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 #ifndef TIXML_USE_STL
@@ -48,16 +48,13 @@ Union::Union(const Union& rCpy)
 void
 Union::ParseChildren(BaseProcessor& rProcessor) const noexcept(false) {
 	/* process children */
-	std::unique_ptr<Node> pNode(Node::FirstChild());
-	if (NULL != pNode.get()) {
-		do {
-			if (XSD_ISELEMENT(pNode.get(), SimpleType) ||
-				XSD_ISELEMENT(pNode.get(), Annotation)) {
-				pNode->ParseElement(rProcessor);
-			} else
-				throw XMLException(pNode->GetXMLElm(), XMLException::InvallidChildXMLElement);
-		} while (NULL != (pNode = std::unique_ptr<Node>(pNode->NextSibling())).get());
-	}
+	eachChild_([&rProcessor](const Node& rNode) {
+		if (XSD_ISELEMENT(&rNode, SimpleType) ||
+			XSD_ISELEMENT(&rNode, Annotation)) {
+			rNode.ParseElement(rProcessor);
+		} else
+			throw XMLException(rNode.GetXMLElm(), XMLException::InvallidChildXMLElement);
+	});
 }
 
 void
@@ -81,12 +78,7 @@ Union::MemberTypes() const noexcept(false) {
 		 itr != tokens.end();
 		 ++itr) {
 		const std::string& token = *itr;
-		retLst->push_back(Node::LookupType(token.c_str()));
+		retLst->push_back(Node::Type_(token.c_str()));
 	}
 	return retLst;
-}
-
-bool
-Union::HasMemberTypes() const {
-	return Node::HasAttribute("memberTypes");
 }

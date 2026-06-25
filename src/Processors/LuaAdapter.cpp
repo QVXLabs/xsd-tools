@@ -2,8 +2,8 @@
  * LuaAdapter.cpp
  *
  *  Created on: 01/22/12
- *      Author: Ardavon Falls
- *   Copyright: (c)2012 Ardavon Falls
+ *      Author: QVXLabs LLC
+ *   Copyright: (c)2012 QVXLabs LLC
  *
  *  This file is part of xsd-tools.
  *
@@ -30,20 +30,37 @@
 #define FIXED_TAG      "fixed"
 #define USE_TAG        "use"
 #define MAXOCCURS_TAG  "maxOccurs"
+#define MINOCCURS_TAG  "minOccurs"
+#define FACETS_TAG     "facets"
+#define NAMESPACE_TAG  "namespace"
+#define QUALIFIED_TAG  "qualified"
 #define DEBUG_LUASTACK (0)
 
 using namespace std;
 using namespace Processors;
 
+/* class LuaFacets */
+void
+LuaFacets::addToList(const std::string& rName, const std::string& rValue) {
+	for (size_t i = 0; i < lists.size(); ++i) {
+		if (lists[i].first == rName) {
+			lists[i].second.push_back(rValue);
+			return;
+		}
+	}
+	lists.push_back(
+		std::make_pair(rName, std::vector<std::string>(1, rValue)));
+}
+
 /* helper functions */
-static void _luaStackDump(lua_State * pLuaState);
+static void luaStackDump_(lua_State * pLuaState);
 #if (DEBUG_LUASTACK)
-static void _luaStackDumpRec(lua_State * pLuaState, int stackIndex = 0);
+static void luaStackDumpRec_(lua_State * pLuaState, int stackIndex = 0);
 #endif
 /* Class method definitions */
 /* Class LuaAdapter */
 LuaAdapter::LuaAdapter(lua_State* pLuaState)
-	: m_pLuaState(pLuaState)
+	: pLuaState_(pLuaState)
 { }
 
 /* virtual */
@@ -52,17 +69,17 @@ LuaAdapter::~LuaAdapter()
 
 LuaSchema *
 LuaAdapter::Schema() {
-	return new LuaSchema(m_pLuaState);
+	return new LuaSchema(pLuaState_);
 }
 
 lua_State *
-LuaAdapter::_getLuaState() {
-  return m_pLuaState;
+LuaAdapter::getLuaState_() {
+  return pLuaState_;
 }
 
 void
-LuaAdapter::_setLuaState(lua_State * pLuaState) {
-	m_pLuaState = pLuaState;
+LuaAdapter::setLuaState_(lua_State * pLuaState) {
+	pLuaState_ = pLuaState;
 }
 
 /* Class LuaContent */
@@ -78,18 +95,19 @@ LuaContent::LuaContent(lua_State* pLuaState)
 
 /* virtual */
 LuaContent::~LuaContent() {  
-	lua_pop(_getLuaState(), 1);
+	lua_pop(getLuaState_(), 1);
 }
 
 LuaType *
-LuaContent::Type(const std::string& rTypeName, const int maxOccurs) {
-	return new LuaType(_getLuaState(), rTypeName, maxOccurs);
+LuaContent::Type(const std::string& rTypeName, const int maxOccurs,
+                 const int minOccurs) {
+	return new LuaType(getLuaState_(), rTypeName, maxOccurs, minOccurs);
 }
 
 /* Class LuaSchema */
 LuaSchema::LuaSchema(lua_State* pLuaState) {
 	/* set the lua state without calling the content constructor */
-	_setLuaState(pLuaState);
+	setLuaState_(pLuaState);
 	/* test if global table has been made & make it if not */
 	lua_getglobal(pLuaState, SCHEMA_TAG);
 	if (lua_isnil(pLuaState, -1)) {
@@ -99,7 +117,7 @@ LuaSchema::LuaSchema(lua_State* pLuaState) {
 		lua_getglobal(pLuaState, SCHEMA_TAG);
 	}
 	/* debug */
-	_luaStackDump(pLuaState);
+	luaStackDump_(pLuaState);
 }
 
 /* virtual */
@@ -107,8 +125,9 @@ LuaSchema::~LuaSchema()
 { }
 
 /* Class LuaType */
-LuaType::LuaType(lua_State* pLuaState, const std::string& rTypeName, const int maxOccurs)
-	: LuaAdapter(pLuaState) { 
+LuaType::LuaType(lua_State* pLuaState, const std::string& rTypeName,
+                 const int maxOccurs, const int minOccurs)
+	: LuaAdapter(pLuaState) {
 	/* create new table for type and append it as a child element to the current
 	   element on stack */
 	lua_newtable(pLuaState);
@@ -123,13 +142,15 @@ LuaType::LuaType(lua_State* pLuaState, const std::string& rTypeName, const int m
 
  	lua_pushnumber(pLuaState, maxOccurs);
 	lua_setfield(pLuaState, -2, MAXOCCURS_TAG);
+	lua_pushnumber(pLuaState, minOccurs);
+	lua_setfield(pLuaState, -2, MINOCCURS_TAG);
 	/* debug */
-	_luaStackDump(pLuaState);
+	luaStackDump_(pLuaState);
 }
 
 /* virtual */
 LuaType::~LuaType() { 
-	lua_pop(_getLuaState(), 1);
+	lua_pop(getLuaState_(), 1);
 }
 
 LuaAttribute *
@@ -138,12 +159,60 @@ LuaType::Attribute(	const string& rName,
 					const std::string * pDefault,
 					const std::string * pFixed,
 					const std::string * pUse) {
-	return new LuaAttribute(_getLuaState(), rName, rType, pDefault, pFixed, pUse);
+	return new LuaAttribute(getLuaState_(), rName, rType, pDefault, pFixed, pUse);
 }
 
 LuaContent *
 LuaType::Content() {
-	return new LuaContent(_getLuaState()); 
+	return new LuaContent(getLuaState_());
+}
+
+void
+LuaType::Facets(const LuaFacets& rFacets) {
+	/* only emit a `facets` block when there is something to emit */
+	if (rFacets.empty())
+		return;
+	lua_State * pLuaState = getLuaState_();
+	/* type table is at stack top; build facets sub-table */
+	lua_newtable(pLuaState);
+	for (size_t i = 0; i < rFacets.scalars.size(); ++i) {
+		lua_pushstring(pLuaState, rFacets.scalars[i].second.c_str());
+		lua_setfield(pLuaState, -2, rFacets.scalars[i].first.c_str());
+	}
+	for (size_t i = 0; i < rFacets.lists.size(); ++i) {
+		const std::vector<std::string>& rVals = rFacets.lists[i].second;
+		lua_newtable(pLuaState);
+		for (size_t j = 0; j < rVals.size(); ++j) {
+			lua_pushstring(pLuaState, rVals[j].c_str());
+			lua_rawseti(pLuaState, -2, static_cast<int>(j + 1));
+		}
+		lua_setfield(pLuaState, -2, rFacets.lists[i].first.c_str());
+	}
+	lua_setfield(pLuaState, -2, FACETS_TAG);
+	/* debug */
+	luaStackDump_(pLuaState);
+}
+
+void
+LuaType::Namespace(const std::string& rNamespace) {
+	/* only emit when there is a resolved namespace */
+	if (rNamespace.empty())
+		return;
+	lua_State * pLuaState = getLuaState_();
+	/* type table is at stack top */
+	lua_pushstring(pLuaState, rNamespace.c_str());
+	lua_setfield(pLuaState, -2, NAMESPACE_TAG);
+}
+
+void
+LuaType::Qualified(bool qualified) {
+	/* only emit when qualified; unqualified is the default */
+	if (!qualified)
+		return;
+	lua_State * pLuaState = getLuaState_();
+	/* type table is at stack top */
+	lua_pushboolean(pLuaState, 1);
+	lua_setfield(pLuaState, -2, QUALIFIED_TAG);
 }
 
 /* Class LuaAttribute */
@@ -153,7 +222,7 @@ LuaAttribute::LuaAttribute(	lua_State * pLuaState,
 							const std::string * pDefault,
 							const std::string * pFixed,
 							const std::string * pUse) 
-	: LuaAdapter(pLuaState) {
+	: LuaAdapter(pLuaState), name_(rName), typeName_(rType.Name()) {
 	/* push attribute table to stack top */
 	lua_getfield(pLuaState, -1, ATTRIBUTE_TAG);
 	/* create emtpty table for attribute name/type pair */
@@ -179,24 +248,86 @@ LuaAttribute::LuaAttribute(	lua_State * pLuaState,
 	/* append attribute to attribute table */
 	lua_setfield(pLuaState, -2, rName.c_str());
 	/* debug */
-	_luaStackDump(pLuaState);
+	luaStackDump_(pLuaState);
+}
+
+void
+LuaAttribute::Facets(const LuaFacets& rFacets) {
+	/* only emit a `facets` block when there is something to emit */
+	if (rFacets.empty())
+		return;
+	lua_State * pLuaState = getLuaState_();
+	/* the ATTRIBUTE_TAG table is at stack top; descend attributes[name] ->
+	   [typeName] so facets land on the type sub-table (where targets read
+	   attr.<type>.facets, mirroring content-type facets) */
+	lua_getfield(pLuaState, -1, name_.c_str());
+	lua_getfield(pLuaState, -1, typeName_.c_str());
+	lua_newtable(pLuaState);
+	for (size_t i = 0; i < rFacets.scalars.size(); ++i) {
+		lua_pushstring(pLuaState, rFacets.scalars[i].second.c_str());
+		lua_setfield(pLuaState, -2, rFacets.scalars[i].first.c_str());
+	}
+	for (size_t i = 0; i < rFacets.lists.size(); ++i) {
+		const std::vector<std::string>& rVals = rFacets.lists[i].second;
+		lua_newtable(pLuaState);
+		for (size_t j = 0; j < rVals.size(); ++j) {
+			lua_pushstring(pLuaState, rVals[j].c_str());
+			lua_rawseti(pLuaState, -2, static_cast<int>(j + 1));
+		}
+		lua_setfield(pLuaState, -2, rFacets.lists[i].first.c_str());
+	}
+	lua_setfield(pLuaState, -2, FACETS_TAG);
+	/* pop the type + attribute tables, restoring ATTRIBUTE_TAG at top */
+	lua_pop(pLuaState, 2);
+	/* debug */
+	luaStackDump_(pLuaState);
+}
+
+void
+LuaAttribute::Namespace(const std::string& rNamespace) {
+	/* only emit when there is a resolved namespace */
+	if (rNamespace.empty())
+		return;
+	lua_State * pLuaState = getLuaState_();
+	/* descend attributes[name] -> [typeName] so the field lands on the type
+	   sub-table (same placement as Facets) */
+	lua_getfield(pLuaState, -1, name_.c_str());
+	lua_getfield(pLuaState, -1, typeName_.c_str());
+	lua_pushstring(pLuaState, rNamespace.c_str());
+	lua_setfield(pLuaState, -2, NAMESPACE_TAG);
+	lua_pop(pLuaState, 2);
+}
+
+void
+LuaAttribute::Qualified(bool qualified) {
+	/* only emit when qualified; unqualified is the default */
+	if (!qualified)
+		return;
+	lua_State * pLuaState = getLuaState_();
+	/* descend attributes[name] -> [typeName] so the field lands on the type
+	   sub-table (same placement as Facets) */
+	lua_getfield(pLuaState, -1, name_.c_str());
+	lua_getfield(pLuaState, -1, typeName_.c_str());
+	lua_pushboolean(pLuaState, 1);
+	lua_setfield(pLuaState, -2, QUALIFIED_TAG);
+	lua_pop(pLuaState, 2);
 }
 
 /* virtual */
 LuaAttribute::~LuaAttribute() {
-	lua_pop(_getLuaState(), 1);
+	lua_pop(getLuaState_(), 1);
 }
 
-static void _luaStackDump(lua_State * pLuaState) {
+static void luaStackDump_(lua_State * pLuaState) {
 #if (DEBUG_LUASTACK)
 	cout << "LStack:[";
-	_luaStackDumpRec(pLuaState, 0);
+	luaStackDumpRec_(pLuaState, 0);
 	cout << "]" << endl;
 #endif
 }
 
 #if (DEBUG_LUASTACK)
-static void _luaStackDumpRec(lua_State * pLuaState, int stackIndex) {
+static void luaStackDumpRec_(lua_State * pLuaState, int stackIndex) {
 	const int stkTop = lua_gettop(pLuaState);
 	/* base case */
 	if (stackIndex == stkTop) 
@@ -240,6 +371,6 @@ static void _luaStackDumpRec(lua_State * pLuaState, int stackIndex) {
 		break;
 	}
 	cout << " ";
-	_luaStackDumpRec(pLuaState, stackIndex + 1);
+	luaStackDumpRec_(pLuaState, stackIndex + 1);
 }
 #endif

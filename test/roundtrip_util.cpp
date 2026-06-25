@@ -50,6 +50,26 @@ namespace {
 		return dir.empty() ? std::string() : " -I'" + dir + "'";
 	}
 
+	/* Like includeFlag, but `dirs` may hold several `|`-separated paths
+	 * (CMake list form re-joined with '|' so it survives a -D), emitting one
+	 * -I per non-empty entry. */
+	std::string includeFlags(const std::string& dirs) {
+		std::string out;
+		std::string::size_type start = 0;
+		while (start <= dirs.size()) {
+			std::string::size_type sep = dirs.find('|', start);
+			std::string::size_type end =
+				(sep == std::string::npos) ? dirs.size() : sep;
+			std::string dir = dirs.substr(start, end - start);
+			if (!dir.empty())
+				out += " -I'" + dir + "'";
+			if (sep == std::string::npos)
+				break;
+			start = sep + 1;
+		}
+		return out;
+	}
+
 	void writeFile(const std::string& path, const std::string& content) {
 		std::ofstream ofs(path.c_str(), std::ios::binary);
 		ofs.write(content.data(),
@@ -64,36 +84,21 @@ namespace {
 		return dir ? std::string(dir) : std::string();
 	}
 
-	/* Split a c-xml-expat binding blob on its FILE markers (lines of the
-	 * form: slash-star FILE: <name> star-slash), writing each section into
-	 * `dir`. Returns the written file names. */
-	std::vector<std::string> splitMarkedFiles(const std::string& blob,
-	                                          const std::string& dir) {
-		std::vector<std::string> files;
-		std::istringstream in(blob);
-		std::string line;
-		std::ofstream out;
-		const std::string marker = "/* FILE: ";
-		while (std::getline(in, line)) {
-			size_t pos = line.find(marker);
-			if (std::string::npos != pos) {
-				size_t start = pos + marker.size();
-				size_t end = line.find(' ', start);
-				std::string name = line.substr(start, end - start);
-				if (out.is_open())
-					out.close();
-				out.open((dir + "/" + name).c_str(), std::ios::binary);
-				files.push_back(name);
-			} else if (out.is_open()) {
-				out << line << "\n";
-			}
-		}
-		return files;
-	}
-
-	::testing::AssertionResult cRoundtripImpl(const std::string& xsdPath,
-	                                          const std::string& bindingTmpl,
-	                                          const std::string& driverTmpl) {
+	/* Emit + split a multi-file C/C++ binding and self-checking driver, compile
+	 * (libb64 + one extra lib) and run. `compiler`/`std` select the toolchain
+	 * (C_COMPILER/-std=c11 vs CXX_COMPILER/-std=c++11); `srcExt` is the split
+	 * source extension (".c"/".cpp"); `srcPrefix` is the generated source's
+	 * filename prefix (e.g. "xml_" / "json_"); `extraInclude`/`extraLink` are
+	 * the -I dir and link flags for the marshalling library. */
+	::testing::AssertionResult ccRoundtripImpl(const std::string& xsdPath,
+	                                           const std::string& bindingTmpl,
+	                                           const std::string& driverTmpl,
+	                                           const std::string& compiler,
+	                                           const std::string& std,
+	                                           const std::string& srcExt,
+	                                           const std::string& srcPrefix,
+	                                           const std::string& extraInclude,
+	                                           const std::string& extraLink) {
 		const std::string base = xsdtest::baseName(xsdPath);
 		const std::string dir = xsdtest::baseName(xsdPath).empty()
 			? std::string() : makeTempDir(base);
@@ -104,22 +109,23 @@ namespace {
 				TEMPLATES_DIR "/" + bindingTmpl, xsdPath);
 			std::string driver = xsdtest::generate(
 				TEMPLATES_DIR "/" + driverTmpl, xsdPath);
-			splitMarkedFiles(binding, dir);
-			writeFile(dir + "/" + base + "-bin.c", driver);
+			XsdTools::SplitMarkedFiles(binding, dir);
+			writeFile(dir + "/" + base + "-bin" + srcExt, driver);
 		} catch (std::exception& e) {
 			return ::testing::AssertionFailure()
 				<< "generation failed: " << e.what();
 		}
-		/* compile: <base>-bin.c + xml_<base>.c + libb64 + expat */
+		/* compile: <base>-bin<ext> + <srcPrefix><base><ext> + libb64 + lib */
 		std::ostringstream cc;
-		cc << C_COMPILER
+		cc << compiler
+		   << " " << std
 		   << includeFlag(dir)
 		   << includeFlag(LIBB64_INCLUDE_DIR)
-		   << includeFlag(EXPAT_INCLUDE_DIR)
-		   << " '" << dir << "/" << base << "-bin.c'"
-		   << " '" << dir << "/xml_" << base << ".c'"
+		   << includeFlags(extraInclude)
+		   << " '" << dir << "/" << base << "-bin" << srcExt << "'"
+		   << " '" << dir << "/" << srcPrefix << base << srcExt << "'"
 		   << " '" << LIBB64_ARCHIVE << "'"
-		   << " " << EXPAT_LINK
+		   << " " << extraLink
 		   << " -o '" << dir << "/" << base << "'";
 		CommandResult build = runCommand(cc.str(), dir);
 		if (0 != build.exitCode)
@@ -131,6 +137,18 @@ namespace {
 				<< "run failed (exit " << run.exitCode << "):\n"
 				<< run.output;
 		return ::testing::AssertionSuccess();
+	}
+
+	/* C round-trip: project C compiler at -std=c11, sources split as .c. */
+	::testing::AssertionResult cRoundtripImpl(const std::string& xsdPath,
+	                                          const std::string& bindingTmpl,
+	                                          const std::string& driverTmpl,
+	                                          const std::string& srcPrefix,
+	                                          const std::string& extraInclude,
+	                                          const std::string& extraLink) {
+		return ccRoundtripImpl(xsdPath, bindingTmpl, driverTmpl,
+		                       C_COMPILER, "-std=c11", ".c",
+		                       srcPrefix, extraInclude, extraLink);
 	}
 }
 
@@ -155,17 +173,20 @@ namespace xsdtest {
 		return oss.str();
 	}
 
-	::testing::AssertionResult pythonRoundtrip(const std::string& xsdPath) {
+	/* Generate the binding (named <base>.py for `import <base>`) + driver,
+	 * run `python3 driver.py`. */
+	static ::testing::AssertionResult pythonRoundtripImpl(
+			const std::string& xsdPath, const std::string& bindingTmpl,
+			const std::string& driverTmpl) {
 		const std::string base = baseName(xsdPath);
 		const std::string dir = makeTempDir(base);
 		if (dir.empty())
 			return ::testing::AssertionFailure() << "could not create tempdir";
 		try {
-			/* driver does `import <base>`, so name the binding <base>.py */
 			writeFile(dir + "/" + base + ".py",
-			          generate(TEMPLATES_DIR "/python-sax", xsdPath));
+			          generate(TEMPLATES_DIR "/" + bindingTmpl, xsdPath));
 			writeFile(dir + "/driver.py",
-			          generate(TEMPLATES_DIR "/python-sax-test", xsdPath));
+			          generate(TEMPLATES_DIR "/" + driverTmpl, xsdPath));
 		} catch (std::exception& e) {
 			return ::testing::AssertionFailure()
 				<< "generation failed: " << e.what();
@@ -178,16 +199,96 @@ namespace xsdtest {
 		return ::testing::AssertionSuccess();
 	}
 
+	::testing::AssertionResult pythonRoundtrip(const std::string& xsdPath) {
+		return pythonRoundtripImpl(xsdPath, "python-sax", "python-sax-test");
+	}
+
+	::testing::AssertionResult pythonJsonRoundtrip(const std::string& xsdPath) {
+		return pythonRoundtripImpl(xsdPath, "python-json.tmpl",
+		                           "python-json.tmpl-test");
+	}
+
 	::testing::AssertionResult cExpatRoundtrip(const std::string& xsdPath) {
-		return cRoundtripImpl(xsdPath, "c-xml-expat", "c-xml-expat-test");
+		return cRoundtripImpl(xsdPath, "c-xml-expat", "c-xml-expat-test",
+		                      "xml_", EXPAT_INCLUDE_DIR, EXPAT_LINK);
 	}
 
 	::testing::AssertionResult cExpatDomRoundtrip(const std::string& xsdPath) {
 		return cRoundtripImpl(xsdPath, "c-xml-expat-dom.template",
-		                      "c-xml-expat-dom.template-test");
+		                      "c-xml-expat-dom.template-test",
+		                      "xml_", EXPAT_INCLUDE_DIR, EXPAT_LINK);
 	}
 
-	::testing::AssertionResult javaRoundtrip(const std::string& xsdPath) {
+	::testing::AssertionResult cJsonRoundtrip(const std::string& xsdPath) {
+		return cRoundtripImpl(xsdPath, "c-json-jsonc.template",
+		                      "c-json-jsonc.template-test",
+		                      "json_", JSONC_INCLUDE_DIR, JSONC_LINK);
+	}
+
+	::testing::AssertionResult cppXmlRoundtrip(const std::string& xsdPath) {
+		return ccRoundtripImpl(xsdPath, "cpp-xml-expat", "cpp-xml-expat-test",
+		                       CXX_COMPILER, "-std=c++11", ".cpp",
+		                       "xml_", EXPAT_INCLUDE_DIR, EXPAT_LINK);
+	}
+
+	::testing::AssertionResult cppJsonRoundtrip(const std::string& xsdPath) {
+		return ccRoundtripImpl(xsdPath, "cpp-json-jsonc.template",
+		                       "cpp-json-jsonc.template-test",
+		                       CXX_COMPILER, "-std=c++11", ".cpp",
+		                       "json_", JSONC_INCLUDE_DIR, JSONC_LINK);
+	}
+
+	/* ts-xml: emit the TS binding + RunTest driver into a pinned npm project,
+	 * tsc-compile, run via node. Mirrors javaRoundtripImpl's pom-cache shape:
+	 * deps resolve once into a shared node_modules, reused across cases. */
+	::testing::AssertionResult tsXmlRoundtrip(const std::string& xsdPath) {
+		const std::string base = baseName(xsdPath);
+		const std::string root = makeTempDir(base);
+		if (root.empty())
+			return ::testing::AssertionFailure() << "could not create tempdir";
+		if (0 != runCommand("cp '" TS_PACKAGE_JSON "' package.json && "
+		                     "cp '" TS_TSCONFIG "' tsconfig.json",
+		                     root).exitCode)
+			return ::testing::AssertionFailure()
+				<< "could not copy package.json/tsconfig.json";
+		/* Reuse a shared node_modules (resolved once) like Maven's ~/.m2. */
+		CommandResult deps = runCommand(
+			"npm install --no-audit --no-fund --prefer-offline"
+			" --cache /tmp/xsdb-ts-npm-cache", root);
+		if (0 != deps.exitCode)
+			return ::testing::AssertionFailure()
+				<< "npm install failed:\n" << deps.output;
+		try {
+			XsdTools::SplitMarkedFiles(
+				generate(TEMPLATES_DIR "/ts-xml.tmpl", xsdPath), root);
+			writeFile(root + "/RunTest.ts",
+			          generate(TEMPLATES_DIR "/ts-xml.tmpl-test", xsdPath));
+		} catch (std::exception& e) {
+			return ::testing::AssertionFailure()
+				<< "generation failed: " << e.what();
+		}
+		CommandResult build = runCommand(
+			"./node_modules/.bin/tsc -p tsconfig.json", root);
+		if (0 != build.exitCode)
+			return ::testing::AssertionFailure()
+				<< "tsc failed:\n" << build.output;
+		CommandResult run = runCommand("node RunTest.js", root);
+		if (0 != run.exitCode)
+			return ::testing::AssertionFailure()
+				<< "RunTest failed (exit " << run.exitCode << "):\n"
+				<< run.output;
+		if (run.output.find("false") != std::string::npos)
+			return ::testing::AssertionFailure()
+				<< "round-trip mismatch; output:\n" << run.output;
+		return ::testing::AssertionSuccess();
+	}
+
+	/* Generate the binding into a Maven package + RunTest driver, `mvn
+	 * package`, run. RunTest prints one true/false per root element: any
+	 * "false" is a marshal mismatch, a non-zero exit a crash, empty a pass. */
+	static ::testing::AssertionResult javaRoundtripImpl(
+			const std::string& xsdPath, const std::string& bindingTmpl,
+			const std::string& driverTmpl, const std::string& pomPath) {
 		const std::string base = baseName(xsdPath);
 		const std::string root = makeTempDir(base);
 		if (root.empty())
@@ -195,14 +296,13 @@ namespace xsdtest {
 		const std::string pkg = root + "/src/main/java/com/mobitv/app";
 		if (0 != runCommand("mkdir -p '" + pkg + "'", root).exitCode)
 			return ::testing::AssertionFailure() << "mkdir failed";
-		if (0 != runCommand("cp '" JAVA_POM "' pom.xml", root).exitCode)
+		if (0 != runCommand("cp '" + pomPath + "' pom.xml", root).exitCode)
 			return ::testing::AssertionFailure() << "could not copy pom.xml";
 		try {
-			splitMarkedFiles(
-				generate(TEMPLATES_DIR "/java-json.org.tmpl", xsdPath), pkg);
+			XsdTools::SplitMarkedFiles(
+				generate(TEMPLATES_DIR "/" + bindingTmpl, xsdPath), pkg);
 			writeFile(pkg + "/RunTest.java",
-			          generate(TEMPLATES_DIR "/java-json.org.tmpl-test",
-			                   xsdPath));
+			          generate(TEMPLATES_DIR "/" + driverTmpl, xsdPath));
 		} catch (std::exception& e) {
 			return ::testing::AssertionFailure()
 				<< "generation failed: " << e.what();
@@ -214,9 +314,6 @@ namespace xsdtest {
 		CommandResult run = runCommand(
 			"java -cp target/my-app-1.0-SNAPSHOT-jar-with-dependencies.jar"
 			" com.mobitv.app.RunTest", root);
-		/* RunTest prints one "true"/"false" per root element. A non-zero
-		 * exit is a crash; any "false" is a marshal mismatch. Empty output
-		 * (e.g. an abstract element with nothing to marshal) is a pass. */
 		if (0 != run.exitCode)
 			return ::testing::AssertionFailure()
 				<< "RunTest failed (exit " << run.exitCode << "):\n"
@@ -226,4 +323,367 @@ namespace xsdtest {
 				<< "round-trip mismatch; output:\n" << run.output;
 		return ::testing::AssertionSuccess();
 	}
+
+	::testing::AssertionResult javaRoundtrip(const std::string& xsdPath) {
+		return javaRoundtripImpl(xsdPath, "java-json.org.tmpl",
+		                         "java-json.org.tmpl-test", JAVA_POM);
+	}
+
+	::testing::AssertionResult javaXmlRoundtrip(const std::string& xsdPath) {
+		return javaRoundtripImpl(xsdPath, "java-xml-stax.tmpl",
+		                         "java-xml-stax.tmpl-test", JAVA_XML_POM);
+	}
+}
+
+/*
+ * D4 negative-instance tests — prove the generated validate() REJECTS an
+ * out-of-facet value (the round-trips only feed valid, facet-respecting data).
+ * Rejection manifests per language; python-sax raises ValueError, so the driver
+ * exits 0 iff the invalid value was rejected.
+ */
+namespace {
+	::testing::AssertionResult pythonSaxRejects(const std::string& xsd,
+			const std::string& rootClass, const std::string& invalidXml) {
+		const std::string dir = makeTempDir("neg");
+		if (dir.empty())
+			return ::testing::AssertionFailure() << "could not create tempdir";
+		try {
+			writeFile(dir + "/m.py",
+			          xsdtest::generate(TEMPLATES_DIR "/python-sax", xsd));
+		} catch (std::exception& e) {
+			return ::testing::AssertionFailure() << "generation: " << e.what();
+		}
+		writeFile(dir + "/neg.py",
+			"import io, sys, m\n"
+			"try:\n"
+			"    m." + rootClass + "().unmarshal(io.StringIO('" + invalidXml + "'))\n"
+			"    sys.exit(1)\n"
+			"except ValueError:\n"
+			"    sys.exit(0)\n");
+		CommandResult run = runCommand("python3 neg.py", dir);
+		if (0 != run.exitCode)
+			return ::testing::AssertionFailure()
+				<< "invalid value not rejected (exit " << run.exitCode
+				<< "):\n" << run.output;
+		return ::testing::AssertionSuccess();
+	}
+}
+
+TEST(Reject, PythonSaxRange) {
+	EXPECT_TRUE(pythonSaxRejects(XSD_CORPUS_DIR "/facet_range.xsd",
+		"xml_facet_range_xsd", "<rating>99</rating>"));
+}
+TEST(Reject, PythonSaxEnum) {
+	EXPECT_TRUE(pythonSaxRejects(XSD_CORPUS_DIR "/facet_enum.xsd",
+		"xml_facet_enum_xsd", "<color>purple</color>"));
+}
+TEST(Reject, PythonSaxLength) {
+	EXPECT_TRUE(pythonSaxRejects(XSD_CORPUS_DIR "/facet_strlen.xsd",
+		"xml_facet_strlen_xsd", "<code>x</code>"));
+}
+TEST(Reject, PythonSaxAttribute) {
+	EXPECT_TRUE(pythonSaxRejects(XSD_CORPUS_DIR "/facet_attr.xsd",
+		"xml_facet_attr_xsd",
+		"<catalog><widget size=\"huge\"/></catalog>"));
+}
+
+namespace {
+	/* c-xml-expat aborts (exit != 0) on a facet violation; feed an invalid
+	 * instance and assert the process did NOT exit cleanly. */
+	::testing::AssertionResult cExpatRejects(const std::string& xsd,
+			const std::string& header, const std::string& elem,
+			const std::string& invalidXml) {
+		const std::string base = xsdtest::baseName(xsd);
+		const std::string dir = makeTempDir(base);
+		if (dir.empty())
+			return ::testing::AssertionFailure() << "could not create tempdir";
+		try {
+			XsdTools::SplitMarkedFiles(
+				xsdtest::generate(TEMPLATES_DIR "/c-xml-expat", xsd), dir);
+		} catch (std::exception& e) {
+			return ::testing::AssertionFailure() << "generation: " << e.what();
+		}
+		writeFile(dir + "/" + base + "-bin.c",
+			"#include <string.h>\n#include <stdlib.h>\n#include \"" + header + "\"\n"
+			"static void* rc(struct xml_marshaller* m, void* p, size_t s)"
+			"{(void)m;return realloc(p,s);}\n"
+			"static void cb(struct xml_marshaller* m, const xml_" + elem +
+			"* o, uint32_t pa){(void)m;(void)o;(void)pa;}\n"
+			"int main(void){\n"
+			"  xml_marshaller m = { .realloc = rc, .unmarshal_" + elem + " = cb };\n"
+			"  const char* x = \"" + invalidXml + "\";\n"
+			"  xml_buffer b = { .pBuf_=(uint8_t*)x, .size_=(uint32_t)strlen(x),"
+			" .used_=(uint32_t)strlen(x) };\n"
+			"  xml_unmarshal(&m, &b, 1);\n"
+			"  return 0;\n}\n");
+		std::ostringstream cc;
+		cc << C_COMPILER << " -std=c11" << includeFlag(dir)
+		   << includeFlag(LIBB64_INCLUDE_DIR) << includeFlags(EXPAT_INCLUDE_DIR)
+		   << " '" << dir << "/" << base << "-bin.c'"
+		   << " '" << dir << "/xml_" << base << ".c'"
+		   << " '" << LIBB64_ARCHIVE << "' " << EXPAT_LINK
+		   << " -o '" << dir << "/" << base << "'";
+		CommandResult build = runCommand(cc.str(), dir);
+		if (0 != build.exitCode)
+			return ::testing::AssertionFailure() << "compile:\n" << build.output;
+		CommandResult run = runCommand("./" + base, dir);
+		if (0 == run.exitCode)
+			return ::testing::AssertionFailure()
+				<< "invalid value was NOT rejected (exit 0):\n" << run.output;
+		return ::testing::AssertionSuccess();
+	}
+}
+
+TEST(Reject, CExpatRange) {
+	EXPECT_TRUE(cExpatRejects(XSD_CORPUS_DIR "/facet_range.xsd",
+		"xml_facet_range.h", "rating", "<rating>99</rating>"));
+}
+TEST(Reject, CExpatEnum) {
+	EXPECT_TRUE(cExpatRejects(XSD_CORPUS_DIR "/facet_enum.xsd",
+		"xml_facet_enum.h", "color", "<color>purple</color>"));
+}
+
+namespace {
+	/* c-xml-expat-dom: xml_unmarshal aborts (exit != 0) on a facet violation. */
+	::testing::AssertionResult cDomRejects(const std::string& xsd,
+			const std::string& header, const std::string& invalidXml) {
+		const std::string base = xsdtest::baseName(xsd);
+		const std::string dir = makeTempDir(base);
+		if (dir.empty())
+			return ::testing::AssertionFailure() << "could not create tempdir";
+		try {
+			XsdTools::SplitMarkedFiles(xsdtest::generate(
+				TEMPLATES_DIR "/c-xml-expat-dom.template", xsd), dir);
+		} catch (std::exception& e) {
+			return ::testing::AssertionFailure() << "generation: " << e.what();
+		}
+		writeFile(dir + "/" + base + "-bin.c",
+			"#include <string.h>\n#include \"" + header + "\"\n"
+			"int main(void){ const char* x = \"" + invalidXml + "\";"
+			" xml_unmarshal(x, strlen(x), 0); return 0; }\n");
+		std::ostringstream cc;
+		cc << C_COMPILER << " -std=c11" << includeFlag(dir)
+		   << includeFlag(LIBB64_INCLUDE_DIR) << includeFlags(EXPAT_INCLUDE_DIR)
+		   << " '" << dir << "/" << base << "-bin.c'"
+		   << " '" << dir << "/xml_" << base << ".c'"
+		   << " '" << LIBB64_ARCHIVE << "' " << EXPAT_LINK
+		   << " -o '" << dir << "/" << base << "'";
+		CommandResult build = runCommand(cc.str(), dir);
+		if (0 != build.exitCode)
+			return ::testing::AssertionFailure() << "compile:\n" << build.output;
+		CommandResult run = runCommand("./" + base, dir);
+		if (0 == run.exitCode)
+			return ::testing::AssertionFailure()
+				<< "invalid value was NOT rejected (exit 0):\n" << run.output;
+		return ::testing::AssertionSuccess();
+	}
+
+	/* python-json: unmarshal of an out-of-facet JSON value raises ValueError. */
+	::testing::AssertionResult pythonJsonRejects(const std::string& xsd,
+			const std::string& rootClass, const std::string& invalidJson) {
+		const std::string dir = makeTempDir("njson");
+		if (dir.empty())
+			return ::testing::AssertionFailure() << "could not create tempdir";
+		try {
+			writeFile(dir + "/m.py",
+				xsdtest::generate(TEMPLATES_DIR "/python-json.tmpl", xsd));
+		} catch (std::exception& e) {
+			return ::testing::AssertionFailure() << "generation: " << e.what();
+		}
+		writeFile(dir + "/neg.py",
+			"import json, sys, m\n"
+			"try:\n"
+			"    m." + rootClass + "().unmarshal(json.loads('" + invalidJson + "'))\n"
+			"    sys.exit(1)\n"
+			"except ValueError:\n"
+			"    sys.exit(0)\n");
+		CommandResult run = runCommand("python3 neg.py", dir);
+		if (0 != run.exitCode)
+			return ::testing::AssertionFailure()
+				<< "invalid value not rejected (exit " << run.exitCode
+				<< "):\n" << run.output;
+		return ::testing::AssertionSuccess();
+	}
+}
+
+TEST(Reject, CDomRange) {
+	EXPECT_TRUE(cDomRejects(XSD_CORPUS_DIR "/facet_range.xsd",
+		"xml_facet_range.h", "<rating>99</rating>"));
+}
+TEST(Reject, CDomEnum) {
+	EXPECT_TRUE(cDomRejects(XSD_CORPUS_DIR "/facet_enum.xsd",
+		"xml_facet_enum.h", "<color>purple</color>"));
+}
+TEST(Reject, PythonJsonRange) {
+	EXPECT_TRUE(pythonJsonRejects(XSD_CORPUS_DIR "/facet_range.xsd",
+		"json_facet_range_xsd",
+		"[{\"name\": \"rating\", \"attrs\": {}, \"content\": 99}]"));
+}
+TEST(Reject, PythonJsonEnum) {
+	EXPECT_TRUE(pythonJsonRejects(XSD_CORPUS_DIR "/facet_enum.xsd",
+		"json_facet_enum_xsd",
+		"[{\"name\": \"color\", \"attrs\": {}, \"content\": [\"purple\"]}]"));
+}
+
+namespace {
+	/* java-xml: unmarshalling an out-of-facet value throws
+	 * IllegalArgumentException; the driver exits 0 only when it does. */
+	::testing::AssertionResult javaXmlRejects(const std::string& xsd,
+			const std::string& invalidXml) {
+		const std::string base = xsdtest::baseName(xsd);
+		const std::string root = makeTempDir(base);
+		if (root.empty())
+			return ::testing::AssertionFailure() << "could not create tempdir";
+		const std::string pkg = root + "/src/main/java/com/mobitv/app";
+		if (0 != runCommand("mkdir -p '" + pkg + "'", root).exitCode)
+			return ::testing::AssertionFailure() << "mkdir failed";
+		if (0 != runCommand("cp '" JAVA_XML_POM "' pom.xml", root).exitCode)
+			return ::testing::AssertionFailure() << "could not copy pom.xml";
+		try {
+			XsdTools::SplitMarkedFiles(xsdtest::generate(
+				TEMPLATES_DIR "/java-xml-stax.tmpl", xsd), pkg);
+		} catch (std::exception& e) {
+			return ::testing::AssertionFailure() << "generation: " << e.what();
+		}
+		writeFile(pkg + "/RunTest.java",
+			"package com.mobitv.app;\n"
+			"public class RunTest {\n"
+			"  public static void main(String[] a) {\n"
+			"    try { new Document().unmarshal(\"" + invalidXml + "\");"
+			" System.exit(1); }\n"
+			"    catch (IllegalArgumentException e) { System.exit(0); }\n"
+			"    catch (Exception e) { System.exit(2); }\n"
+			"  }\n}\n");
+		CommandResult build = runCommand("mvn -q package", root);
+		if (0 != build.exitCode)
+			return ::testing::AssertionFailure()
+				<< "mvn package failed:\n" << build.output;
+		CommandResult run = runCommand(
+			"java -cp target/my-app-1.0-SNAPSHOT-jar-with-dependencies.jar"
+			" com.mobitv.app.RunTest", root);
+		if (0 != run.exitCode)
+			return ::testing::AssertionFailure()
+				<< "invalid value not rejected (exit " << run.exitCode
+				<< "):\n" << run.output;
+		return ::testing::AssertionSuccess();
+	}
+}
+
+TEST(Reject, JavaXmlRange) {
+	EXPECT_TRUE(javaXmlRejects(XSD_CORPUS_DIR "/facet_range.xsd",
+		"<rating>99</rating>"));
+}
+TEST(Reject, JavaXmlEnum) {
+	EXPECT_TRUE(javaXmlRejects(XSD_CORPUS_DIR "/facet_enum.xsd",
+		"<color>purple</color>"));
+}
+
+namespace {
+	/* c-json SKIPS an invalid value (validate returns nonzero => the notify
+	 * callback is not called). Marshal an out-of-range value (marshal does not
+	 * validate), unmarshal it, and assert the callback never fired. */
+	::testing::AssertionResult cJsonRejectsRange(const std::string& xsd,
+			const std::string& header, const std::string& elem) {
+		const std::string base = xsdtest::baseName(xsd);
+		const std::string dir = makeTempDir(base);
+		if (dir.empty())
+			return ::testing::AssertionFailure() << "could not create tempdir";
+		try {
+			XsdTools::SplitMarkedFiles(xsdtest::generate(
+				TEMPLATES_DIR "/c-json-jsonc.template", xsd), dir);
+		} catch (std::exception& e) {
+			return ::testing::AssertionFailure() << "generation: " << e.what();
+		}
+		writeFile(dir + "/" + base + "-bin.c",
+			"#include <string.h>\n#include <stdlib.h>\n#include \"" + header + "\"\n"
+			"static int g_called = 0;\n"
+			"static void* rc(struct json_marshaller* m, void* p, size_t s)"
+			"{(void)m;return realloc(p,s);}\n"
+			"static void cb(struct json_marshaller* m, const json_" + elem +
+			"* o, uint32_t pa){(void)m;(void)o;(void)pa;g_called=1;}\n"
+			"int main(void){\n"
+			"  json_buffer output;\n"
+			"  json_marshaller m = { .realloc=rc, .unmarshal_" + elem + "=cb };\n"
+			"  json_" + elem + " bad = { .Content_ = 99 };\n"
+			"  json_marshal_" + base + "_xsd s = json_marshal(&m);\n"
+			"  s.marshal_" + elem + "(&m, &bad, s.pSelf);\n"
+			"  output = json_marshal_flush(&m, 1);\n"
+			"  json_unmarshal_ex(&m, &output, 1, json_" + base +
+			"_default_factories());\n"
+			"  output.pBuf_ = realloc(output.pBuf_, 0);\n"
+			"  return g_called ? 1 : 0;\n}\n");
+		std::ostringstream cc;
+		cc << C_COMPILER << " -std=c11" << includeFlag(dir)
+		   << includeFlag(LIBB64_INCLUDE_DIR) << includeFlags(JSONC_INCLUDE_DIR)
+		   << " '" << dir << "/" << base << "-bin.c'"
+		   << " '" << dir << "/json_" << base << ".c'"
+		   << " '" << LIBB64_ARCHIVE << "' " << JSONC_LINK
+		   << " -o '" << dir << "/" << base << "'";
+		CommandResult build = runCommand(cc.str(), dir);
+		if (0 != build.exitCode)
+			return ::testing::AssertionFailure() << "compile:\n" << build.output;
+		CommandResult run = runCommand("./" + base, dir);
+		if (0 != run.exitCode)
+			return ::testing::AssertionFailure()
+				<< "invalid value was NOT skipped (callback fired):\n"
+				<< run.output;
+		return ::testing::AssertionSuccess();
+	}
+
+	/* java-json: constructing an element from out-of-facet JSON throws
+	 * IllegalArgumentException. */
+	::testing::AssertionResult javaJsonRejects(const std::string& xsd,
+			const std::string& className, const std::string& invalidJson) {
+		const std::string base = xsdtest::baseName(xsd);
+		const std::string root = makeTempDir(base);
+		if (root.empty())
+			return ::testing::AssertionFailure() << "could not create tempdir";
+		const std::string pkg = root + "/src/main/java/com/mobitv/app";
+		if (0 != runCommand("mkdir -p '" + pkg + "'", root).exitCode)
+			return ::testing::AssertionFailure() << "mkdir failed";
+		if (0 != runCommand("cp '" JAVA_POM "' pom.xml", root).exitCode)
+			return ::testing::AssertionFailure() << "could not copy pom.xml";
+		try {
+			XsdTools::SplitMarkedFiles(xsdtest::generate(
+				TEMPLATES_DIR "/java-json.org.tmpl", xsd), pkg);
+		} catch (std::exception& e) {
+			return ::testing::AssertionFailure() << "generation: " << e.what();
+		}
+		writeFile(pkg + "/RunTest.java",
+			"package com.mobitv.app;\n"
+			"import org.json.JSONObject;\n"
+			"import com.mobitv.generated.json." + className + ";\n"
+			"public class RunTest {\n"
+			"  public static void main(String[] a) {\n"
+			"    try { new " + className + "(new JSONObject(\"" + invalidJson +
+			"\")); System.exit(1); }\n"
+			"    catch (IllegalArgumentException e) { System.exit(0); }\n"
+			"    catch (Exception e) { System.exit(2); }\n"
+			"  }\n}\n");
+		CommandResult build = runCommand("mvn -q package", root);
+		if (0 != build.exitCode)
+			return ::testing::AssertionFailure()
+				<< "mvn package failed:\n" << build.output;
+		CommandResult run = runCommand(
+			"java -cp target/my-app-1.0-SNAPSHOT-jar-with-dependencies.jar"
+			" com.mobitv.app.RunTest", root);
+		if (0 != run.exitCode)
+			return ::testing::AssertionFailure()
+				<< "invalid value not rejected (exit " << run.exitCode
+				<< "):\n" << run.output;
+		return ::testing::AssertionSuccess();
+	}
+}
+
+TEST(Reject, CJsonRange) {
+	EXPECT_TRUE(cJsonRejectsRange(XSD_CORPUS_DIR "/facet_range.xsd",
+		"json_facet_range.h", "rating"));
+}
+TEST(Reject, JavaJsonRange) {
+	EXPECT_TRUE(javaJsonRejects(XSD_CORPUS_DIR "/facet_range.xsd",
+		"Rating", "{'$':99}"));
+}
+TEST(Reject, JavaJsonEnum) {
+	EXPECT_TRUE(javaJsonRejects(XSD_CORPUS_DIR "/facet_enum.xsd",
+		"Color", "{'$':'purple'}"));
 }

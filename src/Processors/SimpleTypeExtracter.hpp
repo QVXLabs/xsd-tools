@@ -2,8 +2,8 @@
  * SimpleTypeExtracter.hpp
  *
  *  Created on: 01/23/12
- *      Author: Ardavon Falls
- *   Copyright: (c)2012 Ardavon Falls
+ *      Author: QVXLabs LLC
+ *   Copyright: (c)2012 QVXLabs LLC
  *
  *  This file is part of xsd-tools.
  *
@@ -18,7 +18,7 @@
  *  GNU General Public License for more details.
  *
  *  You should have received a copy of the GNU General Public License
- *  along with Xsd-Tools.  If not, see <http://www.gnu.org/licenses/>.
+ *  along with xsd-tools.  If not, see <http://www.gnu.org/licenses/>.
  */
  
 #ifndef SIMPLETYPEEXTRACTER_HPP_
@@ -39,8 +39,8 @@ namespace Processors {
 		virtual void ProcessList(const XSD::Elements::List* pNode);
 		virtual void ProcessInclude(const XSD::Elements::Include* pNode);
 	private:
-		XSD::Types::BaseType* m_pType;
-		void _parseType(const XSD::Types::BaseType& rXSDType);
+		XSD::Types::BaseType* pType_;
+		void parseType_(const XSD::Types::BaseType& rXSDType);
 	};
 }
 #endif /* SIMPLETYPEEXTRACTER_HPP_ */

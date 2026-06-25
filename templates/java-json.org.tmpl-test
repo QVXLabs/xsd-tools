@@ -3,9 +3,10 @@ import java.util.Vector;
 import org.json.JSONObject;                                                     
 import org.apache.commons.codec.DecoderException;
 [@lua
-    --include 'java-json.org/carlos-parse.lua'                                        
-    include 'java-json.org/parse.lua'                                        
-    include 'java-json.org/json-transform.lua'                           
+    --include 'java-json.org/carlos-parse.lua'
+    include 'shared/facets'
+    include 'java-json.org/parse.lua'
+    include 'java-json.org/json-transform.lua'
 
     schema = JSONTransform(schema)                                                  
     local visitType = {}                                                    

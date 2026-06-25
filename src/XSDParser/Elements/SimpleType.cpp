@@ -2,8 +2,8 @@
  * SimpleType.cpp
  *
  *  Created on: Jun 26, 2011
- *      Author: Ardavon Falls
- *   Copyright: (c)2011 Ardavon Falls
+ *      Author: QVXLabs LLC
+ *   Copyright: (c)2011 QVXLabs LLC
  *
  *  This file is part of xsd-tools.
  *
@@ -18,7 +18,7 @@
  *  GNU General Public License for more details.
  *
  *  You should have received a copy of the GNU General Public License
- *  along with Foobar.  If not, see <http://www.gnu.org/licenses/>.
+ *  along with xsd-tools.  If not, see <http://www.gnu.org/licenses/>.
  */
 #if !defined(TIXML_USE_STL)
 #define TIXML_USE_STL
@@ -45,18 +45,15 @@ SimpleType::SimpleType(const SimpleType& rType)
 void
 SimpleType::ParseChildren(BaseProcessor& rProcessor) const noexcept(false) {
 	/* process children */
-	std::unique_ptr<Node> pNode(Node::FirstChild());
-	if (NULL != pNode.get()) {
-		do {
-			if (XSD_ISELEMENT(pNode.get(), Restriction) ||
-				XSD_ISELEMENT(pNode.get(), List) ||
-				XSD_ISELEMENT(pNode.get(), Annotation) ||
-				XSD_ISELEMENT(pNode.get(), Union)) {
-				pNode->ParseElement(rProcessor);
-			} else
-				throw XMLException(pNode->GetXMLElm(), XMLException::InvallidChildXMLElement);
-		} while (NULL != (pNode = std::unique_ptr<Node>(pNode->NextSibling())).get());
-	}
+	eachChild_([&rProcessor](const Node& rNode) {
+		if (XSD_ISELEMENT(&rNode, Restriction) ||
+			XSD_ISELEMENT(&rNode, List) ||
+			XSD_ISELEMENT(&rNode, Annotation) ||
+			XSD_ISELEMENT(&rNode, Union)) {
+			rNode.ParseElement(rProcessor);
+		} else
+			throw XMLException(rNode.GetXMLElm(), XMLException::InvallidChildXMLElement);
+	});
 }
 
 void
@@ -75,22 +72,22 @@ SimpleType::GetParentType(void) const noexcept(false) {
 		return pRestriction->GetParentType();
 	} else if ((NULL == pRestriction.get()) && (NULL != pList.get()) && (NULL == pUnion.get())) {
 		return pList->GetParentType();
-	} else if ((NULL == pRestriction.get()) && (NULL != pList.get()) && (NULL == pUnion.get())) {
-		return pList->GetParentType();
+	} else if ((NULL == pRestriction.get()) && (NULL == pList.get()) && (NULL != pUnion.get())) {
+		return pUnion->GetParentType();
 	} else {
 		/* simple type can't have multiple child modifiers */
 		throw XMLException(Node::GetXMLElm(), XMLException::InvallidChildXMLElement);
 	}
 }
 
-std::string
-SimpleType::Name() const noexcept(false) {
-	return std::string(this->GetAttribute<const char*>("name"));
+Restriction *
+SimpleType::GetRestriction() const noexcept {
+	return Node::SearchXSDChildElm<Restriction>();
 }
 
-bool
-SimpleType::HasName() const {
-	return Node::HasAttribute("name");
+std::string
+SimpleType::Name() const noexcept(false) {
+	return Node::name_();
 }
 
 bool

@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!-- Phase 0 (E1): default-namespace-as-target. The default xmlns equals the
+     targetNamespace, so an UNPREFIXED self-reference type="RecordType"
+     resolves to the target NS (ResolveQName_ maps no-prefix via the default
+     xmlns URI, never assuming XSD_NS). Builtins are reached via the xs:
+     prefix. -->
+<xs:schema xmlns="urn:example:phase0default"
+           xmlns:xs="http://www.w3.org/2001/XMLSchema"
+           targetNamespace="urn:example:phase0default">
+  <xs:element name="record" type="RecordType"/>
+  <xs:complexType name="RecordType">
+    <xs:sequence>
+      <xs:element name="label" type="xs:string"/>
+    </xs:sequence>
+  </xs:complexType>
+</xs:schema>

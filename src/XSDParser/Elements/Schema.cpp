@@ -1,9 +1,9 @@
 /*
- * Document.cpp
+ * Schema.cpp
  *
  *  Created on: Jun 26, 2011
- *      Author: Ardavon Falls
- *   Copyright: (c)2011 Ardavon Falls
+ *      Author: QVXLabs LLC
+ *   Copyright: (c)2011 QVXLabs LLC
  *
  *  This file is part of xsd-tools.
  *
@@ -18,26 +18,28 @@
  *  GNU General Public License for more details.
  *
  *  You should have received a copy of the GNU General Public License
- *  along with Foobar.  If not, see <http://www.gnu.org/licenses/>.
+ *  along with xsd-tools.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 #include <memory>
 #include <tinyxml.h>
 #include "./src/util.hpp"
+#include "./src/XSDParser/XsdQName.hpp"
 #include "./src/XSDParser/Elements/Schema.hpp"
 #include "./src/XSDParser/Elements/Element.hpp"
 #include "./src/XSDParser/Elements/Include.hpp"
+#include "./src/XSDParser/Elements/Import.hpp"
 #include "./src/XSDParser/Elements/Annotation.hpp"
 
 using namespace XSD;
 using namespace XSD::Elements;
 
 Schema::Schema(const TiXmlElement& elm, const Parser& rParser, const std::string& name )
-	: Node(elm, rParser), m_documentURI(name)
+	: Node(elm, rParser), documentURI_(name)
 { }
 
 Schema::Schema(const Schema& rDoc)
-	: Node(rDoc), m_documentURI(rDoc.m_documentURI)
+	: Node(rDoc), documentURI_(rDoc.documentURI_)
 { }
 
 /* virtual */
@@ -47,16 +49,14 @@ Schema::~Schema()
 void
 Schema::ParseChildren(BaseProcessor& rProcessor) const noexcept(false) {
 	/* process children */
-	std::unique_ptr<Node> pNode(Node::FirstChild());
-	if (NULL != pNode.get()) {
-		do {
-			if (XSD_ISELEMENT(pNode.get(), Element) ||
-				XSD_ISELEMENT(pNode.get(), Annotation) ||
-				XSD_ISELEMENT(pNode.get(), Include)) {
-				pNode->ParseElement(rProcessor);
-			}
-		} while (NULL != (pNode = std::unique_ptr<Node>(pNode->NextSibling())).get());
-	}
+	eachChild_([&rProcessor](const Node& rNode) {
+		if (XSD_ISELEMENT(&rNode, Element) ||
+			XSD_ISELEMENT(&rNode, Annotation) ||
+			XSD_ISELEMENT(&rNode, Include) ||
+			XSD_ISELEMENT(&rNode, Import)) {
+			rNode.ParseElement(rProcessor);
+		}
+	});
 }
 
 void
@@ -66,20 +66,39 @@ Schema::ParseElement(BaseProcessor& rProcessor) const noexcept(false) {
 
 const std::string
 Schema::Name() const noexcept(false) {
-	return _extractName(m_documentURI);
+	return extractName_(documentURI_);
 }
 
 const std::string&
 Schema::URI() const noexcept(false) {
-	return m_documentURI;
+	return documentURI_;
+}
+
+Schema::PrefixMap
+Schema::prefixMap_() const noexcept(false) {
+	/* Built off the live root element each call. A process-static cache keyed
+	 * on TiXmlDocument* is unsafe: freed documents recycle their address, so
+	 * stale entries leak across parses. The scan is a handful of attrs. */
+	PrefixMap map;
+	for (const TiXmlAttribute* pAttrib = Node::GetXMLElm().FirstAttribute();
+			pAttrib; pAttrib = pAttrib->Next()) {
+		std::string name(pAttrib->Name());
+		if (name == "xmlns")
+			map[std::string("")] = pAttrib->Value();
+		else if (0 == name.find("xmlns:"))
+			map[name.substr(name.find(":") + 1)] = pAttrib->Value();
+	}
+	return map;
 }
 
 const std::string
 Schema::Namespace() const noexcept(false) {
-	/* search for xmlns attribute (sans the namespace prefix) */
+	/* The prefix whose URI is the XSD-lang namespace; preserves the legacy
+	 * first-match-in-document-order, substring-match semantics so the tag
+	 * prefix ("xs"/"") that QualifyElementName prepends stays byte-identical. */
 	const TiXmlAttribute * pAttrib = Node::GetXMLElm().FirstAttribute();
-	for ( ; pAttrib && (std::string::npos == std::string(pAttrib->Value()).find("http://www.w3.org/2001/XMLSchema"));
-			pAttrib = pAttrib->Next()) { 
+	for ( ; pAttrib && (std::string::npos == std::string(pAttrib->Value()).find(XSD_NS));
+			pAttrib = pAttrib->Next()) {
 	}
 	/* extract the namespace prefix if attribute found */
 	if (pAttrib) {
@@ -87,6 +106,19 @@ Schema::Namespace() const noexcept(false) {
 		return attribName.substr(attribName.find(":") + 1);
 	}
 	return std::string("");
+}
+
+std::string
+Schema::TargetNamespace() const noexcept(false) {
+	const char* pVal = Node::GetXMLElm().Attribute("targetNamespace");
+	return pVal ? std::string(pVal) : std::string("");
+}
+
+std::string
+Schema::ResolvePrefix(const std::string& rPrefix) const noexcept(false) {
+	PrefixMap map = prefixMap_();
+	PrefixMap::const_iterator it = map.find(rPrefix);
+	return (it != map.end()) ? it->second : std::string("");
 }
 
 Types::BaseType * 
@@ -104,6 +136,6 @@ Schema::isRootSchema() const {
 }
 
 /* static */ std::string
-Schema::_extractName(const std::string& uri) {
+Schema::extractName_(const std::string& uri) {
 	return Util::StripFileExtension(Util::ExtractResourceName(uri));
 }

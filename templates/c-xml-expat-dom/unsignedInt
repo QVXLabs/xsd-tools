@@ -15,8 +15,16 @@ function unsignedInt:typeName()
    return ("xml_unsignedInt")
 end
 
+function unsignedInt:inlineScalar()
+   return true
+end
+
+function unsignedInt:cType()
+   return "uint32_t"
+end
+
 function unsignedInt:typeDef()
-   return ("typedef uint32_t * %s;\n"):format(self:typeName())
+   return self:scalarTypeDef()
 end
 
 function unsignedInt:typeFactoryMethods()
@@ -24,40 +32,20 @@ function unsignedInt:typeFactoryMethods()
 end
 
 function unsignedInt:defMarshal(elementName)
-   out = stringBuffer:new()
-   out:append("static void\n")
-   out:append("_xml_unsignedInt_marshal")
-   out:append("(const xml_unsignedInt pVal, char ** ppOut, const xml_typeFactory * pFactory) {\n")
-   out:append("  char num[16];\n")
-   out:append("  snprintf(num, 16, \"%u\", *pVal);\n")
-   out:append("  _cstr_append(ppOut, num, pFactory);\n")
-   out:append("}\n")   
-   return out:str()
+   return self:defScalarMarshal(function(v)
+      return ("  char num[16];\n  snprintf(num, 16, \"%%u\", %s);\n  cstr_append_(ppOut, num, pFactory);\n"):format(v)
+   end)
 end
 
 function unsignedInt:defUnmarshal(elementName)
-   out = stringBuffer:new()
-   out:append("static xml_unsignedInt\n")
-   out:append("_xml_unsignedInt_unmarshal(")
-   out:append("const char * pVal, const xml_typeFactory * pFactory) {\n")
-   out:append("  xml_unsignedInt val = ReallocateMemory(pFactory, NULL, sizeof(int32_t));\n")
-   out:append("  return (*val  = atoi(pVal)), val;\n")
-   out:append("}\n")
-   return out:str()
+   return self:defScalarUnmarshal("(uint32_t)atoll(pVal)")
 end
 
 function unsignedInt:defDestroy()
-   out = stringBuffer:new()
-   out:append("static xml_unsignedInt\n")
-   out:append("_xml_unsignedInt_destroy")
-   out:append("(xml_unsignedInt pVal, const xml_typeFactory * pFactory) {\n")
-   out:append("  if (pVal) pVal = ReallocateMemory(pFactory, pVal, 0);\n")
-   out:append("  return pVal;\n")
-   out:append("}\n")
-   return out:str()
+   return self:defScalarDestroy()
 end
 
-function unsignedInt:test()
-   return "50304"
+function unsignedInt:test(facets)
+   return facets_sampleInt(facets) or "50304"
 end
 ]

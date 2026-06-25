@@ -2,8 +2,8 @@
  * Attribute.hpp
  *
  *  Created on: Jun 26, 2011
- *      Author: Ardavon Falls
- *   Copyright: (c)2011 Ardavon Falls
+ *      Author: QVXLabs LLC
+ *   Copyright: (c)2011 QVXLabs LLC
  *
  *  This file is part of xsd-tools.
  *
@@ -18,7 +18,7 @@
  *  GNU General Public License for more details.
  *
  *  You should have received a copy of the GNU General Public License
- *  along with Foobar.  If not, see <http://www.gnu.org/licenses/>.
+ *  along with xsd-tools.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 #ifndef ATTRIBUTE_HPP_
@@ -37,31 +37,34 @@ namespace XSD {
 			XSD_ELEMENT_TAG("attribute")
 		private:
 			Attribute();
-			Types::BaseType* _type() const noexcept(false);;
-			static Types::BaseType* _parseType(const Attribute& rAttrib) noexcept(false);;
+			Types::BaseType* type_() const noexcept(false);;
+			static Types::BaseType* parseType_(const Attribute& rAttrib) noexcept(false);;
 		public:
 			typedef enum {
-				OPTIONAL,
-				PROHIBITIED,
-				REQUIRED
+				Optional,
+				Prohibited,
+				Required
 			} AttributeUse;
 			Attribute(const TiXmlElement& elm, const Parser& rParser);
 			Attribute(const Attribute& rAttrib);
 			void ParseChildren(BaseProcessor& rProcessor) const noexcept(false);;
 			void ParseElement(BaseProcessor& rProcessor) const noexcept(false);;
-			Types::BaseType * GetParentType() const noexcept(false);;
 			std::string Name() const noexcept(false);;
 			Attribute* RefAttribute() const noexcept(false);;
 			Types::BaseType* Type() const noexcept(false);;
+			/* Owning schema's targetNamespace URI; "" if none. */
+			std::string Namespace() const noexcept(false);
+			/* Qualified? local form= else attributeFormDefault; default false. */
+			bool Qualified() const noexcept(false);
 			std::string Default() const noexcept(false);;
 			std::string Fixed() const noexcept(false);;
 			AttributeUse Use() const noexcept(false);;
-			bool HasName() const;
-			bool HasRef() const;
-			bool HasType() const;
-			bool HasDefault() const;
-			bool HasFixed() const;
-			bool HasUse() const;
+			XSD_HAS_ATTR(HasName, "name")
+			XSD_HAS_ATTR(HasRef, "ref")
+			XSD_HAS_ATTR(HasType, "type")
+			XSD_HAS_ATTR(HasDefault, "default")
+			XSD_HAS_ATTR(HasFixed, "fixed")
+			XSD_HAS_ATTR(HasUse, "use")
 		};
 	}	/* namespace Elements */
 } /* namespace XSD */

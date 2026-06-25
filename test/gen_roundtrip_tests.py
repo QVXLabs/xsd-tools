@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Copyright: (c)2012 Ardavon Falls
+# Copyright: (c)2012 QVXLabs LLC
 #
 # This file is part of xsd-tools.
 #
@@ -17,17 +17,34 @@ import sys
 TARGETS = [
     ("PythonSaxRoundtrip", "pythonRoundtrip", ["python3"],
      "roundtrip_python_sax.cpp"),
+    ("PythonJsonRoundtrip", "pythonJsonRoundtrip", ["python3"],
+     "roundtrip_python_json.cpp"),
     ("CXmlExpatRoundtrip", "cExpatRoundtrip", ["cc"],
      "roundtrip_c_xml_expat.cpp"),
     ("CXmlExpatDomRoundtrip", "cExpatDomRoundtrip", ["cc"],
      "roundtrip_c_xml_expat_dom.cpp"),
+    ("CJsonRoundtrip", "cJsonRoundtrip", ["cc"],
+     "roundtrip_c_json.cpp"),
     ("JavaJsonRoundtrip", "javaRoundtrip", ["mvn", "java"],
      "roundtrip_java_json.cpp"),
+    ("JavaXmlRoundtrip", "javaXmlRoundtrip", ["mvn", "java"],
+     "roundtrip_java_xml.cpp"),
+    # Workstream I targets — enable once their templates land (integrate step).
+    ("CppXmlRoundtrip", "cppXmlRoundtrip", ["c++"],
+     "roundtrip_cpp_xml.cpp"),
+    ("CppJsonRoundtrip", "cppJsonRoundtrip", ["c++"],
+     "roundtrip_cpp_json.cpp"),
+    # tsc is provided locally by npm install (node_modules/.bin), so the gate
+    # only needs node on PATH.
+    ("TsXmlRoundtrip", "tsXmlRoundtrip", ["node"],
+     "roundtrip_ts_xml.cpp"),
 ]
 
 # Targets emitted by default.
-ENABLED = {"PythonSaxRoundtrip", "CXmlExpatRoundtrip", "CXmlExpatDomRoundtrip",
-           "JavaJsonRoundtrip"}
+ENABLED = {"PythonSaxRoundtrip", "PythonJsonRoundtrip", "CXmlExpatRoundtrip",
+           "CXmlExpatDomRoundtrip", "CJsonRoundtrip", "JavaJsonRoundtrip",
+           "JavaXmlRoundtrip",
+           "CppXmlRoundtrip", "CppJsonRoundtrip", "TsXmlRoundtrip"}
 
 # Round-trips known to fail for reasons unrelated to the build (e.g. defects
 # in a template's test-value generation). Emitted with gtest's DISABLED_

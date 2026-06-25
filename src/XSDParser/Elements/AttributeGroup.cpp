@@ -2,8 +2,8 @@
  * AttributeGroup.cpp
  *
  *  Created on: Aug 4, 2011
- *      Author: Ardavon Falls
- *   Copyright: (c)2011 Ardavon Falls
+ *      Author: QVXLabs LLC
+ *   Copyright: (c)2011 QVXLabs LLC
  *
  *  This file is part of xsd-tools.
  *
@@ -18,7 +18,7 @@
  *  GNU General Public License for more details.
  *
  *  You should have received a copy of the GNU General Public License
- *  along with Foobar.  If not, see <http://www.gnu.org/licenses/>.
+ *  along with xsd-tools.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 #include <memory>
@@ -43,16 +43,13 @@ AttributeGroup::AttributeGroup(const AttributeGroup& cpy)
 void
 AttributeGroup::ParseChildren(BaseProcessor& rProcessor) const noexcept(false) {
 	/* process children */
-	std::unique_ptr<Node> pNode(Node::FirstChild());
-	if (NULL != pNode.get()) {
-		do {
-			if (XSD_ISELEMENT(pNode.get(), Attribute) ||
-				XSD_ISELEMENT(pNode.get(), Annotation)) {
-				pNode->ParseElement(rProcessor);
-			} else
-				throw XMLException(pNode->GetXMLElm(), XMLException::InvallidChildXMLElement);
-		} while (NULL != (pNode = std::unique_ptr<Node>(pNode->NextSibling())).get());
-	}
+	eachChild_([&rProcessor](const Node& rNode) {
+		if (XSD_ISELEMENT(&rNode, Attribute) ||
+			XSD_ISELEMENT(&rNode, Annotation)) {
+			rNode.ParseElement(rProcessor);
+		} else
+			throw XMLException(rNode.GetXMLElm(), XMLException::InvallidChildXMLElement);
+	});
 }
 
 void
@@ -74,28 +71,12 @@ AttributeGroup::ParseElement(BaseProcessor& rProcessor) const noexcept(false) {
 	rProcessor.ProcessAttributeGroup(this);
 }
 
-Types::BaseType * 
-AttributeGroup::GetParentType() const noexcept(false) {
-	std::unique_ptr<Node> pParent(Node::Parent());
-	return pParent->GetParentType();
-}
-
 std::string
 AttributeGroup::Name() const noexcept(false) {
-	return std::string(Node::GetAttribute<const char*>("name"));
+	return Node::name_();
 }
 
 AttributeGroup*
 AttributeGroup::RefGroup() const noexcept(false) {
 	return Node::FindXSDRef<AttributeGroup>("ref");
-}
-
-bool
-AttributeGroup::HasName() const {
-	return Node::HasAttribute("name");
-}
-
-bool
-AttributeGroup::HasRef() const {
-	return Node::HasAttribute("ref");
 }

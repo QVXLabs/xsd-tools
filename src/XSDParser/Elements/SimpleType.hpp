@@ -2,8 +2,8 @@
  * SimpleType.hpp
  *
  *  Created on: Jun 26, 2011
- *      Author: Ardavon Falls
- *   Copyright: (c)2011 Ardavon Falls
+ *      Author: QVXLabs LLC
+ *   Copyright: (c)2011 QVXLabs LLC
  *
  *  This file is part of xsd-tools.
  *
@@ -18,7 +18,7 @@
  *  GNU General Public License for more details.
  *
  *  You should have received a copy of the GNU General Public License
- *  along with Foobar.  If not, see <http://www.gnu.org/licenses/>.
+ *  along with xsd-tools.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 #ifndef SIMPLETYPE_HPP_
@@ -46,8 +46,10 @@ namespace XSD {
 			void ParseChildren(BaseProcessor& rProcessor) const noexcept(false);;
 			void ParseElement(BaseProcessor& rProcessor) const noexcept(false);;
 			Types::BaseType * GetParentType(void) const noexcept(false);;
+			/* the restriction child, or NULL when this simpleType has none */
+			Restriction * GetRestriction() const noexcept;
 			std::string Name() const noexcept(false);;
-			bool HasName() const;
+			XSD_HAS_ATTR(HasName, "name")
 			bool HasUnion() const;
 			bool HasRestriction() const;
 			bool HasList() const;

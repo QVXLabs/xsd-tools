@@ -2,8 +2,8 @@
  * ArrayType.cpp
  *
  *  Created on: 01/23/12
- *      Author: Ardavon Falls
- *   Copyright: (c)2012 Ardavon Falls
+ *      Author: QVXLabs LLC
+ *   Copyright: (c)2012 QVXLabs LLC
  *
  *  This file is part of xsd-tools.
  *
@@ -18,7 +18,7 @@
  *  GNU General Public License for more details.
  *
  *  You should have received a copy of the GNU General Public License
- *  along with Foobar.  If not, see <http://www.gnu.org/licenses/>.
+ *  along with xsd-tools.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 #include <string>
@@ -29,26 +29,26 @@ using namespace Processors;
 using namespace Processors::Types;
 
 ArrayType::ArrayType(const XSD::Types::BaseType& rType) 
-	:m_pBaseType(rType.clone()), m_name("list(") { 
-	m_name += rType.Name();
-	m_name += ")";
+	:pBaseType_(rType.clone()), name_("list(") { 
+	name_ += rType.Name();
+	name_ += ")";
 }
 
 /* virtual */
 ArrayType::~ArrayType() {
-	delete m_pBaseType;
+	delete pBaseType_;
 }
 
 /* virtual */ XSD::Types::BaseType* 
 ArrayType::clone() const {
-	return new ArrayType(*m_pBaseType);
+	return new ArrayType(*pBaseType_);
 }
 
 /*virtual */ bool 
 ArrayType::isTypeRelated(const BaseType* pType) const {
 	/* check if pType is the same type as this */
 	if (XSD_ISTYPE(pType, ArrayType)) {
-		if (XSD_ISTYPE(m_pBaseType, *pType))
+		if (XSD_ISTYPE(pBaseType_, *pType))
 			return true;
 	}
 	return false;
@@ -56,10 +56,10 @@ ArrayType::isTypeRelated(const BaseType* pType) const {
 
 /* virtual */ const char*
 Types::ArrayType::Name() const {
-	return m_name.c_str();
+	return name_.c_str();
 }
 
 const XSD::Types::BaseType&
 Types::ArrayType::Type() const {
-	return *m_pBaseType;
+	return *pBaseType_;
 }

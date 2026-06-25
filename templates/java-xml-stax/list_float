@@ -1,0 +1,17 @@
+[@lua --define StAX list(float) type
+	javatype_listFloat = {
+		jtype = "java.util.List<String>",
+		field = javatype_listString.field,
+		default = javatype_listString.default,
+		marshal = javatype_listString.marshal,
+		unmarshal = javatype_listString.unmarshal,
+		test = {
+			assign = function()
+				return table.concat({
+					tostring(math.random() * math.random(1, 127)),
+					tostring(math.random() * math.random(1, 127)),
+					tostring(math.random() * math.random(1, 127)) }, " ")
+			end,
+		},
+	}
+]

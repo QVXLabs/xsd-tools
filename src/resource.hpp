@@ -2,8 +2,8 @@
  * resource.hpp
  *
  *  Created on: 01/29/12
- *      Author: Ardavon Falls
- *   Copyright: (c)2012 Ardavon Falls
+ *      Author: QVXLabs LLC
+ *   Copyright: (c)2012 QVXLabs LLC
  *
  *  This file is part of xsd-tools.
  *
@@ -18,13 +18,14 @@
  *  GNU General Public License for more details.
  *
  *  You should have received a copy of the GNU General Public License
- *  along with Foobar.  If not, see <http://www.gnu.org/licenses/>.
+ *  along with xsd-tools.  If not, see <http://www.gnu.org/licenses/>.
  */
 #ifndef RESOURCE_HPP_
 #define RESOURCE_HPP_
 
 #include <stdint.h>
 #include <string>
+#include <vector>
 
 namespace Core {
 	class ResourceException : public std::exception {
@@ -33,7 +34,7 @@ namespace Core {
 		virtual ~ResourceException() noexcept;
 		virtual const char* what() const noexcept;
 	private:
-		std::string	m_errorMsg;
+		std::string	errorMsg_;
 	};
 	class Resource {
 	public:
@@ -41,6 +42,11 @@ namespace Core {
 		virtual ~Resource() noexcept;
 		const uint8_t* GetEngineScript(size_t* pRetSz) noexcept;
 		std::string GetTemplatePath(const std::string& templateName) noexcept(false);
+		/* First readable templates directory among $XSDTOOLS_DATA, the home
+		 * dir, and the install prefix; empty if none exists. */
+		std::string TemplatesDir() noexcept;
+		/* Names of regular files in TemplatesDir(), sorted; empty if no dir. */
+		std::vector<std::string> ListTemplates() noexcept;
 	};
 }
 #endif /* RESOURCE_HPP_ */

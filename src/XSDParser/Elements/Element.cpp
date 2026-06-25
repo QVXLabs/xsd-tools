@@ -2,8 +2,8 @@
  * Element.cpp
  *
  *  Created on: Jun 25, 2011
- *      Author: Ardavon Falls
- *   Copyright: (c)2011 Ardavon Falls
+ *      Author: QVXLabs LLC
+ *   Copyright: (c)2011 QVXLabs LLC
  *
  *  This file is part of xsd-tools.
  *
@@ -18,7 +18,7 @@
  *  GNU General Public License for more details.
  *
  *  You should have received a copy of the GNU General Public License
- *  along with Xsd-Tools.  If not, see <http://www.gnu.org/licenses/>.
+ *  along with xsd-tools.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 #ifndef TIXML_USE_STL
@@ -30,6 +30,7 @@
 #include <tinyxml.h>
 #include "./src/XSDParser/Types.hpp"
 #include "./src/XSDParser/Elements/Element.hpp"
+#include "./src/XSDParser/Elements/Schema.hpp"
 #include "./src/XSDParser/Elements/SimpleType.hpp"
 #include "./src/XSDParser/Elements/ComplexType.hpp"
 #include "./src/XSDParser/Elements/Annotation.hpp"
@@ -48,17 +49,14 @@ Element::Element(const Element& elm)
 void
 Element::ParseChildren(BaseProcessor& rProcessor) const noexcept(false) {
 	/* process children */
-	std::unique_ptr<Node> pNode(Node::FirstChild());
-	if (NULL != pNode.get()) {
-		do {
-			if (XSD_ISELEMENT(pNode.get(), SimpleType) ||
-				XSD_ISELEMENT(pNode.get(), Annotation) ||
-				XSD_ISELEMENT(pNode.get(), ComplexType)) {
-				pNode->ParseElement(rProcessor);
-			} else
-				throw XMLException(pNode->GetXMLElm(), XMLException::InvallidChildXMLElement);
-		} while (NULL != (pNode = std::unique_ptr<Node>(pNode->NextSibling())).get());
-	}
+	eachChild_([&rProcessor](const Node& rNode) {
+		if (XSD_ISELEMENT(&rNode, SimpleType) ||
+			XSD_ISELEMENT(&rNode, Annotation) ||
+			XSD_ISELEMENT(&rNode, ComplexType)) {
+			rNode.ParseElement(rProcessor);
+		} else
+			throw XMLException(rNode.GetXMLElm(), XMLException::InvallidChildXMLElement);
+	});
 }
 
 void
@@ -112,7 +110,7 @@ Element::Abstract() const {
 
 std::string
 Element::Name() const noexcept(false) {
-	return std::string(Node::GetAttribute<const char*>("name"));
+	return Node::name_();
 }
 
 Element*
@@ -132,10 +130,27 @@ Types::BaseType*
 Element::Type() const noexcept(false) {
 	if (HasRef()) {
 		std::unique_ptr<XSD::Elements::Element> pRefElm(RefElement());
-		return _ParseType(*pRefElm.get());
+		return ParseType_(*pRefElm.get());
 	} else {
-		return _ParseType(*this);
+		return ParseType_(*this);
 	}
+}
+
+std::string
+Element::Namespace() const noexcept(false) {
+	std::unique_ptr<Schema> pSchema(Node::GetSchema());
+	return pSchema->TargetNamespace();
+}
+
+bool
+Element::Qualified() const noexcept(false) {
+	/* a local form= attribute overrides the schema's elementFormDefault */
+	if (Node::HasAttribute("form"))
+		return "qualified" == Node::GetAttribute<std::string>("form");
+	std::unique_ptr<Schema> pSchema(Node::GetSchema());
+	const char* pVal =
+		pSchema->GetXMLElm().Attribute("elementFormDefault");
+	return pVal && 0 == strcmp(pVal, "qualified");
 }
 
 Element*
@@ -150,25 +165,11 @@ Element::MaxOccurs() const {
 	return -1;
 }
 
-bool
-Element::HasName() const {
-	return Node::HasAttribute("name");
+int
+Element::MinOccurs() const {
+	return Node::GetAttribute<int>("minOccurs");
 }
 
-bool
-Element::HasSubstitutionGroup() const {
-	return Node::HasAttribute("substitutionGroup");
-}
-
-bool
-Element::HasRef() const {
-	return Node::HasAttribute("ref");
-}
-
-bool
-Element::HasType() const {
-	return Node::HasAttribute("type");
-}
 bool
 Element::HasChildType() const {
 	bool hasSmplType = Node::HasContent(SimpleType::XSDTag());
@@ -176,13 +177,8 @@ Element::HasChildType() const {
 	return (hasSmplType | hasCmplxType);
 }
 
-bool
-Element::HasMaxOccurs() const {
-	return Node::HasAttribute("maxOccurs");
-}
-
 Types::BaseType*
-Element::_Type() const noexcept(false) {
+Element::Type_() const noexcept(false) {
 	Types::BaseType* pRetType = Node::GetAttribute<Types::BaseType*>("type");
 	if (XSD_ISTYPE(pRetType, Types::Unknown)) {
 		delete pRetType;
@@ -193,7 +189,7 @@ Element::_Type() const noexcept(false) {
 }
 
 /* static */ Types::BaseType*
-Element::_ParseType(const Element& rElm) noexcept(false) {
+Element::ParseType_(const Element& rElm) noexcept(false) {
 	if (rElm.HasChildType() &&
 		(rElm.HasContent(SimpleType::XSDTag()) || rElm.HasContent(ComplexType::XSDTag()))) {
 		if (rElm.HasContent(SimpleType::XSDTag())) {
@@ -202,10 +198,10 @@ Element::_ParseType(const Element& rElm) noexcept(false) {
 			return new Types::ComplexType(rElm.FindXSDChildElm<ComplexType>());
 		}
 	} else if (rElm.HasType()) {
-		return rElm._Type();
+		return rElm.Type_();
 	} else if (rElm.HasSubstitutionGroup()) {
 		std::unique_ptr<Element> pElm(rElm.SubstitutionGroup());
-		return _ParseType(*(pElm.get()));
+		return ParseType_(*(pElm.get()));
 	} else {
 		return new Types::String();
 	}

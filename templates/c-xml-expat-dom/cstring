@@ -30,8 +30,8 @@ end
 function cstring:defMarshal()
    out = stringBuffer:new()
    out:append("static void\n")
-   out:append("_xml_string_marshal(const xml_string str, char ** ppOut, const xml_typeFactory * pFactory) {\n")
-   out:append("  _cstr_append(ppOut, str, pFactory);\n")
+   out:append("xml_string_marshal_(const xml_string str, char ** ppOut, const xml_typeFactory * pFactory) {\n")
+   out:append("  cstr_append_(ppOut, str, pFactory);\n")
    out:append("}\n")
    return out:str()
 end
@@ -39,8 +39,8 @@ end
 function cstring:defUnmarshal()
    out = stringBuffer:new()
    out:append("static xml_string\n")
-   out:append("_xml_string_unmarshal(const char * pVal, const xml_typeFactory * pFactory) {\n")
-   out:append("  return _cstr_init(pVal, -1, pFactory);\n")
+   out:append("xml_string_unmarshal_(const char * pVal, const xml_typeFactory * pFactory) {\n")
+   out:append("  return cstr_init_(pVal, -1, pFactory);\n")
    out:append("}\n")
    return out:str()
 end
@@ -48,14 +48,14 @@ end
 function cstring:defDestroy()
    out = stringBuffer:new()
    out:append("static xml_string\n")
-   out:append("_xml_string_destroy(xml_string str, const xml_typeFactory * pFactory) {\n")
-   out:append("  if (str) _cstr_destroy(&str, pFactory);\n")
+   out:append("xml_string_destroy_(xml_string str, const xml_typeFactory * pFactory) {\n")
+   out:append("  if (str) cstr_destroy_(&str, pFactory);\n")
    out:append("  return str;\n")
    out:append("}\n")
    return out:str()
 end
 
-function cstring:test()
-   return "testString"
+function cstring:test(facets)
+   return facets_sampleString(facets) or "testString"
 end
 ]

@@ -2,8 +2,8 @@
  * ElementExtracter.cpp
  *
  *  Created on: 02/28/14
- *      Author: Ardavon Falls
- *   Copyright: (c)2012 Ardavon Falls
+ *      Author: QVXLabs LLC
+ *   Copyright: (c)2012 QVXLabs LLC
  *
  *  This file is part of xsd-tools.
  *
@@ -18,7 +18,7 @@
  *  GNU General Public License for more details.
  *
  *  You should have received a copy of the GNU General Public License
- *  along with Xsd-Tools.  If not, see <http://www.gnu.org/licenses/>.
+ *  along with xsd-tools.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 #include "./src/XSDParser/Elements/Element.hpp"
@@ -35,45 +35,42 @@ using namespace Processors;
 using namespace XSD::Elements;
 
 ElementExtracter::ElementExtracter()
-	: LuaProcessorBase(NULL), m_elementLst()
+	: LuaProcessorBase(NULL), elementLst_()
 { }
 
 ElementExtracter::ElementExtracter(const ElementExtracter& rProcessor)
- 	: LuaProcessorBase(rProcessor), m_elementLst(rProcessor.m_elementLst)
+ 	: LuaProcessorBase(rProcessor), elementLst_(rProcessor.elementLst_)
  {}
  
 /* virtual */
 ElementExtracter::~ElementExtracter() {
-	m_elementLst.clear();
+	elementLst_.clear();
 }
 
 const ElementExtracter::ElementLst&
 ElementExtracter::Extract(const Schema& rDocRoot) {
 	ProcessSchema(&rDocRoot);
-	return m_elementLst;
+	return elementLst_;
 }
 
 /* virtual */ void 
 ElementExtracter::ProcessSchema(const Schema* pNode) {
 	/* different iterator accross the schema children */
-	std::unique_ptr<Node> pChildNode(pNode->FirstChild());
-	if (NULL != pChildNode.get()) {
-		do {
-			if (XSD_ISELEMENT(pChildNode.get(), Element) ||
-				XSD_ISELEMENT(pChildNode.get(), Annotation) ||
-				XSD_ISELEMENT(pChildNode.get(), Include) ||
-				XSD_ISELEMENT(pChildNode.get(), SimpleType) ||
-				XSD_ISELEMENT(pChildNode.get(), ComplexType) ||
-				XSD_ISELEMENT(pChildNode.get(), Group)) {
-				pChildNode->ParseElement(*this);
-			}
-		} while (NULL != (pChildNode = std::unique_ptr<Node>(pChildNode->NextSibling())).get());
-	}
+	pNode->eachChild_([&](const Node& rNode) {
+		if (XSD_ISELEMENT(&rNode, Element) ||
+			XSD_ISELEMENT(&rNode, Annotation) ||
+			XSD_ISELEMENT(&rNode, Include) ||
+			XSD_ISELEMENT(&rNode, SimpleType) ||
+			XSD_ISELEMENT(&rNode, ComplexType) ||
+			XSD_ISELEMENT(&rNode, Group)) {
+			rNode.ParseElement(*this);
+		}
+	});
 }
 
 /* virtual */ void 
 ElementExtracter::ProcessElement(const Element* pNode) {
-	m_elementLst.push_back(new Element(*pNode));
+	elementLst_.push_back(new Element(*pNode));
 }
 
 /* virtual */ void 

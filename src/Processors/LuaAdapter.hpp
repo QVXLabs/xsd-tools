@@ -2,8 +2,8 @@
  * LuaAdapter.hpp
  *
  *  Created on: 01/22/12
- *      Author: Ardavon Falls
- *   Copyright: (c)2012 Ardavon Falls
+ *      Author: QVXLabs LLC
+ *   Copyright: (c)2012 QVXLabs LLC
  *
  *  This file is part of xsd-tools.
  *
@@ -24,10 +24,33 @@
 #ifndef LUAADAPTER_HPP_
 #define LUAADAPTER_HPP_
 #include <string>
+#include <vector>
+#include <utility>
 #include <lua.hpp>
 #include "./src/XSDParser/Types.hpp"
 
 namespace Processors {
+	/* accumulated XSD restriction facets destined for a Lua type's
+	   `facets` sub-table. Scalar facets are single name/value pairs;
+	   pattern/enumeration accumulate as ordered lists. */
+	struct LuaFacets {
+		/* single-valued facets, in insertion order */
+		std::vector<std::pair<std::string, std::string> > scalars;
+		/* multi-valued facets keyed by name (e.g. pattern, enumeration) */
+		std::vector<std::pair<std::string, std::vector<std::string> > > lists;
+		bool empty() const {
+			return scalars.empty() && lists.empty();
+		}
+		void clear() {
+			scalars.clear();
+			lists.clear();
+		}
+		void addScalar(const std::string& rName, const std::string& rValue) {
+			scalars.push_back(std::make_pair(rName, rValue));
+		}
+		void addToList(const std::string& rName, const std::string& rValue);
+	};
+
 	/* forward declare classes */
 	class LuaAdapter;
 	class LuaType;
@@ -44,10 +67,10 @@ namespace Processors {
 		virtual ~LuaAdapter();
 		LuaSchema * Schema();
 	protected:
-		lua_State * _getLuaState();
-		void _setLuaState(lua_State * pLuaState);
+		lua_State * getLuaState_();
+		void setLuaState_(lua_State * pLuaState);
 	private:
-		lua_State *	m_pLuaState;
+		lua_State *	pLuaState_;
 		LuaAdapter(const LuaAdapter&);
 	};
 	/* lua content class */
@@ -55,7 +78,8 @@ namespace Processors {
 		friend class LuaType;
 	public:
 		virtual ~LuaContent();
-		LuaType * Type(const std::string& rTypeName, const int maxOccurs);
+		LuaType * Type(const std::string& rTypeName, const int maxOccurs,
+		               const int minOccurs = 1);
 	protected:
 		LuaContent();
 		LuaContent(lua_State* pLuaState);
@@ -82,14 +106,27 @@ namespace Processors {
 									const std::string * pFixed,
 									const std::string * pUse);
 		LuaContent * Content();
+		/* attach a `facets` sub-table; no-op when rFacets is empty */
+		void Facets(const LuaFacets& rFacets);
+		/* attach the resolved namespace URI; no-op when rNamespace is empty */
+		void Namespace(const std::string& rNamespace);
+		/* attach the qualified flag; no-op when unqualified (the default) */
+		void Qualified(bool qualified);
 	protected:
-		LuaType(lua_State * pLuaState, const std::string& rTypeName, const int maxOccurs);
+		LuaType(lua_State * pLuaState, const std::string& rTypeName,
+		        const int maxOccurs, const int minOccurs = 1);
 	};
 	/* lua attribute class */
 	class LuaAttribute : public LuaAdapter {
 		friend class LuaType;
 	public:
 		virtual ~LuaAttribute();
+		/* attach a `facets` sub-table; no-op when rFacets is empty */
+		void Facets(const LuaFacets& rFacets);
+		/* attach the resolved namespace URI; no-op when rNamespace is empty */
+		void Namespace(const std::string& rNamespace);
+		/* attach the qualified flag; no-op when unqualified (the default) */
+		void Qualified(bool qualified);
 	protected:
 		LuaAttribute(	lua_State * pLuaState,
 						const std::string& rAttribName,
@@ -98,6 +135,11 @@ namespace Processors {
 						const std::string * pFixed,
 						const std::string * pUse
 					);
+	private:
+		/* attribute + type-table keys; let Facets() re-descend to the type
+		   sub-table where targets read `attr.<type>.facets` */
+		std::string name_;
+		std::string typeName_;
 	};
 }
 #endif /* LUAADAPTER_HPP_ */

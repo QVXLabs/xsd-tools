@@ -2,8 +2,8 @@
  * ComplexContent.cpp
  *
  *  Created on: Jul 12, 2011
- *      Author: Ardavon Falls
- *   Copyright: (c)2011 Ardavon Falls
+ *      Author: QVXLabs LLC
+ *   Copyright: (c)2011 QVXLabs LLC
  *
  *  This file is part of xsd-tools.
  *
@@ -18,7 +18,7 @@
  *  GNU General Public License for more details.
  *
  *  You should have received a copy of the GNU General Public License
- *  along with Foobar.  If not, see <http://www.gnu.org/licenses/>.
+ *  along with xsd-tools.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 #ifndef TIXML_USE_STL
@@ -49,17 +49,14 @@ ComplexContent::ComplexContent(const ComplexContent& rType)
 void
 ComplexContent::ParseChildren(BaseProcessor& rProcessor) const noexcept(false) {
 	/* process children */
-	std::unique_ptr<Node> pNode(Node::FirstChild());
-	if (NULL != pNode.get()) {
-		do {
-			if (XSD_ISELEMENT(pNode.get(), Restriction) ||
-				XSD_ISELEMENT(pNode.get(), Annotation) ||
-				XSD_ISELEMENT(pNode.get(), Extension)) {
-				pNode->ParseElement(rProcessor);
-			} else
-				throw XMLException(pNode->GetXMLElm(), XMLException::InvallidChildXMLElement);
-		} while (NULL != (pNode = std::unique_ptr<Node>(pNode->NextSibling())).get());
-	}
+	eachChild_([&rProcessor](const Node& rNode) {
+		if (XSD_ISELEMENT(&rNode, Restriction) ||
+			XSD_ISELEMENT(&rNode, Annotation) ||
+			XSD_ISELEMENT(&rNode, Extension)) {
+			rNode.ParseElement(rProcessor);
+		} else
+			throw XMLException(rNode.GetXMLElm(), XMLException::InvallidChildXMLElement);
+	});
 }
 
 void
@@ -67,16 +64,9 @@ ComplexContent::ParseElement(BaseProcessor& rProcessor) const noexcept(false) {
 	rProcessor.ProcessComplexContent(this);
 }
 
-Types::BaseType * 
+Types::BaseType *
 ComplexContent::GetParentType() const noexcept(false) {
-	std::unique_ptr<Restriction> pRestriction(Node::SearchXSDChildElm<Restriction>());
-	std::unique_ptr<Extension> pExtension(Node::SearchXSDChildElm<Extension>());
-	if ((NULL != pRestriction.get()) && (NULL == pExtension.get())) {
-		return pRestriction->GetParentType();
-	} else if ((NULL == pRestriction.get()) && (NULL != pExtension.get())) {
-		return pExtension->GetParentType();
-	} else /* complex content can't have multiple child modifiers */
-		throw XMLException(Node::GetXMLElm(), XMLException::InvallidChildXMLElement);
+	return Node::delegateToSoleChild_();
 }
 
 bool

@@ -2,8 +2,8 @@
  * Enumeration.hpp
  *
  *  Created on: Aug 3, 2011
- *      Author: Ardavon Falls
- *   Copyright: (c)2011 Ardavon Falls
+ *      Author: QVXLabs LLC
+ *   Copyright: (c)2011 QVXLabs LLC
  *
  *  This file is part of xsd-tools.
  *
@@ -18,7 +18,7 @@
  *  GNU General Public License for more details.
  *
  *  You should have received a copy of the GNU General Public License
- *  along with Foobar.  If not, see <http://www.gnu.org/licenses/>.
+ *  along with xsd-tools.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 #ifndef ENUMERATION_HPP_
@@ -28,20 +28,19 @@
 #endif /* TIXML_USE_STL */
 #include <tinyxml.h>
 #include "./src/XSDParser/Elements/Node.hpp"
+#include "./src/XSDParser/Elements/FacetNode.hpp"
 namespace XSD {
 	namespace Elements {
-		class Enumeration : public Node {
+		class Enumeration
+				: public FacetNode<Enumeration, std::string> {
 			XSD_ELEMENT_TAG("enumeration")
 		private:
 			Enumeration();
 		public:
 			Enumeration(const TiXmlElement& elm, const Parser& rParser);
 			Enumeration(const Enumeration& cpy);
-			void ParseChildren(BaseProcessor& rProcessor) const noexcept(false);;
-			void ParseElement(BaseProcessor& rProcessor) const noexcept(false);;
-			Types::BaseType * GetParentType() const noexcept(false);;
-			std::string Value() const noexcept(false);;
-			bool HasValue() const;
+			void ParseElement(BaseProcessor& rProcessor) const noexcept(false);
+			std::string Value() const noexcept(false);
 		};
 	}	/* namespace Elements */
 }	/* namespace XSD */

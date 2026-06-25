@@ -2,8 +2,8 @@
  * Extension.cpp
  *
  *  Created on: Jul 18, 2011
- *      Author: Ardavon Falls
- *   Copyright: (c)2011 Ardavon Falls
+ *      Author: QVXLabs LLC
+ *   Copyright: (c)2011 QVXLabs LLC
  *
  *  This file is part of xsd-tools.
  *
@@ -18,7 +18,7 @@
  *  GNU General Public License for more details.
  *
  *  You should have received a copy of the GNU General Public License
- *  along with Foobar.  If not, see <http://www.gnu.org/licenses/>.
+ *  along with xsd-tools.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 #ifndef TIXML_USE_STL
@@ -53,32 +53,26 @@ void
 Extension::ParseChildren(BaseProcessor& rProcessor) const noexcept(false) {
 	if (isParentComplex()) {
 		/* process children */
-		std::unique_ptr<Node> pNode(Node::FirstChild());
-		if (NULL != pNode.get()) {
-			do {
-				if (XSD_ISELEMENT(pNode.get(), Group) ||
-					XSD_ISELEMENT(pNode.get(), Choice) ||
-					XSD_ISELEMENT(pNode.get(), Sequence) ||
-					XSD_ISELEMENT(pNode.get(), Annotation) ||
-					XSD_ISELEMENT(pNode.get(), All) ||
-					XSD_ISELEMENT(pNode.get(), Attribute)) {
-					pNode->ParseElement(rProcessor);
-				} else
-					throw XMLException(pNode->GetXMLElm(), XMLException::InvallidChildXMLElement);
-			} while (NULL != (pNode = std::unique_ptr<Node>(pNode->NextSibling())).get());
-		}
+		eachChild_([&rProcessor](const Node& rNode) {
+			if (XSD_ISELEMENT(&rNode, Group) ||
+				XSD_ISELEMENT(&rNode, Choice) ||
+				XSD_ISELEMENT(&rNode, Sequence) ||
+				XSD_ISELEMENT(&rNode, Annotation) ||
+				XSD_ISELEMENT(&rNode, All) ||
+				XSD_ISELEMENT(&rNode, Attribute)) {
+				rNode.ParseElement(rProcessor);
+			} else
+				throw XMLException(rNode.GetXMLElm(), XMLException::InvallidChildXMLElement);
+		});
 	} else {
 		/* process children */
-		std::unique_ptr<Node> pNode(Node::FirstChild());
-		if (NULL != pNode.get()) {
-			do {
-				if (XSD_ISELEMENT(pNode.get(), Attribute) ||
-					XSD_ISELEMENT(pNode.get(), Annotation)) {
-					pNode->ParseElement(rProcessor);
-				} else
-					throw XMLException(pNode->GetXMLElm(), XMLException::InvallidChildXMLElement);
-			} while (NULL != (pNode = std::unique_ptr<Node>(pNode->NextSibling())).get());
-		}
+		eachChild_([&rProcessor](const Node& rNode) {
+			if (XSD_ISELEMENT(&rNode, Attribute) ||
+				XSD_ISELEMENT(&rNode, Annotation)) {
+				rNode.ParseElement(rProcessor);
+			} else
+				throw XMLException(rNode.GetXMLElm(), XMLException::InvallidChildXMLElement);
+		});
 	}
 }
 
@@ -91,12 +85,12 @@ Extension::ParseElement(BaseProcessor& rProcessor) const noexcept(false) {
 	std::unique_ptr<Types::BaseType> pBase(Base());
 	if (XSD_ISTYPE(pBase.get(),Types::SimpleType)) {
 		const Types::SimpleType* pSmplType = static_cast<const Types::SimpleType*>(pBase.get());
-		if (_checkForDuplicateNamedParticles(&Node::GetXMLElm(), &pSmplType->m_pValue->GetXMLElm())) {
+		if (checkForDuplicateNamedParticles_(&Node::GetXMLElm(), &pSmplType->pValue_->GetXMLElm())) {
 			throw XMLException(GetXMLElm(), XMLException::InvallidChildXMLElement);
 		}
 	} else if (XSD_ISTYPE(pBase.get(),Types::ComplexType)) {
 		const Types::ComplexType* pCmplxType = static_cast<const Types::ComplexType*>(pBase.get());
-		if (_checkForDuplicateNamedParticles(&Node::GetXMLElm(), &pCmplxType->m_pValue->GetXMLElm())) {
+		if (checkForDuplicateNamedParticles_(&Node::GetXMLElm(), &pCmplxType->pValue_->GetXMLElm())) {
 			throw XMLException(GetXMLElm(), XMLException::InvallidChildXMLElement);
 		}
 	}
@@ -110,7 +104,7 @@ Extension::GetParentType(void) const noexcept(false) {
 
 Types::BaseType*
 Extension::Base() const noexcept(false) {
-	return Node::GetAttribute<Types::BaseType*>("base");
+	return Node::baseType_();
 }
 
 bool
@@ -120,22 +114,22 @@ Extension::isParentComplex() const noexcept(false) {
 }
 
 /* static */ bool
-Extension::_checkForDuplicateNamedParticles(const TiXmlElement* pTreeBase, const TiXmlElement* pBase) {
+Extension::checkForDuplicateNamedParticles_(const TiXmlElement* pTreeBase, const TiXmlElement* pBase) {
 	const TiXmlElement* pChld = pTreeBase->FirstChildElement();
 	for (; pChld ; pChld = pChld->NextSiblingElement()) {
 		/* check to see if element has a name attribute */
 		if (NULL != pChld->Attribute("name")) {
-			return _find(pChld->Attribute("name"), pBase);
+			return find_(pChld->Attribute("name"), pBase);
 		}
 		/* search children */
-		if (true ==_checkForDuplicateNamedParticles(pChld, pBase))
+		if (true ==checkForDuplicateNamedParticles_(pChld, pBase))
 			return true;
 	}
 	return false;
 }
 
 /* static */ bool
-Extension::_find(const char* pName, const TiXmlElement* pBase) {
+Extension::find_(const char* pName, const TiXmlElement* pBase) {
 	const TiXmlElement* pChld = pBase->FirstChildElement();
 	for (; pChld ; pChld = pChld->NextSiblingElement()) {
 		/* check to see if element has a name attribute */
@@ -145,7 +139,7 @@ Extension::_find(const char* pName, const TiXmlElement* pBase) {
 			}
 		}
 		/* search children */
-		if (true == _find(pName, pChld))
+		if (true == find_(pName, pChld))
 			return true;
 	}
 	return false;

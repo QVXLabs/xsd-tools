@@ -10,3 +10,6 @@ graph_info.json
 activate*.sh
 deactivate*.sh
 environment*.env
+
+# Claude planning docs — local only, not part of the repo
+/revitalize*.md

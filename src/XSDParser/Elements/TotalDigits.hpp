@@ -2,8 +2,8 @@
  * TotalDigits.hpp
  *
  *  Created on: Dec 30, 2011
- *      Author: Ardavon Falls
- *   Copyright: (c)2011 Ardavon Falls
+ *      Author: QVXLabs LLC
+ *   Copyright: (c)2011 QVXLabs LLC
  *
  *  This file is part of xsd-tools.
  *
@@ -18,7 +18,7 @@
  *  GNU General Public License for more details.
  *
  *  You should have received a copy of the GNU General Public License
- *  along with Foobar.  If not, see <http://www.gnu.org/licenses/>.
+ *  along with xsd-tools.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 #ifndef TOTALDIGITS_HPP_
@@ -29,20 +29,18 @@
 #endif /* TIXML_USE_STL */
 #include <tinyxml.h>
 #include "./src/XSDParser/Elements/Node.hpp"
+#include "./src/XSDParser/Elements/FacetNode.hpp"
 namespace XSD {
 	namespace Elements {
-		class TotalDigits : public Node {
+		class TotalDigits
+				: public FacetNode<TotalDigits, uint64_t> {
 			XSD_ELEMENT_TAG("totalDigits")
 		private:
 			TotalDigits();
 		public:
 			TotalDigits(const TiXmlElement& elm, const Parser& rParser);
 			TotalDigits(const TotalDigits& cpy);
-			void ParseChildren(BaseProcessor& rProcessor) const noexcept(false);;
-			void ParseElement(BaseProcessor& rProcessor) const noexcept(false);;
-			Types::BaseType * GetParentType() const noexcept(false);;
-			uint64_t Value() const noexcept(false);;
-			bool HasValue() const;
+			void ParseElement(BaseProcessor& rProcessor) const noexcept(false);
 		};
 	}	/* namespace Elements */
 }	/* namespace XSD */

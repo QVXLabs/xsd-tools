@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!-- Phase 0 (E1): single targetNamespace with the XSD-lang on the "xs"
+     prefix and the target on "tns". A prefixed self-reference
+     type="tns:RecordType" must resolve to the same-document target NS, while
+     xs:string is detected as a builtin by its namespace URI. -->
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+           xmlns:tns="urn:example:phase0"
+           targetNamespace="urn:example:phase0">
+  <xs:element name="record" type="tns:RecordType"/>
+  <xs:complexType name="RecordType">
+    <xs:sequence>
+      <xs:element name="label" type="xs:string"/>
+      <xs:element name="count" type="xs:integer"/>
+    </xs:sequence>
+    <xs:attribute name="id" type="xs:string"/>
+  </xs:complexType>
+</xs:schema>

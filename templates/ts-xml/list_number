@@ -1,0 +1,24 @@
+[@lua --TS list(number) type (space-separated numerics)
+	tstype_listNumber = {
+		tsType = "number[]",
+		field = function(name)
+			return table.concat({ "\t_", name, "?: number[];\n" })
+		end,
+		default = function(name, value)
+			return table.concat({
+				"\t\tthis._", name,
+				' = "', value, '".split(" ").map(Number);\n' })
+		end,
+		toText = function(expr) return expr .. '.map(String).join(" ")' end,
+		fromText = function(expr)
+			return "(" .. expr .. ').trim().split(" ").map(Number)'
+		end,
+		test = {
+			assign = function()
+				return string.format("[%d, %d, %d]",
+					math.random(0, 32767), math.random(0, 32767),
+					math.random(0, 32767))
+			end,
+		},
+	}
+]

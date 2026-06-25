@@ -3,7 +3,7 @@
 		marshal = {
 			attribute = function(attribName)
 				return table.concat({
-					"        stream.write(' ", attribName, "=\"' + self._", attribName, " + '\"')\n",
+					"        stream.write(' ", attribName, "=\"' + str(self._", attribName, ") + '\"')\n",
 				})
 			end,
 			content = function()
@@ -19,8 +19,8 @@
 		unmarshal = {
 			attribute = function(attribName)
 				return table.concat({
-					"            if \"", attribName, "\" == attribute:\n",
-					"                self._", attribName, " = attributes[attribute]\n",
+					"        if \"", attribName, "\" in attributes:\n",
+					"            self._", attribName, " = attributes[\"", attribName, "\"]\n",
 				})
 			end,
 			content = function()
@@ -33,7 +33,9 @@
 			return table.concat({"        self._", attribName, " = \"", value, "\"\n"})
 		end,
 		test = {
-			assign = function()
+			assign = function(facets)
+				local s = facets_sampleString(facets)
+				if s then return s end
 				local tbl = { 'arch', 'Ancestor', 'Interaction', 'Productivity', 'Jelly', 'Glue', 'Way'}
 				return tbl[math.random(1, #tbl)]
 			end,

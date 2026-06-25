@@ -1,0 +1,12 @@
+<?xml version="1.0"?>
+<!-- string enumeration -> unmarshal must reject values outside the set -->
+<schema>
+	<element name="color" type="colorType" />
+	<simpleType name="colorType">
+		<restriction base="string">
+			<enumeration value="red"/>
+			<enumeration value="green"/>
+			<enumeration value="blue"/>
+		</restriction>
+	</simpleType>
+</schema>

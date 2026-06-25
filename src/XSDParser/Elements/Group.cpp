@@ -2,8 +2,8 @@
  * Group.cpp
  *
  *  Created on: Jul 8, 2011
- *      Author: Ardavon Falls
- *   Copyright: (c)2011 Ardavon Falls
+ *      Author: QVXLabs LLC
+ *   Copyright: (c)2011 QVXLabs LLC
  *
  *  This file is part of xsd-tools.
  *
@@ -18,7 +18,7 @@
  *  GNU General Public License for more details.
  *
  *  You should have received a copy of the GNU General Public License
- *  along with Xsd-Tools.  If not, see <http://www.gnu.org/licenses/>.
+ *  along with xsd-tools.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 #ifndef TIXML_USE_STL
@@ -48,18 +48,15 @@ Group::Group(const Group& cpy)
 void
 Group::ParseChildren(BaseProcessor& rProcessor) const noexcept(false) {
 	/* process children */
-	std::unique_ptr<Node> pNode(Node::FirstChild());
-	if (NULL != pNode.get()) {
-		do {
-			if (XSD_ISELEMENT(pNode.get(), Choice) ||
-				XSD_ISELEMENT(pNode.get(), Annotation) ||
-				XSD_ISELEMENT(pNode.get(), All) ||
-				XSD_ISELEMENT(pNode.get(), Sequence)) {
-				pNode->ParseElement(rProcessor);
-			} else
-				throw XMLException(pNode->GetXMLElm(), XMLException::InvallidChildXMLElement);
-		} while (NULL != (pNode = std::unique_ptr<Node>(pNode->NextSibling())).get());
-	}
+	eachChild_([&rProcessor](const Node& rNode) {
+		if (XSD_ISELEMENT(&rNode, Choice) ||
+			XSD_ISELEMENT(&rNode, Annotation) ||
+			XSD_ISELEMENT(&rNode, All) ||
+			XSD_ISELEMENT(&rNode, Sequence)) {
+			rNode.ParseElement(rProcessor);
+		} else
+			throw XMLException(rNode.GetXMLElm(), XMLException::InvallidChildXMLElement);
+	});
 }
 
 void
@@ -88,57 +85,22 @@ Group::ParseElement(BaseProcessor& rProcessor) const noexcept(false) {
 	rProcessor.ProcessGroup(this);
 }
 
-Types::BaseType * 
-Group::GetParentType() const noexcept(false) {
-	std::unique_ptr<Node> pParent(Node::Parent());
-	return pParent->GetParentType();
-}
-
 int
 Group::MaxOccurs() const {
-	if (HasMaxOccurs()) {
-		if (strcmp(Node::GetAttribute<const char*>("maxOccurs"), "unbounded"))
-			return Node::GetAttribute<int>("maxOccurs");
-		else
-			return -1;
-	}
-	return 1;
+	return Node::maxOccurs_(1);
 }
 
 int
 Group::MinOccurs() const {
-	if (HasMinOccurs()) {
-		return Node::GetAttribute<int>("minOccurs");
-	}
-	return 1;
+	return Node::minOccurs_(1);
 }
 
 std::string
 Group::Name() const noexcept(false) {
-	return std::string(Node::GetAttribute<const char*>("name"));
+	return Node::name_();
 }
 
 Group*
 Group::RefGroup() const noexcept(false) {
 	return Node::FindXSDRef<Group>("ref");
-}
-
-bool
-Group::HasMaxOccurs() const {
-	return Node::HasAttribute("maxOccurs");
-}
-
-bool
-Group::HasMinOccurs() const {
-	return Node::HasAttribute("minOccurs");
-}
-
-bool
-Group::HasName() const {
-	return Node::HasAttribute("name");
-}
-
-bool
-Group::HasRef() const {
-	return Node::HasAttribute("ref");
 }

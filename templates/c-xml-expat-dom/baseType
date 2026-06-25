@@ -12,6 +12,79 @@ function baseType:instanceOf()
    return self._typedef.struct
 end
 
+-- Inline-scalar contract: a scalar whose value is stored in the xml_typelist
+-- slot (no per-scalar heap alloc). Non-scalar types leave these unset and use
+-- the pointer-based marshal/unmarshal/destroy path.
+function baseType:inlineScalar()
+   return false
+end
+
+-- C value type backing an inline scalar (e.g. uint8_t). nil for non-scalars.
+function baseType:cType()
+   return nil
+end
+
+-- Public typedef for an inline scalar: the value type itself, not a pointer.
+function baseType:scalarTypeDef()
+   return ("typedef %s %s;\n"):format(self:cType(), self:typeName())
+end
+
+-- Inline-scalar declarations: unmarshal returns the slot (void *), marshal and
+-- destroy take it. Keeps the generic dispatch macros free of typedef casts.
+function baseType:dclrScalarUnmarshal()
+   return ("static void * %s_unmarshal_(const char *, const xml_typeFactory *);\n")
+      :format(self:typeName())
+end
+
+function baseType:dclrScalarMarshal()
+   return ("static void %s_marshal_(void *, char **, const xml_typeFactory *);\n")
+      :format(self:typeName())
+end
+
+function baseType:dclrScalarDestroy()
+   return ("static void %s_destroy_(void *, const xml_typeFactory *);\n")
+      :format(self:typeName())
+end
+
+-- Inline-scalar unmarshal: parse the string into a local of the C value type
+-- via `parseExpr` (a C expression over `pVal`), then stash it in the slot.
+function baseType:defScalarUnmarshal(parseExpr)
+   out = stringBuffer:new()
+   out:append(("static void *\n%s_unmarshal_(const char * pVal, const xml_typeFactory * pFactory) {\n")
+      :format(self:typeName()))
+   out:append("  void * slot;\n")
+   out:append(("  XML_SCALAR_ENCODE_(%s, slot, %s, pFactory);\n"):format(
+      self:cType(), parseExpr))
+   out:append("  return slot;\n")
+   out:append("}\n")
+   return out:str()
+end
+
+-- Inline-scalar marshal: load the value from the slot, then `emit(valExpr)`
+-- renders the type-specific serialization (snprintf / literal append).
+function baseType:defScalarMarshal(emit)
+   out = stringBuffer:new()
+   out:append(("static void\n%s_marshal_(void * slot, char ** ppOut, const xml_typeFactory * pFactory) {\n")
+      :format(self:typeName()))
+   out:append(("  %s val;\n"):format(self:cType()))
+   out:append(("  XML_SCALAR_LOAD_(%s, val, slot);\n"):format(self:cType()))
+   out:append(emit("val"))
+   out:append("}\n")
+   return out:str()
+end
+
+-- Destroy frees the slot only on the heap fallback (scalar wider than a
+-- pointer); the inline case is a no-op. sizeof folds the branch at compile
+-- time, so one body is correct on both 32- and 64-bit targets.
+function baseType:defScalarDestroy()
+   out = stringBuffer:new()
+   out:append(("static void\n%s_destroy_(void * slot, const xml_typeFactory * pFactory) {\n")
+      :format(self:typeName()))
+   out:append(("  XML_SCALAR_FREE_(%s, slot, pFactory);\n"):format(self:cType()))
+   out:append("}\n")
+   return out:str()
+end
+
 function baseType:getTypeFactory()
    return self._typeFactory
 end
@@ -33,19 +106,22 @@ function baseType:_getType(typedef)
 end
 
 function baseType:dclrMarshal()
-   return ("static void _%s_marshal(const %s, char **, const xml_typeFactory *);\n"):format(
+   if self:inlineScalar() then return self:dclrScalarMarshal() end
+   return ("static void %s_marshal_(const %s, char **, const xml_typeFactory *);\n"):format(
       self:typeName(), self:typeName())
 end
 
 function baseType:dclrUnmarshal()
+   if self:inlineScalar() then return self:dclrScalarUnmarshal() end
    return (
-      "static %s _%s_unmarshal(const char *, const xml_typeFactory *);\n"
+      "static %s %s_unmarshal_(const char *, const xml_typeFactory *);\n"
    ):format(
       self:typeName(), self:typeName())
 end
 
 function baseType:dclrDestroy()
-   return ("static %s _%s_destroy(%s, const xml_typeFactory *);\n"):format(
+   if self:inlineScalar() then return self:dclrScalarDestroy() end
+   return ("static %s %s_destroy_(%s, const xml_typeFactory *);\n"):format(
       self:typeName(), self:typeName(), self:typeName())
 end
 

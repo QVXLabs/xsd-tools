@@ -2,8 +2,8 @@
  * TypesDB.hpp
  *
  *  Created on: Jun 27, 2011
- *      Author: Ardavon Falls
- *   Copyright: (c)2011 Ardavon Falls
+ *      Author: QVXLabs LLC
+ *   Copyright: (c)2011 QVXLabs LLC
  *
  *  This file is part of xsd-tools.
  *
@@ -18,7 +18,7 @@
  *  GNU General Public License for more details.
  *
  *  You should have received a copy of the GNU General Public License
- *  along with Foobar.  If not, see <http://www.gnu.org/licenses/>.
+ *  along with xsd-tools.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 #include <string.h>
@@ -35,7 +35,7 @@ namespace XSD {
 			//struct StrCp { bool operator()(const char* p1, const char* p2) const { return (strcmp(p1,p2) < 0); } };
 			//typedef std::map<const char*, const BaseType*, StrCp> TypeTbl;
 			typedef std::map<std::string, const BaseType*> TypeTbl;
-			TypeTbl	m_typeTbl;
+			TypeTbl	typeTbl_;
 		public:
 			TypesDB();
 			virtual~ TypesDB();

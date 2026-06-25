@@ -2,8 +2,8 @@
  * ComplexType.cpp
  *
  *  Created on: Jun 26, 2011
- *      Author: Ardavon Falls
- *   Copyright: (c)2011 Ardavon Falls
+ *      Author: QVXLabs LLC
+ *   Copyright: (c)2011 QVXLabs LLC
  *
  *  This file is part of xsd-tools.
  *
@@ -18,7 +18,7 @@
  *  GNU General Public License for more details.
  *
  *  You should have received a copy of the GNU General Public License
- *  along with Xsd-Tools.  If not, see <http://www.gnu.org/licenses/>.
+ *  along with xsd-tools.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 #ifndef TIXML_USE_STL
@@ -55,35 +55,32 @@ ComplexType::ComplexType(const ComplexType& rType)
 void
 ComplexType::ParseChildren(BaseProcessor& rProcessor) const noexcept(false) {
 	/* process children */
-	std::unique_ptr<Node> pNode(Node::FirstChild());
-	if (NULL != pNode.get()) {
-		enum { CMODEL_UNKNOWN, CMODEL_TRUE, CMODEL_FALSE };
-		int contentModel = CMODEL_UNKNOWN;
-		do {
-			if (XSD_ISELEMENT(pNode.get(), ComplexContent) ||
-				XSD_ISELEMENT(pNode.get(), SimpleContent)) {
-				if (CMODEL_FALSE != contentModel) {
-					contentModel = CMODEL_TRUE;
-					pNode->ParseElement(rProcessor);
-				} else
-					throw XMLException(pNode->GetXMLElm(), XMLException::InvallidChildXMLElement);
-			} else if ( XSD_ISELEMENT(pNode.get(), Group) ||
-						XSD_ISELEMENT(pNode.get(), All) ||
-						XSD_ISELEMENT(pNode.get(), Choice) ||
-						XSD_ISELEMENT(pNode.get(), Sequence) ||
-						XSD_ISELEMENT(pNode.get(), Attribute) ||
-						XSD_ISELEMENT(pNode.get(), AttributeGroup)) {
-				if (CMODEL_TRUE != contentModel) {
-					contentModel = CMODEL_FALSE;
-					pNode->ParseElement(rProcessor);
-				} else
-					throw XMLException(pNode->GetXMLElm(), XMLException::InvallidChildXMLElement);
-			} else if (XSD_ISELEMENT(pNode.get(), Annotation)) {
-				pNode->ParseElement(rProcessor);
+	enum { CMODEL_UNKNOWN, CMODEL_TRUE, CMODEL_FALSE };
+	int contentModel = CMODEL_UNKNOWN;
+	eachChild_([&rProcessor, &contentModel](const Node& rNode) {
+		if (XSD_ISELEMENT(&rNode, ComplexContent) ||
+			XSD_ISELEMENT(&rNode, SimpleContent)) {
+			if (CMODEL_FALSE != contentModel) {
+				contentModel = CMODEL_TRUE;
+				rNode.ParseElement(rProcessor);
 			} else
-				throw XMLException(pNode->GetXMLElm(), XMLException::InvallidChildXMLElement);
-		} while (NULL != (pNode = std::unique_ptr<Node>(pNode->NextSibling())).get());
-	}
+				throw XMLException(rNode.GetXMLElm(), XMLException::InvallidChildXMLElement);
+		} else if ( XSD_ISELEMENT(&rNode, Group) ||
+					XSD_ISELEMENT(&rNode, All) ||
+					XSD_ISELEMENT(&rNode, Choice) ||
+					XSD_ISELEMENT(&rNode, Sequence) ||
+					XSD_ISELEMENT(&rNode, Attribute) ||
+					XSD_ISELEMENT(&rNode, AttributeGroup)) {
+			if (CMODEL_TRUE != contentModel) {
+				contentModel = CMODEL_FALSE;
+				rNode.ParseElement(rProcessor);
+			} else
+				throw XMLException(rNode.GetXMLElm(), XMLException::InvallidChildXMLElement);
+		} else if (XSD_ISELEMENT(&rNode, Annotation)) {
+			rNode.ParseElement(rProcessor);
+		} else
+			throw XMLException(rNode.GetXMLElm(), XMLException::InvallidChildXMLElement);
+	});
 }
 
 void
@@ -128,7 +125,7 @@ ComplexType::Mixed() const {
 
 std::string
 ComplexType::Name() const noexcept(false) {
-	return std::string(Node::GetAttribute<const char*>("name"));
+	return Node::name_();
 }
 
 bool
@@ -144,9 +141,4 @@ ComplexType::HasAttribute() const {
 bool
 ComplexType::HasChoice() const {
 	return Node::HasContent(Choice::XSDTag());
-}
-
-bool
-ComplexType::HasName() const {
-	return Node::HasAttribute("name");
 }

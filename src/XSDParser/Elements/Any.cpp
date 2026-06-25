@@ -2,8 +2,8 @@
  * Any.cpp
  *
  *  Created on: Jul 10, 2011
- *      Author: Ardavon Falls
- *   Copyright: (c)2011 Ardavon Falls
+ *      Author: QVXLabs LLC
+ *   Copyright: (c)2011 QVXLabs LLC
  *
  *  This file is part of xsd-tools.
  *
@@ -18,7 +18,7 @@
  *  GNU General Public License for more details.
  *
  *  You should have received a copy of the GNU General Public License
- *  along with Foobar.  If not, see <http://www.gnu.org/licenses/>.
+ *  along with xsd-tools.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 #ifndef TIXML_USE_STL
@@ -50,13 +50,10 @@ Any::ParseChildren(BaseProcessor& rProcessor) const noexcept(false) {
 	/* parse document children */
 	std::unique_ptr<Node> pNode(Node::FirstChild());
 	if (NULL != pNode.get()) {
-		do {
-			if (XSD_ISELEMENT(pNode.get(), Annotation))
-				pNode->ParseElement(rProcessor);
-			else
-				throw XMLException(pNode->GetXMLElm(), XMLException::InvallidChildXMLElement);
-			break;
-		} while (NULL != (pNode = std::unique_ptr<Node>(pNode->NextSibling())).get());
+		if (XSD_ISELEMENT(pNode.get(), Annotation))
+			pNode->ParseElement(rProcessor);
+		else
+			throw XMLException(pNode->GetXMLElm(), XMLException::InvallidChildXMLElement);
 	}
 }
 
@@ -72,21 +69,15 @@ Any::ParseElement(BaseProcessor& rProcessor) const noexcept(false) {
 	rProcessor.ProcessAny(this);
 }
 
-Types::BaseType * 
-Any::GetParentType() const noexcept(false) {
-	std::unique_ptr<Node> pParent(Node::Parent());
-	return pParent->GetParentType();
-}
-
 Processors::ElementExtracter::ElementLst
 Any::GetAllowedElements() const {
   Processors::ElementExtracter::ElementLst retLst;
-	if (STRICT == ProcessContents()) {
+	if (Strict == ProcessContents()) {
 		Processors::ElementExtracter elmExtrctr;
 		std::unique_ptr<Schema> pDocRoot(Node::GetSchema());
 		retLst = elmExtrctr.Extract(*pDocRoot);
 		/* find parent element and remove it from list to prevent recursive loops */
-		std::unique_ptr<Element> pElement(_findParentElement(this));
+		std::unique_ptr<Element> pElement(findParentElement_(this));
 		if (NULL != pElement.get()) {
 			for (	Processors::ElementExtracter::ElementLst::iterator itr = retLst.begin();
 				  itr != retLst.end();
@@ -103,21 +94,12 @@ Any::GetAllowedElements() const {
 
 int
 Any::MaxOccurs() const {
-	if (HasMaxOccurs()) {
-		if (strcmp(Node::GetAttribute<const char*>("maxOccurs"), "unbounded"))
-			return Node::GetAttribute<int>("maxOccurs");
-		else
-			return -1;
-	}
-	return 1;
+	return Node::maxOccurs_(1);
 }
 
 int
 Any::MinOccurs() const {
-	if (HasMinOccurs()) {
-		return Node::GetAttribute<int>("minOccurs");
-	}
-	return 1;
+	return Node::minOccurs_(1);
 }
 
 std::string
@@ -133,43 +115,23 @@ Any::ProcessContents() const {
 	if (HasProcessContents()) {
 		std::string processContents(Node::GetAttribute<const char*>("processContents"));
 		if (!processContents.compare("lax")) {
-			return Any::LAX;
+			return Any::Lax;
 		} else if (!processContents.compare("skip")) {
-			return Any::SKIP;
+			return Any::Skip;
 		} else if (!processContents.compare("strict")) {
-			return Any::STRICT;
+			return Any::Strict;
 		} else
 			throw XMLException(Node::GetXMLElm(), XMLException::InvalidAttributeValue);
 	}
-	return Any::STRICT;
+	return Any::Strict;
 }
 
-bool
-Any::HasMaxOccurs() const {
-	return Node::HasAttribute("maxOccurs");
-}
-
-bool
-Any::HasMinOccurs() const {
-	return Node::HasAttribute("minOccurs");
-}
-
-bool
-Any::HasNamespace() const {
-	return Node::HasAttribute("namespace");
-}
-
-bool
-Any::HasProcessContents() const {
-	return Node::HasAttribute("processContents");
-}
-
-/* static */ Element * 
-Any::_findParentElement(const Node * pNode) {
+/* static */ Element *
+Any::findParentElement_(const Node * pNode) {
 	if (NULL == pNode)
 		return NULL;
 	if (XSD_ISELEMENT(pNode, Element)) 
 		return new Element(*(static_cast<const Element *>(pNode)));
 	std::unique_ptr<Node> pParent(pNode->Parent());
-	return _findParentElement(pParent.get());
+	return findParentElement_(pParent.get());
 }

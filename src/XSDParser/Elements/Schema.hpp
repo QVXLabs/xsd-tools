@@ -2,8 +2,8 @@
  * Schema.hpp
  *
  *  Created on: Jun 26, 2011
- *      Author: Ardavon Falls
- *   Copyright: (c)2011 Ardavon Falls
+ *      Author: QVXLabs LLC
+ *   Copyright: (c)2011 QVXLabs LLC
  *
  *  This file is part of xsd-tools.
  *
@@ -18,7 +18,7 @@
  *  GNU General Public License for more details.
  *
  *  You should have received a copy of the GNU General Public License
- *  along with Foobar.  If not, see <http://www.gnu.org/licenses/>.
+ *  along with xsd-tools.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 #ifndef SCHEMA_HPP_
@@ -26,6 +26,7 @@
 #ifndef TIXML_USE_STL
 #	define TIXML_USE_STL
 #endif /* TIXML_USE_STL */
+#include <map>
 #include <string>
 #include <tinyxml.h>
 #include "./src/XSDParser/Exception.hpp"
@@ -36,9 +37,13 @@ namespace XSD {
 		class Schema : public Node {
 			XSD_ELEMENT_TAG("schema")
 		private:
-			std::string		m_documentURI;
+			typedef std::map<std::string, std::string> PrefixMap;
+			std::string		documentURI_;
 			Schema();
-			static std::string _extractName(const std::string& uri);			
+			static std::string extractName_(const std::string& uri);
+			/* prefix->URI map off this document's root element; empty key is
+			 * the default (xmlns) namespace. */
+			PrefixMap prefixMap_() const noexcept(false);
 		public:
 			Schema(const TiXmlElement& elm, const Parser& rParser, const std::string& uri);
 			Schema( const Schema& elm);
@@ -48,6 +53,12 @@ namespace XSD {
 			const std::string Name() const noexcept(false);
 			const std::string& URI() const noexcept(false);
 			const std::string Namespace() const noexcept(false);
+			/* targetNamespace attr value; "" when absent. */
+			std::string TargetNamespace() const noexcept(false);
+			/* Resolve a namespace prefix to its URI via the root xmlns:* attrs;
+			 * empty prefix resolves the default xmlns. "" when undeclared. */
+			std::string ResolvePrefix(const std::string& rPrefix)
+				const noexcept(false);
 			Types::BaseType * GetParentType() const noexcept(false);
 			bool isRootSchema() const;
 		};

@@ -2,8 +2,8 @@
  * Length.cpp
  *
  *  Created on: Feb 21, 2014
- *      Author: Ardavon Falls
- *   Copyright: (c)2014 Ardavon Falls
+ *      Author: QVXLabs LLC
+ *   Copyright: (c)2014 QVXLabs LLC
  *
  *  This file is part of xsd-tools.
  *
@@ -18,7 +18,7 @@
  *  GNU General Public License for more details.
  *
  *  You should have received a copy of the GNU General Public License
- *  along with Foobar.  If not, see <http://www.gnu.org/licenses/>.
+ *  along with xsd-tools.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 #ifndef TIXML_USE_STL
@@ -35,45 +35,15 @@ using namespace XSD;
 using namespace XSD::Elements;
 
 Length::Length(const TiXmlElement& elm, const Parser& rParser)
-	: Node(elm, rParser)
+	: FacetNode(elm, rParser)
 { }
 
 Length::Length(const Length& cpy)
-	: Node(cpy)
+	: FacetNode(cpy)
 { }
-
-void
-Length::ParseChildren(BaseProcessor& rProcessor) const noexcept(false) {
-	/* no children allowed */
-	std::unique_ptr<Node> pNode(Node::FirstChild());
-	if (NULL != pNode.get()) {
-		do {
-			if (XSD_ISELEMENT(pNode.get(), Annotation))
-				pNode->ParseElement(rProcessor);
-			else
-				throw XMLException(pNode->GetXMLElm(), XMLException::InvallidChildXMLElement);
-			break;
-		} while (NULL != (pNode = std::unique_ptr<Node>(pNode->NextSibling())).get());
-	}
-}
 
 void
 Length::ParseElement(BaseProcessor& rProcessor) const noexcept(false) {
 	rProcessor.ProcessLength(this);
 }
 
-Types::BaseType * 
-Length::GetParentType() const noexcept(false) {
-	std::unique_ptr<Node> pParent(Node::Parent());
-	return pParent->GetParentType();
-}
-
-int64_t
-Length::Value() const noexcept(false) {
-	return Node::GetAttribute<int64_t>("value");
-}
-
-bool
-Length::HasValue() const {
-	return Node::HasAttribute("value");
-}
