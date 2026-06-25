@@ -1,25 +1,29 @@
 myElem = {
+	attributes = {}
 	maxOccurs = 1
 	content = {
 		string = {
 			attributes = {}
-			maxOccurs = 1
-			content = {}
 			facets = {
 				pattern = { [0-9]{,5} }
 			}
+			maxOccurs = 1
+			content = {}
+			minOccurs = 1
 		}
 	}
-	attributes = {}
+	minOccurs = 1
 }
 foo = {
+	attributes = {}
 	maxOccurs = 1
 	content = {
 		string = {
+			attributes = {}
 			maxOccurs = 1
 			content = {}
-			attributes = {}
+			minOccurs = 1
 		}
 	}
-	attributes = {}
+	minOccurs = 1
 }

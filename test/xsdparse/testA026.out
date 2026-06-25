@@ -1,52 +1,59 @@
 foo = {
-	maxOccurs = 1
-	content = {
-		name = {
-			maxOccurs = 1
-			content = {
-				string = {
-					maxOccurs = 1
-					content = {}
-					attributes = {}
-				}
-			}
-			attributes = {}
-		}
-	}
 	attributes = {
 		attrib2Optional = {
 			integer = {
 				attributes = {}
-				maxOccurs = 1
-				default = 5
-				content = {}
 				use = optional
+				default = 5
+				maxOccurs = 1
+				content = {}
+				minOccurs = 1
 			}
 		}
 		attrib2Required = {
 			integer = {
 				attributes = {}
+				use = required
 				maxOccurs = 1
 				content = {}
-				use = required
+				minOccurs = 1
 			}
 		}
 		attrib1Optional = {
 			string = {
 				attributes = {}
-				maxOccurs = 1
-				default = test default value
-				content = {}
 				use = optional
+				default = test default value
+				maxOccurs = 1
+				content = {}
+				minOccurs = 1
 			}
 		}
 		attrib1Required = {
 			string = {
 				attributes = {}
+				use = required
 				maxOccurs = 1
 				content = {}
-				use = required
+				minOccurs = 1
 			}
 		}
 	}
+	maxOccurs = 1
+	content = {
+		name = {
+			attributes = {}
+			maxOccurs = 1
+			content = {
+				string = {
+					attributes = {}
+					maxOccurs = 1
+					content = {}
+					minOccurs = 1
+				}
+			}
+			minOccurs = 0
+		}
+	}
+	minOccurs = 1
 }

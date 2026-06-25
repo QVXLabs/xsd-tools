@@ -1,28 +1,33 @@
 root = {
+	attributes = {}
 	maxOccurs = 1
 	content = {
 		fooTest = {
+			attributes = {}
 			maxOccurs = 1
 			content = {
 				string = {
+					attributes = {}
 					maxOccurs = 1
 					content = {}
-					attributes = {}
+					minOccurs = 1
 				}
 			}
-			attributes = {}
+			minOccurs = 1
 		}
 	}
-	attributes = {}
+	minOccurs = 1
 }
 fooTest = {
+	attributes = {}
 	maxOccurs = 1
 	content = {
 		string = {
+			attributes = {}
 			maxOccurs = 1
 			content = {}
-			attributes = {}
+			minOccurs = 1
 		}
 	}
-	attributes = {}
+	minOccurs = 1
 }

@@ -1,57 +1,65 @@
 outerElement = {
+	attributes = {}
 	maxOccurs = 1
 	content = {
 		innerElement = {
+			attributes = {
+				name = {
+					string = {
+						attributes = {}
+						use = optional
+						maxOccurs = 1
+						content = {}
+						minOccurs = 1
+					}
+				}
+			}
 			maxOccurs = 1
 			content = {
 				record = {
-					maxOccurs = 1
-					content = {
-						base64Binary = {
-							maxOccurs = 1
-							content = {}
-							attributes = {}
-						}
-					}
 					attributes = {
 						id = {
 							unsignedInt = {
 								attributes = {}
+								use = optional
 								maxOccurs = 1
 								content = {}
-								use = optional
+								minOccurs = 1
 							}
 						}
 						fullName = {
 							string = {
 								attributes = {}
+								use = optional
 								maxOccurs = 1
 								content = {}
-								use = optional
+								minOccurs = 1
 							}
 						}
 						address = {
 							string = {
 								attributes = {}
+								use = optional
 								maxOccurs = 1
 								content = {}
-								use = optional
+								minOccurs = 1
 							}
 						}
 					}
-				}
-			}
-			attributes = {
-				name = {
-					string = {
-						attributes = {}
-						maxOccurs = 1
-						content = {}
-						use = optional
+					maxOccurs = 1
+					content = {
+						base64Binary = {
+							attributes = {}
+							maxOccurs = 1
+							content = {}
+							minOccurs = 1
+						}
 					}
+					minOccurs = 1
 				}
 			}
+			minOccurs = 1
 		}
 	}
-	attributes = {}
+	minOccurs = 1
 }

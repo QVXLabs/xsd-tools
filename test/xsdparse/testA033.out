@@ -1,23 +1,27 @@
 Company = {
+	attributes = {}
 	maxOccurs = 1
 	content = {
 		Person = {
+			attributes = {}
 			maxOccurs = -1
 			content = {
 				Name = {
+					attributes = {}
 					maxOccurs = 1
 					content = {
 						string = {
+							attributes = {}
 							maxOccurs = 1
 							content = {}
-							attributes = {}
+							minOccurs = 1
 						}
 					}
-					attributes = {}
+					minOccurs = 1
 				}
 			}
-			attributes = {}
+			minOccurs = 1
 		}
 	}
-	attributes = {}
+	minOccurs = 1
 }

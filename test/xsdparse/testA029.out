@@ -1,50 +1,59 @@
 worldAddress = {
+	attributes = {}
 	maxOccurs = 1
 	content = {
 		street = {
+			attributes = {}
 			maxOccurs = 1
 			content = {
 				string = {
+					attributes = {}
 					maxOccurs = 1
 					content = {}
-					attributes = {}
+					minOccurs = 1
 				}
 			}
-			attributes = {}
+			minOccurs = 1
 		}
 		zipcode = {
+			attributes = {}
 			maxOccurs = 1
 			content = {
 				integer = {
+					attributes = {}
 					maxOccurs = 1
 					content = {}
-					attributes = {}
+					minOccurs = 1
 				}
 			}
-			attributes = {}
+			minOccurs = 1
 		}
 		city = {
+			attributes = {}
 			maxOccurs = 1
 			content = {
 				string = {
+					attributes = {}
 					maxOccurs = 1
 					content = {}
-					attributes = {}
+					minOccurs = 1
 				}
 			}
-			attributes = {}
+			minOccurs = 1
 		}
 		country = {
+			attributes = {}
 			maxOccurs = 1
 			content = {
 				string = {
+					attributes = {}
 					maxOccurs = 1
 					content = {}
-					attributes = {}
+					minOccurs = 1
 				}
 			}
-			attributes = {}
+			minOccurs = 1
 		}
 	}
-	attributes = {}
+	minOccurs = 1
 }

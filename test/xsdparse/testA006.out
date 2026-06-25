@@ -1,28 +1,33 @@
 test = {
+	attributes = {}
 	maxOccurs = 1
 	content = {
 		string = {
+			attributes = {}
 			maxOccurs = 1
 			content = {}
-			attributes = {}
+			minOccurs = 1
 		}
 	}
-	attributes = {}
+	minOccurs = 1
 }
 test2 = {
+	attributes = {}
 	maxOccurs = 1
 	content = {
 		test = {
+			attributes = {}
 			maxOccurs = 1
 			content = {
 				string = {
+					attributes = {}
 					maxOccurs = 1
 					content = {}
-					attributes = {}
+					minOccurs = 1
 				}
 			}
-			attributes = {}
+			minOccurs = 1
 		}
 	}
-	attributes = {}
+	minOccurs = 1
 }

@@ -1,11 +1,13 @@
 binBlob = {
+	attributes = {}
 	maxOccurs = 1
 	content = {
 		base64Binary = {
+			attributes = {}
 			maxOccurs = 1
 			content = {}
-			attributes = {}
+			minOccurs = 1
 		}
 	}
-	attributes = {}
+	minOccurs = 1
 }

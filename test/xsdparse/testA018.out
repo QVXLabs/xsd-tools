@@ -1,22 +1,26 @@
 gooTest = {
+	attributes = {}
 	maxOccurs = 1
 	content = {
 		list(hexBinary) = {
+			attributes = {}
 			maxOccurs = 1
 			content = {}
-			attributes = {}
+			minOccurs = 1
 		}
 	}
-	attributes = {}
+	minOccurs = 1
 }
 fooTest = {
+	attributes = {}
 	maxOccurs = 1
 	content = {
 		list(base64Binary) = {
+			attributes = {}
 			maxOccurs = 1
 			content = {}
-			attributes = {}
+			minOccurs = 1
 		}
 	}
-	attributes = {}
+	minOccurs = 1
 }

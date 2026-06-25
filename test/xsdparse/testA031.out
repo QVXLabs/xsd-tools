@@ -1,64 +1,75 @@
 AddressElm = {
+	attributes = {}
 	maxOccurs = 1
 	content = {
 		state = {
+			attributes = {}
 			maxOccurs = 1
 			content = {
 				string = {
 					attributes = {}
-					maxOccurs = 1
-					content = {}
 					facets = {
 						length = 2
 					}
+					maxOccurs = 1
+					content = {}
+					minOccurs = 1
 				}
 			}
-			attributes = {}
+			minOccurs = 1
 		}
 		city = {
+			attributes = {}
 			maxOccurs = 1
 			content = {
 				string = {
+					attributes = {}
 					maxOccurs = 1
 					content = {}
-					attributes = {}
+					minOccurs = 1
 				}
 			}
-			attributes = {}
+			minOccurs = 1
 		}
 		postalCode = {
+			attributes = {}
 			maxOccurs = 1
 			content = {
 				integer = {
+					attributes = {}
 					maxOccurs = 1
 					content = {}
-					attributes = {}
+					minOccurs = 1
 				}
 			}
-			attributes = {}
+			minOccurs = 1
 		}
 		country = {
+			attributes = {}
 			maxOccurs = 1
 			content = {
 				string = {
+					attributes = {}
 					maxOccurs = 1
 					content = {}
-					attributes = {}
+					minOccurs = 1
 				}
 			}
-			attributes = {}
+			minOccurs = 1
 		}
 		street = {
+			attributes = {}
 			maxOccurs = 1
 			content = {
 				string = {
+					attributes = {}
 					maxOccurs = 1
 					content = {}
-					attributes = {}
+					minOccurs = 1
 				}
 			}
-			attributes = {}
+			minOccurs = 1
 		}
 	}
-	attributes = {}
+	minOccurs = 1
 }
