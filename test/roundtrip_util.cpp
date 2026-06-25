@@ -84,33 +84,6 @@ namespace {
 		return dir ? std::string(dir) : std::string();
 	}
 
-	/* Split a c-xml-expat binding blob on its FILE markers (lines of the
-	 * form: slash-star FILE: <name> star-slash), writing each section into
-	 * `dir`. Returns the written file names. */
-	std::vector<std::string> splitMarkedFiles(const std::string& blob,
-	                                          const std::string& dir) {
-		std::vector<std::string> files;
-		std::istringstream in(blob);
-		std::string line;
-		std::ofstream out;
-		const std::string marker = "/* FILE: ";
-		while (std::getline(in, line)) {
-			size_t pos = line.find(marker);
-			if (std::string::npos != pos) {
-				size_t start = pos + marker.size();
-				size_t end = line.find(' ', start);
-				std::string name = line.substr(start, end - start);
-				if (out.is_open())
-					out.close();
-				out.open((dir + "/" + name).c_str(), std::ios::binary);
-				files.push_back(name);
-			} else if (out.is_open()) {
-				out << line << "\n";
-			}
-		}
-		return files;
-	}
-
 	/* Emit + split a multi-file C binding and self-checking driver, compile
 	 * (libb64 + one extra lib) and run. `srcPrefix` is the generated source's
 	 * filename prefix (e.g. "xml_" / "json_"); `extraInclude`/`extraLink` are
@@ -131,7 +104,7 @@ namespace {
 				TEMPLATES_DIR "/" + bindingTmpl, xsdPath);
 			std::string driver = xsdtest::generate(
 				TEMPLATES_DIR "/" + driverTmpl, xsdPath);
-			splitMarkedFiles(binding, dir);
+			XsdTools::SplitMarkedFiles(binding, dir);
 			writeFile(dir + "/" + base + "-bin.c", driver);
 		} catch (std::exception& e) {
 			return ::testing::AssertionFailure()
@@ -183,17 +156,20 @@ namespace xsdtest {
 		return oss.str();
 	}
 
-	::testing::AssertionResult pythonRoundtrip(const std::string& xsdPath) {
+	/* Generate the binding (named <base>.py for `import <base>`) + driver,
+	 * run `python3 driver.py`. */
+	static ::testing::AssertionResult pythonRoundtripImpl(
+			const std::string& xsdPath, const std::string& bindingTmpl,
+			const std::string& driverTmpl) {
 		const std::string base = baseName(xsdPath);
 		const std::string dir = makeTempDir(base);
 		if (dir.empty())
 			return ::testing::AssertionFailure() << "could not create tempdir";
 		try {
-			/* driver does `import <base>`, so name the binding <base>.py */
 			writeFile(dir + "/" + base + ".py",
-			          generate(TEMPLATES_DIR "/python-sax", xsdPath));
+			          generate(TEMPLATES_DIR "/" + bindingTmpl, xsdPath));
 			writeFile(dir + "/driver.py",
-			          generate(TEMPLATES_DIR "/python-sax-test", xsdPath));
+			          generate(TEMPLATES_DIR "/" + driverTmpl, xsdPath));
 		} catch (std::exception& e) {
 			return ::testing::AssertionFailure()
 				<< "generation failed: " << e.what();
@@ -206,28 +182,13 @@ namespace xsdtest {
 		return ::testing::AssertionSuccess();
 	}
 
+	::testing::AssertionResult pythonRoundtrip(const std::string& xsdPath) {
+		return pythonRoundtripImpl(xsdPath, "python-sax", "python-sax-test");
+	}
+
 	::testing::AssertionResult pythonJsonRoundtrip(const std::string& xsdPath) {
-		const std::string base = baseName(xsdPath);
-		const std::string dir = makeTempDir(base);
-		if (dir.empty())
-			return ::testing::AssertionFailure() << "could not create tempdir";
-		try {
-			/* driver does `import <base>`, so name the binding <base>.py */
-			writeFile(dir + "/" + base + ".py",
-			          generate(TEMPLATES_DIR "/python-json.tmpl", xsdPath));
-			writeFile(dir + "/driver.py",
-			          generate(TEMPLATES_DIR "/python-json.tmpl-test",
-			                   xsdPath));
-		} catch (std::exception& e) {
-			return ::testing::AssertionFailure()
-				<< "generation failed: " << e.what();
-		}
-		CommandResult run = runCommand("python3 driver.py", dir);
-		if (0 != run.exitCode)
-			return ::testing::AssertionFailure()
-				<< "round-trip failed (exit " << run.exitCode << "):\n"
-				<< run.output;
-		return ::testing::AssertionSuccess();
+		return pythonRoundtripImpl(xsdPath, "python-json.tmpl",
+		                           "python-json.tmpl-test");
 	}
 
 	::testing::AssertionResult cExpatRoundtrip(const std::string& xsdPath) {
@@ -247,7 +208,12 @@ namespace xsdtest {
 		                      "json_", JSONC_INCLUDE_DIR, JSONC_LINK);
 	}
 
-	::testing::AssertionResult javaRoundtrip(const std::string& xsdPath) {
+	/* Generate the binding into a Maven package + RunTest driver, `mvn
+	 * package`, run. RunTest prints one true/false per root element: any
+	 * "false" is a marshal mismatch, a non-zero exit a crash, empty a pass. */
+	static ::testing::AssertionResult javaRoundtripImpl(
+			const std::string& xsdPath, const std::string& bindingTmpl,
+			const std::string& driverTmpl, const std::string& pomPath) {
 		const std::string base = baseName(xsdPath);
 		const std::string root = makeTempDir(base);
 		if (root.empty())
@@ -255,14 +221,13 @@ namespace xsdtest {
 		const std::string pkg = root + "/src/main/java/com/mobitv/app";
 		if (0 != runCommand("mkdir -p '" + pkg + "'", root).exitCode)
 			return ::testing::AssertionFailure() << "mkdir failed";
-		if (0 != runCommand("cp '" JAVA_POM "' pom.xml", root).exitCode)
+		if (0 != runCommand("cp '" + pomPath + "' pom.xml", root).exitCode)
 			return ::testing::AssertionFailure() << "could not copy pom.xml";
 		try {
-			splitMarkedFiles(
-				generate(TEMPLATES_DIR "/java-json.org.tmpl", xsdPath), pkg);
+			XsdTools::SplitMarkedFiles(
+				generate(TEMPLATES_DIR "/" + bindingTmpl, xsdPath), pkg);
 			writeFile(pkg + "/RunTest.java",
-			          generate(TEMPLATES_DIR "/java-json.org.tmpl-test",
-			                   xsdPath));
+			          generate(TEMPLATES_DIR "/" + driverTmpl, xsdPath));
 		} catch (std::exception& e) {
 			return ::testing::AssertionFailure()
 				<< "generation failed: " << e.what();
@@ -274,9 +239,6 @@ namespace xsdtest {
 		CommandResult run = runCommand(
 			"java -cp target/my-app-1.0-SNAPSHOT-jar-with-dependencies.jar"
 			" com.mobitv.app.RunTest", root);
-		/* RunTest prints one "true"/"false" per root element. A non-zero
-		 * exit is a crash; any "false" is a marshal mismatch. Empty output
-		 * (e.g. an abstract element with nothing to marshal) is a pass. */
 		if (0 != run.exitCode)
 			return ::testing::AssertionFailure()
 				<< "RunTest failed (exit " << run.exitCode << "):\n"
@@ -287,40 +249,13 @@ namespace xsdtest {
 		return ::testing::AssertionSuccess();
 	}
 
+	::testing::AssertionResult javaRoundtrip(const std::string& xsdPath) {
+		return javaRoundtripImpl(xsdPath, "java-json.org.tmpl",
+		                         "java-json.org.tmpl-test", JAVA_POM);
+	}
+
 	::testing::AssertionResult javaXmlRoundtrip(const std::string& xsdPath) {
-		const std::string base = baseName(xsdPath);
-		const std::string root = makeTempDir(base);
-		if (root.empty())
-			return ::testing::AssertionFailure() << "could not create tempdir";
-		const std::string pkg = root + "/src/main/java/com/mobitv/app";
-		if (0 != runCommand("mkdir -p '" + pkg + "'", root).exitCode)
-			return ::testing::AssertionFailure() << "mkdir failed";
-		if (0 != runCommand("cp '" JAVA_XML_POM "' pom.xml", root).exitCode)
-			return ::testing::AssertionFailure() << "could not copy pom.xml";
-		try {
-			splitMarkedFiles(
-				generate(TEMPLATES_DIR "/java-xml-stax.tmpl", xsdPath), pkg);
-			writeFile(pkg + "/RunTest.java",
-			          generate(TEMPLATES_DIR "/java-xml-stax.tmpl-test",
-			                   xsdPath));
-		} catch (std::exception& e) {
-			return ::testing::AssertionFailure()
-				<< "generation failed: " << e.what();
-		}
-		CommandResult build = runCommand("mvn -q package", root);
-		if (0 != build.exitCode)
-			return ::testing::AssertionFailure()
-				<< "mvn package failed:\n" << build.output;
-		CommandResult run = runCommand(
-			"java -cp target/my-app-1.0-SNAPSHOT-jar-with-dependencies.jar"
-			" com.mobitv.app.RunTest", root);
-		if (0 != run.exitCode)
-			return ::testing::AssertionFailure()
-				<< "RunTest failed (exit " << run.exitCode << "):\n"
-				<< run.output;
-		if (run.output.find("false") != std::string::npos)
-			return ::testing::AssertionFailure()
-				<< "round-trip mismatch; output:\n" << run.output;
-		return ::testing::AssertionSuccess();
+		return javaRoundtripImpl(xsdPath, "java-xml-stax.tmpl",
+		                         "java-xml-stax.tmpl-test", JAVA_XML_POM);
 	}
 }
