@@ -41,9 +41,9 @@ namespace XSD {
 			static Types::BaseType* parseType_(const Attribute& rAttrib) noexcept(false);;
 		public:
 			typedef enum {
-				OPTIONAL,
-				PROHIBITIED,
-				REQUIRED
+				Optional,
+				Prohibited,
+				Required
 			} AttributeUse;
 			Attribute(const TiXmlElement& elm, const Parser& rParser);
 			Attribute(const Attribute& rAttrib);

@@ -140,15 +140,15 @@ Attribute::Use() const noexcept(false) {
 	if (HasUse()) {
 		std::string use(Node::GetAttribute<const char*>("use"));
 		if (!use.compare("optional")) {
-			return Attribute::OPTIONAL;
+			return Attribute::Optional;
 		} else if (!use.compare("prohibited")) {
-			return Attribute::PROHIBITIED;
+			return Attribute::Prohibited;
 		} else if (!use.compare("required")) {
-			return Attribute::REQUIRED;
+			return Attribute::Required;
 		} else
 			throw XMLException(Node::GetXMLElm(), XMLException::InvalidAttributeValue);
 	}
-	return Attribute::OPTIONAL;
+	return Attribute::Optional;
 }
 
 			
