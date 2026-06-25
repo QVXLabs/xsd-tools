@@ -24,7 +24,11 @@ TEST(Resource, ResolvesAbsoluteTemplatePath) {
 
 TEST(Resource, ThrowsOnMissingTemplate) {
 	/* clear the env override so the search falls through to a throw */
+#if defined(_WIN32)
+	_putenv("XSDTOOLS_DATA=");
+#else
 	unsetenv("XSDTOOLS_DATA");
+#endif
 	Core::Resource resource;
 	EXPECT_THROW(resource.GetTemplatePath("xsdb-no-such-template-xyz"),
 	             Core::ResourceException);
