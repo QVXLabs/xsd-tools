@@ -104,23 +104,3 @@ Group*
 Group::RefGroup() const noexcept(false) {
 	return Node::FindXSDRef<Group>("ref");
 }
-
-bool
-Group::HasMaxOccurs() const {
-	return Node::HasAttribute("maxOccurs");
-}
-
-bool
-Group::HasMinOccurs() const {
-	return Node::HasAttribute("minOccurs");
-}
-
-bool
-Group::HasName() const {
-	return Node::HasAttribute("name");
-}
-
-bool
-Group::HasRef() const {
-	return Node::HasAttribute("ref");
-}

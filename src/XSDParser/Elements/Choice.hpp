@@ -46,8 +46,8 @@ namespace XSD {
 			int MinOccurs() const;
 			bool HasElements() const noexcept(false);;
 			bool HasSequence() const noexcept(false);;
-			bool HasMaxOccurs() const;
-			bool HasMinOccurs() const;
+			XSD_HAS_ATTR(HasMaxOccurs, "maxOccurs")
+			XSD_HAS_ATTR(HasMinOccurs, "minOccurs")
 		};
 	}	/* namespace Elements */
 }	/* namespace XSD */

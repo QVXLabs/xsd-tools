@@ -73,15 +73,15 @@ namespace Processors {
 		LuaProcessor();
 		/* dispatch a restriction's facet children to this processor */
 		void walkFacets_(const XSD::Elements::Node* pNode);
-		/* accumulate an attribute's restriction facets onto m_facets */
+		/* accumulate an attribute's restriction facets onto facets_ */
 		void walkAttributeFacets_(const XSD::Types::BaseType* pType);
 		/* facets accumulated across a restriction derivation chain */
-		LuaFacets m_facets;
+		LuaFacets facets_;
 		/* types currently being expanded on the active path; shared across
 		 * the nested processors of one generation so a type that re-enters
 		 * its own expansion (a cyclic schema) is rejected instead of
 		 * recursing until the stack overflows */
-		std::shared_ptr<std::set<const void*> > m_activePath;
+		std::shared_ptr<std::set<const void*> > activePath_;
 	};
 }	/* using namespace Processors */
 #endif /* LUAPROCESSOR_HPP_ */

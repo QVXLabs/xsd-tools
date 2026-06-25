@@ -41,7 +41,7 @@ namespace XSD {
 			void ParseChildren(BaseProcessor& rProcessor) const noexcept(false);;
 			void ParseElement(BaseProcessor& rProcessor) const noexcept(false);;
 			Types::BaseType * GetParentType(void) const noexcept(false);;
-			bool HasItemType() const;
+			XSD_HAS_ATTR(HasItemType, "itemType")
 			Types::BaseType* ItemType() const noexcept(false);;
 		};
 	}	/* namespace Elements */

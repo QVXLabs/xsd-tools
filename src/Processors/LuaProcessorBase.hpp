@@ -72,7 +72,7 @@ namespace Processors {
 	protected:
 		LuaAdapter *  	luaAdapter_() const;
 	private:
-		mutable LuaAdapter * m_pLuaAdapter;
+		mutable LuaAdapter * pLuaAdapter_;
 	};
 }
 #endif /* LUAPROCBASE_HPP_ */

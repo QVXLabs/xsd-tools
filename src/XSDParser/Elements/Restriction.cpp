@@ -158,7 +158,7 @@ Restriction::ParseElement(BaseProcessor& rProcessor) const noexcept(false) {
 	if (XSD_ISTYPE(pBase.get(), Types::ComplexType)) {
 		Types::ComplexType* pCmplxType = static_cast<Types::ComplexType*>(pBase.get());
 		Processors::RestrictionVerify verifyRestriciton;
-		if (!verifyRestriciton.Verify(this, pCmplxType->m_pValue))
+		if (!verifyRestriciton.Verify(this, pCmplxType->pValue_))
 			throw XMLException(GetXMLElm(), XMLException::RestrictionTypeMismatch);
 	}
 	/* process element */

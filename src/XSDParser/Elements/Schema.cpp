@@ -33,11 +33,11 @@ using namespace XSD;
 using namespace XSD::Elements;
 
 Schema::Schema(const TiXmlElement& elm, const Parser& rParser, const std::string& name )
-	: Node(elm, rParser), m_documentURI(name)
+	: Node(elm, rParser), documentURI_(name)
 { }
 
 Schema::Schema(const Schema& rDoc)
-	: Node(rDoc), m_documentURI(rDoc.m_documentURI)
+	: Node(rDoc), documentURI_(rDoc.documentURI_)
 { }
 
 /* virtual */
@@ -63,12 +63,12 @@ Schema::ParseElement(BaseProcessor& rProcessor) const noexcept(false) {
 
 const std::string
 Schema::Name() const noexcept(false) {
-	return extractName_(m_documentURI);
+	return extractName_(documentURI_);
 }
 
 const std::string&
 Schema::URI() const noexcept(false) {
-	return m_documentURI;
+	return documentURI_;
 }
 
 const std::string

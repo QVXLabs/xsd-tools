@@ -52,10 +52,10 @@ namespace XSD {
 			int MinOccurs() const;
 			std::string Namespace() const;
 			ContentValidation ProcessContents() const;
-			bool HasMaxOccurs() const;
-			bool HasMinOccurs() const;
-			bool HasNamespace() const;
-			bool HasProcessContents() const;
+			XSD_HAS_ATTR(HasMaxOccurs, "maxOccurs")
+			XSD_HAS_ATTR(HasMinOccurs, "minOccurs")
+			XSD_HAS_ATTR(HasNamespace, "namespace")
+			XSD_HAS_ATTR(HasProcessContents, "processContents")
 		};
 	}	/* namespace Elements */
 }	/* namespace XSD */

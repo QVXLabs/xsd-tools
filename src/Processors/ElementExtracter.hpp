@@ -40,7 +40,7 @@ namespace Processors {
 		virtual void ProcessElement(const XSD::Elements::Element* pNode);
 		virtual void ProcessInclude(const XSD::Elements::Include* pNode);
 	private:
-		ElementLst m_elementLst;
+		ElementLst elementLst_;
 	};
 }
 #endif /* ELEMENTEXTRACTER_HPP_ */

@@ -51,9 +51,9 @@ namespace XSD {
 			CyclicTypeDefinition,
 		};
 		struct ErrorInfo {
-			const int m_errorId;
-			const int m_docRow;
-			const int m_docCol;
+			const int errorId_;
+			const int docRow_;
+			const int docCol_;
 			ErrorInfo(int id, int row, int col);
 			ErrorInfo(const ErrorInfo&);
 		};
@@ -64,8 +64,8 @@ namespace XSD {
 		ErrorInfo QueryError() const throw() ;
 		virtual const char* what() const throw();
 	private:
-		std::string		m_errorMsg;
-		const ErrorInfo	m_errorInfo;
+		std::string		errorMsg_;
+		const ErrorInfo	errorInfo_;
 		XMLException();
 		XMLException& operator= (const XMLException&) throw();
 		void createErrorString_() throw();

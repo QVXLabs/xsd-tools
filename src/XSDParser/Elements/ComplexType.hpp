@@ -51,7 +51,7 @@ namespace XSD {
 			bool HasSequence() const;
 			bool HasAttribute() const;
 			bool HasChoice() const;
-			bool HasName() const;
+			XSD_HAS_ATTR(HasName, "name")
 		};
 	}	/* namespace Elements */
 }	/* namespace XSD */

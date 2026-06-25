@@ -91,11 +91,6 @@ SimpleType::Name() const noexcept(false) {
 }
 
 bool
-SimpleType::HasName() const {
-	return Node::HasAttribute("name");
-}
-
-bool
 SimpleType::HasRestriction() const {
 	return Node::HasContent(Restriction::XSDTag());
 }

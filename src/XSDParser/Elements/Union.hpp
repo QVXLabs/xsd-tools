@@ -41,7 +41,7 @@ namespace XSD {
 			Types::BaseType * GetParentType() const noexcept(false);
 			/* Add parser funciton to parse child elements */
 			TypeLst* MemberTypes() const noexcept(false);
-			bool HasMemberTypes() const;
+			XSD_HAS_ATTR(HasMemberTypes, "memberTypes")
 		};
 	}	/* namespace Elements */
 }	/* namespace XSD */

@@ -39,16 +39,16 @@ using namespace XSD::Types;
 #define WRAPPED_TYPE_DEFN(TYPE) \
 	/* virtual */ BaseType* \
 	TYPE::clone() const { \
-		return new TYPE(this->m_pValue); \
+		return new TYPE(this->pValue_); \
 	} \
 	/* virtual */ bool \
 	TYPE::isTypeRelated(const BaseType* pType) const { \
 		if (typeid(*pType) == typeid(TYPE)) { \
 			const TYPE* pCmp = static_cast<const TYPE*>(pType); \
-			if (*m_pValue == *pCmp->m_pValue) \
+			if (*pValue_ == *pCmp->pValue_) \
 				return true; \
 		} \
-		std::unique_ptr<BaseType> pBaseType(m_pValue->GetParentType()); \
+		std::unique_ptr<BaseType> pBaseType(pValue_->GetParentType()); \
 		if (NULL == pBaseType.get()) \
 			return false; \
 		else \
@@ -56,12 +56,12 @@ using namespace XSD::Types;
 	} \
 	/* virtual */ const char* \
 	TYPE::Name() const { \
-		m_name = (m_pValue->HasName()) ? m_pValue->Name() : "Unnamed"; \
-		return m_name.c_str(); \
+		name_ = (pValue_->HasName()) ? pValue_->Name() : "Unnamed"; \
+		return name_.c_str(); \
 	} \
 	/* virtual */ \
 	TYPE::~TYPE() { \
-		delete m_pValue; \
+		delete pValue_; \
 	}
 
 WRAPPED_TYPE_DEFN(SimpleType)

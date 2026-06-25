@@ -85,12 +85,12 @@ Extension::ParseElement(BaseProcessor& rProcessor) const noexcept(false) {
 	std::unique_ptr<Types::BaseType> pBase(Base());
 	if (XSD_ISTYPE(pBase.get(),Types::SimpleType)) {
 		const Types::SimpleType* pSmplType = static_cast<const Types::SimpleType*>(pBase.get());
-		if (checkForDuplicateNamedParticles_(&Node::GetXMLElm(), &pSmplType->m_pValue->GetXMLElm())) {
+		if (checkForDuplicateNamedParticles_(&Node::GetXMLElm(), &pSmplType->pValue_->GetXMLElm())) {
 			throw XMLException(GetXMLElm(), XMLException::InvallidChildXMLElement);
 		}
 	} else if (XSD_ISTYPE(pBase.get(),Types::ComplexType)) {
 		const Types::ComplexType* pCmplxType = static_cast<const Types::ComplexType*>(pBase.get());
-		if (checkForDuplicateNamedParticles_(&Node::GetXMLElm(), &pCmplxType->m_pValue->GetXMLElm())) {
+		if (checkForDuplicateNamedParticles_(&Node::GetXMLElm(), &pCmplxType->pValue_->GetXMLElm())) {
 			throw XMLException(GetXMLElm(), XMLException::InvallidChildXMLElement);
 		}
 	}

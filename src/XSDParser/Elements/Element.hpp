@@ -53,13 +53,13 @@ namespace XSD {
 			Element* RefElement() const noexcept(false);;
 			int MaxOccurs() const;
 			int MinOccurs() const;
-			bool HasName() const;
-			bool HasSubstitutionGroup() const;
-			bool HasRef() const;
-			bool HasType() const;
+			XSD_HAS_ATTR(HasName, "name")
+			XSD_HAS_ATTR(HasSubstitutionGroup, "substitutionGroup")
+			XSD_HAS_ATTR(HasRef, "ref")
+			XSD_HAS_ATTR(HasType, "type")
 			bool HasChildType() const;
-			bool HasMaxOccurs() const;
-			bool HasMinOccurs() const;
+			XSD_HAS_ATTR(HasMaxOccurs, "maxOccurs")
+			XSD_HAS_ATTR(HasMinOccurs, "minOccurs")
 		};
 	}
 }

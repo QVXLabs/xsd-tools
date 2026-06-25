@@ -34,7 +34,7 @@ namespace Core {
 		virtual ~ResourceException() noexcept;
 		virtual const char* what() const noexcept;
 	private:
-		std::string	m_errorMsg;
+		std::string	errorMsg_;
 	};
 	class Resource {
 	public:

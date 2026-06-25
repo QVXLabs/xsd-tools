@@ -29,12 +29,12 @@
 using namespace XSD;
 
 Parser::Parser()
-  : m_typesDb(), m_docLst()
+  : typesDb_(), docLst_()
 { }
 
 /* virtual */
 Parser::~Parser() {
-	for (XmlDocList::iterator i = m_docLst.begin(); i != m_docLst.end(); ++i) {
+	for (XmlDocList::iterator i = docLst_.begin(); i != docLst_.end(); ++i) {
 		delete *i;
 	}
 }
@@ -47,8 +47,8 @@ Parser::Parse(const char* pUri) const noexcept(false) {
 
 Parser::DocumentRecord*
 Parser::findByUri_(const std::string& rUri) const {
-	for (XmlDocList::iterator i = m_docLst.begin(); i != m_docLst.end(); ++i) {
-		if ((*i)->m_uri == rUri)
+	for (XmlDocList::iterator i = docLst_.begin(); i != docLst_.end(); ++i) {
+		if ((*i)->uri_ == rUri)
 			return *i;
 	}
 	return NULL;
@@ -56,8 +56,8 @@ Parser::findByUri_(const std::string& rUri) const {
 
 Parser::DocumentRecord*
 Parser::findByDoc_(const TiXmlDocument& document) const {
-	for (XmlDocList::iterator i = m_docLst.begin(); i != m_docLst.end(); ++i) {
-		if ((*i)->m_pDocument == &document)
+	for (XmlDocList::iterator i = docLst_.begin(); i != docLst_.end(); ++i) {
+		if ((*i)->pDocument_ == &document)
 			return *i;
 	}
 	return NULL;
@@ -67,11 +67,11 @@ Elements::Schema*
 Parser::Parse(const std::string& rUri) const noexcept(false) {
 	/* search if the document has already been parsed */
 	if (DocumentRecord* pRec = findByUri_(rUri)) {
-		return new Elements::Schema(*(pRec->m_pDocument->RootElement()),
+		return new Elements::Schema(*(pRec->pDocument_->RootElement()),
 			*this, rUri);
 	} else {
-		m_docLst.push_back(new DocumentRecord(new TiXmlDocument(), rUri));
-		TiXmlDocument * pDoc = m_docLst.back()->m_pDocument;
+		docLst_.push_back(new DocumentRecord(new TiXmlDocument(), rUri));
+		TiXmlDocument * pDoc = docLst_.back()->pDocument_;
 		pDoc->SetTabSize(4);
 		/* parse protocol portion */
 		if (0 == rUri.find(PROTO_FILE)) {
@@ -93,7 +93,7 @@ Parser::Parse(const std::string& rUri) const noexcept(false) {
 
 const Types::TypesDB&
 Parser::QueryTypesDb() const throw() {
-	return m_typesDb;
+	return typesDb_;
 }
 
 bool
@@ -109,17 +109,17 @@ Parser::HasDocument(const std::string& rUri) const {
 std::string
 Parser::GetUri(const TiXmlDocument& document) const {
 	DocumentRecord* pRec = findByDoc_(document);
-	return pRec ? pRec->m_uri : std::string("unknown");
+	return pRec ? pRec->uri_ : std::string("unknown");
 }
 
 const TiXmlDocument *
 Parser::GetDocument(const std::string& rUri) const {
 	DocumentRecord* pRec = findByUri_(rUri);
-	return pRec ? pRec->m_pDocument : NULL;
+	return pRec ? pRec->pDocument_ : NULL;
 }
 
 bool 
 Parser::isRootDocument(const TiXmlDocument& document) const {
-	return ((*(m_docLst.begin()))->m_pDocument == &document);
+	return ((*(docLst_.begin()))->pDocument_ == &document);
 }
 

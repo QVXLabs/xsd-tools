@@ -78,12 +78,7 @@ Union::MemberTypes() const noexcept(false) {
 		 itr != tokens.end();
 		 ++itr) {
 		const std::string& token = *itr;
-		retLst->push_back(Node::LookupType(token.c_str()));
+		retLst->push_back(Node::Type_(token.c_str()));
 	}
 	return retLst;
-}
-
-bool
-Union::HasMemberTypes() const {
-	return Node::HasAttribute("memberTypes");
 }

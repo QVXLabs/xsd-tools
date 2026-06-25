@@ -39,7 +39,7 @@ namespace Processors {
 		virtual void ProcessList(const XSD::Elements::List* pNode);
 		virtual void ProcessInclude(const XSD::Elements::Include* pNode);
 	private:
-		XSD::Types::BaseType* m_pType;
+		XSD::Types::BaseType* pType_;
 		void parseType_(const XSD::Types::BaseType& rXSDType);
 	};
 }

@@ -142,8 +142,3 @@ bool
 ComplexType::HasChoice() const {
 	return Node::HasContent(Choice::XSDTag());
 }
-
-bool
-ComplexType::HasName() const {
-	return Node::HasAttribute("name");
-}

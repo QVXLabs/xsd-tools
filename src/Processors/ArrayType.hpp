@@ -38,8 +38,8 @@ namespace Processors {
 			virtual const char* Name() const;
 			const XSD::Types::BaseType& Type() const;
 		private:
-			XSD::Types::BaseType* m_pBaseType;
-			std::string m_name;
+			XSD::Types::BaseType* pBaseType_;
+			std::string name_;
 		};
 	}
 }

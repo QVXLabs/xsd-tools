@@ -41,8 +41,8 @@ namespace XSD {
 			void ParseElement(BaseProcessor& rProcessor) const noexcept(false);;
 			std::string Name() const noexcept(false);;
 			AttributeGroup* RefGroup() const noexcept(false);;
-			bool HasName() const;
-			bool HasRef() const;
+			XSD_HAS_ATTR(HasName, "name")
+			XSD_HAS_ATTR(HasRef, "ref")
 		};
 	}	/* namespace Elements */
 }	/* namespace XSD */
