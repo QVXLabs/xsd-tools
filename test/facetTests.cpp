@@ -108,3 +108,17 @@ TEST(Bug, AnnotationInStringRestriction) {
 	EXPECT_NO_THROW(
 		gen("python-sax", CORPUS + "bug_restriction_annotation.xsd"));
 }
+
+/* E3: every XML target references the targetNamespace URI for a namespaced
+ * schema (emitted as xmlns/xmlns:tns at marshal time — literal in the C/python
+ * output, via the StAX namespace API in Java). Non-namespaced output stays
+ * bare. */
+TEST(Namespace, EmittedAcrossXmlTargets) {
+	const std::string xsd = CORPUS + "nsTargetPrefixed.xsd";
+	const char* tmpls[] = { "c-xml-expat", "c-xml-expat-dom.template",
+	                        "python-sax", "java-xml-stax.tmpl" };
+	for (size_t i = 0; i < sizeof(tmpls) / sizeof(*tmpls); ++i)
+		EXPECT_TRUE(has(gen(tmpls[i], xsd), "urn:example:phase0")) << tmpls[i];
+	/* a non-namespaced schema emits no xmlns */
+	EXPECT_FALSE(has(gen("c-xml-expat", CORPUS + "testA001.xsd"), "xmlns="));
+}
