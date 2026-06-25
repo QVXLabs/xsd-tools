@@ -336,11 +336,21 @@ set(LIBXSDB_SOURCES
 
 add_library(xsdb-lib STATIC ${LIBXSDB_SOURCES})
 add_dependencies(xsdb-lib luascript)
+# Build-tree include roots resolve our "./src/..." includes and the generated
+# resource_config.hpp. Wrapped in BUILD_INTERFACE so they don't leak into the
+# installed export; consumers get the install-tree include dir added below.
 target_include_directories(xsdb-lib PUBLIC
-  "${CMAKE_CURRENT_SOURCE_DIR}"            # so "./src/..." includes resolve
-  "${CMAKE_BINARY_DIR}/generated")         # resource_config.hpp
+  "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>"
+  "$<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/generated>")
+# Deps are needed to build the archive but xsdb-lib is static; consumers
+# relink their own deps. BUILD_INTERFACE keeps the export self-contained.
 target_link_libraries(xsdb-lib PUBLIC
-  xsd_lua xsd_tinyxml xsd_boost PRIVATE xsd_incbin xsd_flags)
+  "$<BUILD_INTERFACE:xsd_lua>"
+  "$<BUILD_INTERFACE:xsd_tinyxml>"
+  "$<BUILD_INTERFACE:xsd_boost>"
+  PRIVATE
+  "$<BUILD_INTERFACE:xsd_incbin>"
+  "$<BUILD_INTERFACE:xsd_flags>")
 
 # -- Embed luascript.luac into resource.cpp --
 if(MSVC)
@@ -374,12 +384,30 @@ endif()
 add_executable(xsdb src/main.cpp)
 target_link_libraries(xsdb PRIVATE xsdb-lib xsd_flags)
 
+# Consumers link the public Generate()/SplitMarkedFiles() API via this alias.
+add_library(xsdtools::xsdtools ALIAS xsdb-lib)
+
 # ---------------------------------------------------------------------------
 # Install
 # ---------------------------------------------------------------------------
 install(TARGETS xsdb RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}")
 install(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/templates/"
   DESTINATION "${CMAKE_INSTALL_DATADIR}/xsdtools/templates")
+
+# ---------------------------------------------------------------------------
+# Library export: downstream C++ links xsdtools::xsdtools for Generate() /
+# SplitMarkedFiles() and includes <xsdtools/xsdtools.hpp>.
+# ---------------------------------------------------------------------------
+target_include_directories(xsdb-lib PUBLIC
+  "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>")
+install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/src/xsdtools.hpp"
+  DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/xsdtools")
+install(TARGETS xsdb-lib EXPORT xsdtools-targets
+  ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}")
+install(EXPORT xsdtools-targets
+  FILE xsdtools-targets.cmake
+  NAMESPACE xsdtools::
+  DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/xsdtools")
 
 # ---------------------------------------------------------------------------
 # Tests

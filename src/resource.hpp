@@ -25,6 +25,7 @@
 
 #include <stdint.h>
 #include <string>
+#include <vector>
 
 namespace Core {
 	class ResourceException : public std::exception {
@@ -41,6 +42,11 @@ namespace Core {
 		virtual ~Resource() noexcept;
 		const uint8_t* GetEngineScript(size_t* pRetSz) noexcept;
 		std::string GetTemplatePath(const std::string& templateName) noexcept(false);
+		/* First readable templates directory among $XSDTOOLS_DATA, the home
+		 * dir, and the install prefix; empty if none exists. */
+		std::string TemplatesDir() noexcept;
+		/* Names of regular files in TemplatesDir(), sorted; empty if no dir. */
+		std::vector<std::string> ListTemplates() noexcept;
 	};
 }
 #endif /* RESOURCE_HPP_ */

@@ -22,18 +22,19 @@
  */
 #include <string>
 #include <cstdlib>
+#include <algorithm>
+#include <vector>
 #if defined(_WIN32)
 #	include <io.h>
 #	include <windows.h>
-#elif defined(__APPLE__)
-#	include <unistd.h>
-#	include <sys/types.h>
-#	include <pwd.h>
-#	include <mach-o/dyld.h>
 #else
 #	include <unistd.h>
 #	include <sys/types.h>
 #	include <pwd.h>
+#	include <dirent.h>
+#endif
+#if defined(__APPLE__)
+#	include <mach-o/dyld.h>
 #endif
 #define INCBIN_SILENCE_BITCODE_WARNING
 #define INCBIN_PREFIX _binary_
@@ -167,9 +168,52 @@ Resource::GetTemplatePath(const std::string& templateName) noexcept(false) {
 	globalFilePath += "/" + templateName;
 	if (_readable(globalFilePath))
 		return globalFilePath;
-	else {
-		string errorMessage("Could not open template ");
-		throw ResourceException(errorMessage + templateName);
-	}
+	/* source-tree convenience: ./templates/<name> */
+	string localPath("templates/" + templateName);
+	if (0 == access(localPath.c_str(), R_OK))
+		return localPath;
+	throw ResourceException("Could not open template " + templateName);
 	return std::string("");
+}
+
+string
+Resource::TemplatesDir() noexcept {
+	const char* val = getenv("XSDTOOLS_DATA");
+	if (nullptr != val && 0 == access(val, R_OK))
+		return string(val);
+	struct passwd* pw = getpwuid(getuid());
+	if (nullptr != pw) {
+		string homeDir(pw->pw_dir);
+		homeDir += "/" + gscHOMEPATH.substr(1);
+		if (0 == access(homeDir.c_str(), R_OK))
+			return homeDir;
+	}
+	if (0 == access(gscGLOBALPATH.c_str(), R_OK))
+		return gscGLOBALPATH;
+	/* source-tree convenience: ./templates */
+	if (0 == access("templates", R_OK))
+		return string("templates");
+	return string("");
+}
+
+vector<string>
+Resource::ListTemplates() noexcept {
+	vector<string> names;
+	string dir = TemplatesDir();
+	if (dir.empty())
+		return names;
+	DIR* pDir = opendir(dir.c_str());
+	if (nullptr == pDir)
+		return names;
+	struct dirent* pEnt = nullptr;
+	while (nullptr != (pEnt = readdir(pDir))) {
+		string name(pEnt->d_name);
+		if ("." == name || ".." == name)
+			continue;
+		if (0 == access((dir + "/" + name).c_str(), R_OK))
+			names.push_back(name);
+	}
+	closedir(pDir);
+	sort(names.begin(), names.end());
+	return names;
 }

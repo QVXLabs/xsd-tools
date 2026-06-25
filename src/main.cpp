@@ -21,7 +21,9 @@
  *  along with xsd-tools.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <unistd.h>
 #include <exception>
+#include <sstream>
 #include <string>
 #include <iostream>
 #include <vector>
@@ -33,39 +35,99 @@
 
 using namespace std;
 
+namespace {
+	void printUsage(ostream& out) {
+		out << "xsdb " << XSDTOOLS_VERSION
+		    << " -- XSD-to-code generator (c) QVXLabs LLC\n\n"
+		    << "Usage: xsdb [options] <template> <input.xsd> [k v ...]\n\n"
+		    << "Generate code from <input.xsd> using <template> and print it\n"
+		    << "to stdout. Trailing args are template key/value pairs exposed\n"
+		    << "to the template as __CMD_ARGS__.\n\n"
+		    << "Options:\n"
+		    << "  --out-dir <dir>  Split multi-file output on '/* FILE: name'\n"
+		    << "                   markers and write real files under <dir>.\n"
+		    << "  --list           List available templates, one per line.\n"
+		    << "  -h, --help       Show this help and exit.\n"
+		    << "  --version        Print version and exit.\n\n"
+		    << "Example:\n"
+		    << "  xsdb c-xml-expat test/xsd-positive/testA001.xsd\n";
+	}
+}
+
 int main(int argc, const char* argv[]) {
-	if (argc >= 2) {
-		const string firstArg(argv[1]);
-		if ("--version" == firstArg || "-v" == firstArg) {
+	std::string outDir;
+	std::vector<std::string> positionals;
+	for (int ndx = 1; ndx < argc; ++ndx) {
+		std::string arg(argv[ndx]);
+		if ("-h" == arg || "--help" == arg) {
+			printUsage(cout);
+			return 0;
+		} else if ("--version" == arg) {
 			cout << "xsdb " << XSDTOOLS_VERSION << endl;
 			return 0;
+		} else if ("--list" == arg) {
+			Core::Resource resource;
+			std::vector<std::string> names = resource.ListTemplates();
+			if (names.empty()) {
+				cerr << "No templates directory found (set XSDTOOLS_DATA, "
+				     << "install templates, or run from a source tree)."
+				     << endl;
+				return 1;
+			}
+			for (size_t i = 0; i < names.size(); ++i)
+				cout << names[i] << endl;
+			return 0;
+		} else if ("--out-dir" == arg) {
+			if (ndx + 1 >= argc) {
+				cerr << "--out-dir requires a directory argument." << endl;
+				return 2;
+			}
+			outDir = argv[++ndx];
+		} else {
+			positionals.push_back(arg);
 		}
 	}
-	if (argc < 3) {
-		cout << "xsdb " << XSDTOOLS_VERSION << " (c) QVXLabs LLC" << endl;
-		cout << "Syntax xsdb <template> <input xsd file> <unique template paramters>" << endl;
-		cout << "To retrieve list of template paramters invoke with option \"-h info\"" << endl;
-		cout << "For example:" << endl;
-		cout << "\t #./xsdb templates/test test/xsd-positive/testA001.xsd -h all" << endl;
-		cout << "Please note that not all templates have optional paramters in which" << endl;
-		cout << "case they will not return anything as optional paramters." << endl;
-		return 0;
+
+	if (positionals.size() < 2) {
+		printUsage(cerr);
+		return 2;
 	}
-	/* additional argv beyond <template> <xsd> are template key/value pairs */
-	std::vector<std::string> templateArgs;
-	for (int ndx = 3; ndx < argc; ++ndx)
-		templateArgs.push_back(argv[ndx]);
+	const std::string& templatePath = positionals[0];
+	const std::string& xsdPath = positionals[1];
+
+	/* Distinguish a missing/unreadable XSD up front: Generate() would
+	 * otherwise surface this as a generic parse error. */
+	if (0 != access(xsdPath.c_str(), R_OK)) {
+		cerr << "XSD file not found or unreadable: " << xsdPath << endl;
+		return 3;
+	}
+
+	/* template key/value pairs follow the two positionals */
+	std::vector<std::string> templateArgs(positionals.begin() + 2,
+	                                       positionals.end());
 	try {
-		XsdTools::Generate(argv[1], argv[2], std::cout, templateArgs);
+		if (outDir.empty()) {
+			XsdTools::Generate(templatePath, xsdPath, std::cout,
+			                   templateArgs);
+		} else {
+			std::ostringstream blob;
+			XsdTools::Generate(templatePath, xsdPath, blob, templateArgs);
+			std::vector<std::string> files =
+				XsdTools::SplitMarkedFiles(blob.str(), outDir);
+			for (size_t i = 0; i < files.size(); ++i)
+				cout << outDir << "/" << files[i] << endl;
+		}
 	} catch (XSD::XMLException& e) {
-		cerr << "XSD Parsing Error: " << e.what() << endl;
-		return 1;
+		cerr << "XSD parse error in " << xsdPath << ": " << e.what() << endl;
+		return 4;
 	} catch (Core::LuaException& e) {
-		cerr << "Lua Error: " << e.what() << endl;
-		return 1;
+		cerr << "Template error in " << templatePath << ": " << e.what()
+		     << endl;
+		return 5;
 	} catch (Core::ResourceException& e) {
+		/* template-not-found / output-write failures */
 		cerr << e.what() << endl;
-		return 1;
+		return 6;
 	} catch (std::exception& e) {
 		cerr << "General error: " << e.what() << endl;
 		return 1;
