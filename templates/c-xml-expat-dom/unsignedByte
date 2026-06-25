@@ -15,8 +15,16 @@ function unsignedByte:typeName()
    return ("xml_unsignedByte")
 end
 
+function unsignedByte:inlineScalar()
+   return true
+end
+
+function unsignedByte:cType()
+   return "uint8_t"
+end
+
 function unsignedByte:typeDef()
-   return ("typedef uint8_t * %s;\n"):format(self:typeName())
+   return self:scalarTypeDef()
 end
 
 function unsignedByte:typeFactoryMethods()
@@ -24,40 +32,20 @@ function unsignedByte:typeFactoryMethods()
 end
 
 function unsignedByte:defMarshal(elementName)
-   out = stringBuffer:new()
-   out:append("static void")
-   out:append("_xml_unsignedByte_marshal")
-   out:append("(const xml_unsignedByte pVal, char ** ppOut, const xml_typeFactory * pFactory) {\n")
-   out:append("  char num[4];\n")
-   out:append("  snprintf(num, 4, \"%d\", *pVal);\n")
-   out:append("  _cstr_append(ppOut, num, pFactory);\n")
-   out:append("}\n")   
-   return out:str()
+   return self:defScalarMarshal(function(v)
+      return ("  char num[8];\n  snprintf(num, 8, \"%%u\", %s);\n  cstr_append_(ppOut, num, pFactory);\n"):format(v)
+   end)
 end
 
 function unsignedByte:defUnmarshal(elementName)
-   out = stringBuffer:new()
-   out:append("static xml_unsignedByte\n")
-   out:append("_xml_unsignedByte_unmarshal(")
-   out:append("const char * pVal, const xml_typeFactory * pFactory) {\n")
-   out:append("  xml_unsignedByte val = ReallocateMemory(pFactory, NULL, sizeof(uint8_t));\n")
-   out:append("  return (*val  = atoi(pVal)), val;\n")
-   out:append("}\n")
-   return out:str()
+   return self:defScalarUnmarshal("(uint8_t)atoll(pVal)")
 end
 
 function unsignedByte:defDestroy()
-   out = stringBuffer:new()
-   out:append("static xml_unsignedByte\n")
-   out:append("_xml_unsignedByte_destroy")
-   out:append("(xml_unsignedByte pVal, const xml_typeFactory * pFactory) {\n")
-   out:append("  if (pVal) pVal = ReallocateMemory(pFactory, pVal, 0);\n")
-   out:append("  return pVal;\n")
-   out:append("}\n")
-   return out:str()
+   return self:defScalarDestroy()
 end
 
-function unsignedByte:test()
-   return "215"
+function unsignedByte:test(facets)
+   return facets_sampleInt(facets) or "215"
 end
 ]

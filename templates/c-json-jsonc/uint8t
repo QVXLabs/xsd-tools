@@ -10,7 +10,7 @@
 			end,
 			statement = function(varName)
 				return table.concat({
-					'uint8_t\tm_', varName, ';\n',
+					'uint8_t\t', varName, '_;\n',
 				})
 			end,
 		},
@@ -23,7 +23,7 @@
 			end,
 		},
 		buildVar = function(obj, member)
-			return table.concat({obj,'m_',member})
+			return table.concat({obj,member,'_'})
 		end,
 		binding = {
 			marshal = {
@@ -51,8 +51,8 @@
 			},
 		},
 		test = {
-			assign = function()
-				return tostring(math.random(0, 255))
+			assign = function(facets)
+				return facets_sampleInt(facets) or tostring(math.random(0, 255))
 			end,
 			assert = function(obj1, obj2)
 				return string.format("\tassert(%s == %s);\n", obj1, obj2)

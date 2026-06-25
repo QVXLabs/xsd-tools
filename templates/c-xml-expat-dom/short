@@ -15,8 +15,16 @@ function short:typeName()
    return ("xml_short")
 end
 
+function short:inlineScalar()
+   return true
+end
+
+function short:cType()
+   return "int16_t"
+end
+
 function short:typeDef()
-   return ("typedef int16_t * %s;\n"):format(self:typeName())
+   return self:scalarTypeDef()
 end
 
 function short:typeFactoryMethods()
@@ -24,40 +32,20 @@ function short:typeFactoryMethods()
 end
 
 function short:defMarshal(elementName)
-   out = stringBuffer:new()
-   out:append("static void")
-   out:append("_xml_short_marshal")
-   out:append("(const xml_short pVal, char ** ppOut, const xml_typeFactory * pFactory) {\n")
-   out:append("  char num[8];\n")
-   out:append("  snprintf(num, 8, \"%d\", *pVal);\n")
-   out:append("  _cstr_append(ppOut, num, pFactory);\n")
-   out:append("}\n")   
-   return out:str()
+   return self:defScalarMarshal(function(v)
+      return ("  char num[8];\n  snprintf(num, 8, \"%%d\", %s);\n  cstr_append_(ppOut, num, pFactory);\n"):format(v)
+   end)
 end
 
 function short:defUnmarshal(elementName)
-   out = stringBuffer:new()
-   out:append("static xml_short\n")
-   out:append("_xml_short_unmarshal(")
-   out:append("const char * pVal, const xml_typeFactory * pFactory) {\n")
-   out:append("  xml_short val = ReallocateMemory(pFactory, NULL, sizeof(int16_t));\n")
-   out:append("  return (*val  = atoi(pVal)), val;\n")
-   out:append("}\n")
-   return out:str()
+   return self:defScalarUnmarshal("(int16_t)atoll(pVal)")
 end
 
 function short:defDestroy()
-   out = stringBuffer:new()
-   out:append("static xml_short\n")
-   out:append("_xml_short_destroy")
-   out:append("(xml_short pVal, const xml_typeFactory * pFactory) {\n")
-   out:append("  if (pVal) pVal = ReallocateMemory(pFactory, pVal, 0);\n")
-   out:append("  return pVal;\n")
-   out:append("}\n")
-   return out:str()
+   return self:defScalarDestroy()
 end
 
-function short:test()
-   return "29832"
+function short:test(facets)
+   return facets_sampleInt(facets) or "29832"
 end
 ]

@@ -4,6 +4,7 @@
 ][@lua --include any shared 'helper' templates
 	return include 'shared/schemaEx'
 ][@lua -- include python json type info
+	include 'shared/facets'
 	include 'python-json/python_type_info'
 ][@lua --rename any non-c-safe names to c-safe names & sort dependencies so that they are matched correctly
 	schema = schema.c_safeNames()
@@ -18,10 +19,18 @@
 # are constructed via the module-level `factories` registry so a consumer can
 # override factories['<name>'] to inject a subclass; the unmarshal path always
 # goes through it.
-import base64
-import binascii
-import json
-
+[@lua -- emit base64/binascii imports only when the schema uses those types
+	local used = schema.uniqueTypes()
+	local out = {}
+	if used['base64Binary'] or used['list(base64Binary)'] then
+		out[#out + 1] = 'import base64\n'
+	end
+	if used['hexBinary'] or used['list(hexBinary)'] then
+		out[#out + 1] = 'import binascii\n'
+	end
+	out[#out + 1] = 'import json\n'
+	return table.concat(out)
+]
 
 class _jsonelement:
     def __init__(self):
@@ -32,6 +41,55 @@ class _jsonelement:
 
 [@lua -- output class for each element
 	local outbuf = stringBuffer:new()
+	-- Module-level frozenset definitions for numeric enum membership.
+	local enumbuf = stringBuffer:new()
+	-- A field is numeric when its type maps to int/long/float; then `_v` is a
+	-- parsed number and enum membership compares numerically (no stringify).
+	local function pyNumeric(typeName)
+		local t = pyjson_type_info[typeName]
+		return t == pyjsontype_int or t == pyjsontype_long
+			or t == pyjsontype_float
+	end
+	-- Render facet checks (D2) on the local `_v` into a validate() body.
+	-- Pattern facets (P3) are not enforced yet. `prefix`/`typeName` scope the
+	-- numeric enum frozenset.
+	local function pyChecks(prefix, label, typeName, facets)
+		local out = stringBuffer:new()
+		-- emit a guard that raises unless the value-condition `cond` holds
+		local function guard(cond, msg)
+			out:append('        if _v is not None and not (' .. cond .. '):\n')
+			out:append('            raise ValueError("' .. label .. ': ' .. msg .. '")\n')
+		end
+		table.map(facets_checks(facets), function(_, c)
+			if c.kind == 'range' then
+				guard(c.lo and c.hi and (c.lo .. ' <= _v <= ' .. c.hi)
+					or c.lo and (c.lo .. ' <= _v') or ('_v <= ' .. c.hi),
+					'out of range')
+			elseif c.kind == 'length' then
+				local n, parts = 'len(str(_v))', {}
+				if c.exact then parts = {n .. ' == ' .. c.exact} end
+				if c.min then parts[#parts + 1] = n .. ' >= ' .. c.min end
+				if c.max then parts[#parts + 1] = n .. ' <= ' .. c.max end
+				guard(table.concat(parts, ' and '), 'bad length')
+			elseif c.kind == 'enum' then
+				if pyNumeric(typeName) then
+					local name = '_ENUM_' .. prefix .. '_' .. label
+					local vals = {}
+					table.map(c.values, function(_, v) vals[#vals + 1] = v end)
+					enumbuf:append(name .. ' = frozenset((' ..
+						table.concat(vals, ', ') .. ',))\n')
+					guard('_v in ' .. name, 'not permitted')
+				else
+					local vals = {}
+					table.map(c.values,
+						function(_, v) vals[#vals + 1] = '"' .. v .. '"' end)
+					guard('str(_v) in (' .. table.concat(vals, ', ') .. ',)',
+						'not permitted')
+				end
+			end
+		end)
+		return out:str()
+	end
 	table.map(depOrderSansRoot, function(_, node)
 		outbuf:append(table.concat({
 			'\n',
@@ -96,7 +154,26 @@ class _jsonelement:
 				"            self._content.append(element)\n"
 			}))
 		end
-		outbuf:append('\n')
+		-- emit facet validation (D2) only when the element carries facets;
+		-- skip the empty validate() + call otherwise (T3).
+		local checks = stringBuffer:new()
+		if node.content.facets then
+			checks:append('        _v = self._content[0] if self._content else None\n')
+			checks:append(pyChecks(node.name, 'content', node.content.type,
+				node.content.facets))
+		end
+		table.map(node.attributes, function(an, attr)
+			if attr.facets then
+				checks:append('        _v = self._' .. an .. '\n')
+				checks:append(pyChecks(node.name, an, attr.type, attr.facets))
+			end
+		end)
+		if #checks:str() > 0 then
+			outbuf:append('        self.validate()\n')
+			outbuf:append('\n    def validate(self):\n')
+			outbuf:append(checks:str())
+			outbuf:append('\n')
+		end
 		-- output 'getters' code for each attribute
 		table.map(node.attributes, function(attributeName, attribute)
 			outbuf:append(table.concat({
@@ -115,7 +192,7 @@ class _jsonelement:
 		end)
 		outbuf:append('\n')
 	end)
-	return outbuf:str()
+	return enumbuf:str() .. outbuf:str()
 ]
 [@lua -- module-level overridable factory registry: element name -> class
 	local outbuf = stringBuffer:new()

@@ -8,50 +8,50 @@
 			definition = function()
 				return table.concat({
 					'typedef struct {\n',
-					'\tuint8_t*\tm_pBuffer;\n',
-					'\tuint32_t\tm_size;\n',
+					'\tuint8_t*\tpBuffer_;\n',
+					'\tuint32_t\tsize_;\n',
 					'} json_hex;\n',
 				})
 			end,
 			statement = function(varName)
 				return table.concat({
-					'json_hex\tm_', varName, ';\n',
+					'json_hex\t', varName, '_;\n',
 				})
 			end,
 		},
 		delete = {
 			definition = function()
 				return table.concat({
-					'static void _destroy_jsonhex(json_marshaller* pMarshaller, json_hex* pObj) {\n',
-					'\tif(pObj->m_pBuffer) {\n',
-					'\t\tpObj->m_pBuffer = pMarshaller->realloc(pMarshaller, pObj->m_pBuffer, 0);\n',
+					'static void destroy_jsonhex_(json_marshaller* pMarshaller, json_hex* pObj) {\n',
+					'\tif(pObj->pBuffer_) {\n',
+					'\t\tpObj->pBuffer_ = pMarshaller->realloc(pMarshaller, pObj->pBuffer_, 0);\n',
 					'\t}\n',
 					'}\n',
 				})
 			end,
 			statement = function(obj)
 				return table.concat({
-					'_destroy_jsonhex(pMarshaller, &', obj, ');\n',
+					'destroy_jsonhex_(pMarshaller, &', obj, ');\n',
 				})
 			end,
 		},
 		buildVar = function(obj, member)
-			return table.concat({obj,'m_',member})
+			return table.concat({obj,member,'_'})
 		end,
 		binding = {
 			marshal = {
 				definition = function()
 					return table.concat({
-						'static struct json_object* _marshal_jsonhex(json_marshaller* pMarshaller, const json_hex* pObj) {\n',
+						'static struct json_object* marshal_jsonhex_(json_marshaller* pMarshaller, const json_hex* pObj) {\n',
 						'\tunsigned ndx;\n',
 						'\tstatic const char hexTbl[] = "0123456789ABCDEF";\n',
 						'\tstruct json_object* pRet;\n',
-						'\tchar* pHexBuf = pMarshaller->realloc(pMarshaller, NULL, (pObj->m_size * 2) + 1);\n',
-						'\tfor(ndx = 0; ndx < pObj->m_size; ++ndx) {\n',
-						'\t\tpHexBuf[ndx << 1] = hexTbl[pObj->m_pBuffer[ndx] >> 4];\n',
-						'\t\tpHexBuf[(ndx << 1) + 1] = hexTbl[pObj->m_pBuffer[ndx] & 0x0F];\n',
+						'\tchar* pHexBuf = pMarshaller->realloc(pMarshaller, NULL, (pObj->size_ * 2) + 1);\n',
+						'\tfor(ndx = 0; ndx < pObj->size_; ++ndx) {\n',
+						'\t\tpHexBuf[ndx << 1] = hexTbl[pObj->pBuffer_[ndx] >> 4];\n',
+						'\t\tpHexBuf[(ndx << 1) + 1] = hexTbl[pObj->pBuffer_[ndx] & 0x0F];\n',
 						'\t}\n',
-						'\tpHexBuf[pObj->m_size << 1] = 0;\n',
+						'\tpHexBuf[pObj->size_ << 1] = 0;\n',
 						'\tpRet = json_object_new_string(pHexBuf);\n',
 						'\tpMarshaller->realloc(pMarshaller, pHexBuf, 0);\n',
 						'\treturn pRet;\n',
@@ -59,31 +59,31 @@
 					})
 				end,
 				value = function(obj)
-					return table.concat({'_marshal_jsonhex(pMarshaller, &', obj, ')'})
+					return table.concat({'marshal_jsonhex_(pMarshaller, &', obj, ')'})
 				end,
 				statement = function(dst, key, obj)
 					return table.concat({
 						'json_object_object_add(', dst, ', ', key,
-						', _marshal_jsonhex(pMarshaller, &', obj, '));\n',
+						', marshal_jsonhex_(pMarshaller, &', obj, '));\n',
 					})
 				end,
 			},
 			unmarshal = {
 				definition = function()
 					return table.concat({
-						'static int _hexNibble(char c) {\n',
+						'static int hexNibble_(char c) {\n',
 						'\tif (c >= \'0\' && c <= \'9\') return c - \'0\';\n',
 						'\tif (c >= \'a\' && c <= \'f\') return c - \'a\' + 10;\n',
 						'\tif (c >= \'A\' && c <= \'F\') return c - \'A\' + 10;\n',
 						'\treturn -1;\n',
 						'}\n',
-						'static void _unmarshal_jsonhex(json_marshaller* pMarshaller, const char* pContent, json_hex* pObj) {\n',
+						'static void unmarshal_jsonhex_(json_marshaller* pMarshaller, const char* restrict pContent, json_hex* restrict pObj) {\n',
 						'\tconst size_t contentSz = strlen(pContent);\n',
 						'\tuint8_t* pOutItr;\n',
 						'\tint hi = -1;\n',
-						'\tpObj->m_pBuffer = pMarshaller->realloc(pMarshaller, NULL, (contentSz / 2) + 1);\n',
-						'\tfor (pOutItr = pObj->m_pBuffer; *pContent; ++pContent) {\n',
-						'\t\tconst int nibble = _hexNibble(*pContent);\n',
+						'\tpObj->pBuffer_ = pMarshaller->realloc(pMarshaller, NULL, (contentSz / 2) + 1);\n',
+						'\tfor (pOutItr = pObj->pBuffer_; *pContent; ++pContent) {\n',
+						'\t\tconst int nibble = hexNibble_(*pContent);\n',
 						'\t\tif (nibble < 0) continue;\n',
 						'\t\tif (hi < 0) {\n',
 						'\t\t\thi = nibble;\n',
@@ -92,13 +92,13 @@
 						'\t\t\thi = -1;\n',
 						'\t\t}\n',
 						'\t}\n',
-						'\tpObj->m_size = (uint32_t)(pOutItr - pObj->m_pBuffer);\n',
+						'\tpObj->size_ = (uint32_t)(pOutItr - pObj->pBuffer_);\n',
 						'}\n',
 					})
 				end,
 				statement = function(src, obj)
 					return table.concat({
-						'_unmarshal_jsonhex(pMarshaller, json_object_get_string(', src, '), &', obj, ');\n',
+						'unmarshal_jsonhex_(pMarshaller, json_object_get_string(', src, '), &', obj, ');\n',
 					})
 				end,
 			},
@@ -111,12 +111,12 @@
 					math.random(0, 65535),
 					math.random(0, 65535)
 				)
-				return string.format('{ .m_pBuffer = (uint8_t*)\"%s\", .m_size = %d }', str, str:len())
+				return string.format('{ .pBuffer_ = (uint8_t*)\"%s\", .size_ = %d }', str, str:len())
 			end,
 			assert = function(obj1, obj2)
 				return table.concat({
-					string.format("\tassert(%s.m_size ==  %s.m_size);\n", obj1, obj2),
-					string.format("\tassert(!memcmp(%s.m_pBuffer, %s.m_pBuffer, %s.m_size));\n", obj1, obj2, obj2),
+					string.format("\tassert(%s.size_ ==  %s.size_);\n", obj1, obj2),
+					string.format("\tassert(!memcmp(%s.pBuffer_, %s.pBuffer_, %s.size_));\n", obj1, obj2, obj2),
 				})
 			end
 		},

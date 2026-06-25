@@ -118,4 +118,24 @@
 		['list(base64Binary)']		= c_list:new(ctype_base64),
 		['list(hexBinary)'] 		= c_list:new(ctype_hex),
 	}
+
+	-- D2b: map a {bits, signed} narrowing to its fixed-width ctype.
+	local c_narrowMap = {
+		['8|true'] = ctype_int8t,   ['16|true'] = ctype_int16t,
+		['32|true'] = ctype_int32t, ['64|true'] = ctype_int64t,
+		['8|false'] = ctype_uint8t, ['16|false'] = ctype_uint16t,
+		['32|false'] = ctype_uint32t, ['64|false'] = ctype_uint64t,
+	}
+
+	-- Effective ctype for an XSD type given its facets: the narrowest int that
+	-- holds the facet range when both bounds are known, else the default. Only
+	-- narrows scalar integer ctypes (skips strings, floats, lists, base64/hex).
+	local c_intTypes = {
+		[ctype_int8t]=true, [ctype_int16t]=true, [ctype_int32t]=true,
+		[ctype_int64t]=true, [ctype_uint8t]=true, [ctype_uint16t]=true,
+		[ctype_uint32t]=true, [ctype_uint64t]=true,
+	}
+	function c_narrowCType(xsdType, facets)
+		return facets_narrowType(c_type_info[xsdType], facets, c_narrowMap, c_intTypes)
+	end
 ]

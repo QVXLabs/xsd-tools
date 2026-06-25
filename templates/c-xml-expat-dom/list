@@ -25,10 +25,19 @@ function list:typeName()
    return ("%slist"):format(self._listType:typeName())
 end
 
+-- A list is a NULL-terminated c-array of item slots. Non-scalar items are
+-- pointers (string/base64/hex). Inline-scalar items would lose the sentinel
+-- (a value of 0 reads as NULL), so list-scalar items are heap-boxed as
+-- pointers to the value type; the NULL terminator then stays unambiguous.
+function list:_elementType()
+   if self._listType:inlineScalar() then
+      return ("%s *"):format(self._listType:cType())
+   end
+   return self._listType:typeName()
+end
+
 function list:typeDef()
-   return ("typedef %s * %s;\n"):format(
-      self._listType:typeName(), 
-      self:typeName())
+   return ("typedef %s * %s;\n"):format(self:_elementType(), self:typeName())
 end
 
 function list:typeFactoryMethods()
@@ -36,35 +45,48 @@ function list:typeFactoryMethods()
 end
 
 function list:dclrMarshal()
-   return ("static void _%s_marshal(const %s, char **, const xml_typeFactory *);\n"):format(
+   return ("static void %s_marshal_(const %s, char **, const xml_typeFactory *);\n"):format(
       self:typeName(), self:typeName())
 end
 
 function list:dclrUnmarshal()
    return (
-      "static %s _%s_unmarshal(const char *, const xml_typeFactory *);\n"
+      "static %s %s_unmarshal_(const char *, const xml_typeFactory *);\n"
    ):format(
       self:typeName(), self:typeName())
 end
 
 function list:dclrDestroy()
-   return ("static %s _%s_destroy(%s, const xml_typeFactory *);\n"):format(
+   return ("static %s %s_destroy_(%s, const xml_typeFactory *);\n"):format(
       self:typeName(), self:typeName(), self:typeName())
 end
 
 function list:defMarshal(elementName)
    out = stringBuffer:new()
+   local elmType = self:_elementType()
    out:append("static void\n")
    out:append(
-      ("_%s_marshal(const %s pVal, char ** ppOut, const xml_typeFactory * pFactory) {\n"):format(
+      ("%s_marshal_(const %s pVal, char ** ppOut, const xml_typeFactory * pFactory) {\n"):format(
      self:typeName(), self:typeName())
    )
-   out:append(("  %s * pItr = (%s *)pVal;\n"):format(self._listType:typeName(),self._listType:typeName()))
+   out:append(("  %s * pItr = (%s *)pVal;\n"):format(elmType, elmType))
    out:append("  if (pVal && *pItr) {\n")
-   out:append(("    _%s_marshal(*pItr, ppOut, pFactory);\n"):format(self._listType:typeName()))
+   if self._listType:inlineScalar() then
+      -- Box the heap-stored value into a slot for the scalar marshal.
+      out:append("    void * xls_;\n")
+      out:append(("    XML_SCALAR_ENCODE_(%s, xls_, **pItr, pFactory);\n"):format(
+         self._listType:cType()))
+      out:append(("    %s_marshal_(xls_, ppOut, pFactory);\n"):format(
+         self._listType:typeName()))
+      out:append(("    XML_SCALAR_FREE_(%s, xls_, pFactory);\n"):format(
+         self._listType:cType()))
+   else
+      out:append(("    %s_marshal_(*pItr, ppOut, pFactory);\n"):format(
+         self._listType:typeName()))
+   end
    out:append("    if (*(pItr + 1))\n")
-   out:append("      _cstr_append(ppOut, \" \", pFactory);\n")
-   out:append(("    _%s_marshal(++pItr, ppOut, pFactory);\n"):format(self:typeName()))
+   out:append("      cstr_append_(ppOut, \" \", pFactory);\n")
+   out:append(("    %s_marshal_(++pItr, ppOut, pFactory);\n"):format(self:typeName()))
    out:append("  }\n")
    out:append("}\n")
    return out:str()
@@ -72,28 +94,37 @@ end
 
 function list:defUnmarshal(elementName)
    out = stringBuffer:new()
+   local elmType = self:_elementType()
    out:append(("static %s\n"):format(self:typeName()))
    out:append(
-      ("_%s_unmarshal(const char * pVal, const xml_typeFactory * pFactory) {\n"): format(self:typeName())
+      ("%s_unmarshal_(const char * pVal, const xml_typeFactory * pFactory) {\n"): format(self:typeName())
    )
-   out:append(("  %s term = NULL;\n"):format(self._listType:typeName()))
-   out:append(("  _xml_list_t list = _list(sizeof(%s), pFactory);\n"):format(
-         self._listType:typeName())
-   )
-   out:append("  _xml_tokenizer_t tokenizer = _tokenizer(pVal, pFactory);\n")
-   out:append("  const char        * pToken = _tokenizer_next(&tokenizer);\n")
+   out:append(("  %s term = NULL;\n"):format(elmType))
+   out:append(("  xml_list_t_ list = list_(sizeof(%s), pFactory);\n"):format(elmType))
+   out:append("  xml_tokenizer_t_ tokenizer = tokenizer_(pVal, pFactory);\n")
+   out:append("  const char        * pToken = tokenizer_next_(&tokenizer);\n")
    out:append("\n")
-   out:append("  for (; *pToken; pToken = _tokenizer_next(&tokenizer)) {\n")
-   out:append(("    %s val = Unmarshal(%s, pToken, pFactory);\n"):format(
-         self._listType:typeName(),
-         self._listType:typeName())
-   )
-   out:append("    _list_push(&list, &val, pFactory);\n")
+   out:append("  for (; *pToken; pToken = tokenizer_next_(&tokenizer)) {\n")
+   if self._listType:inlineScalar() then
+      -- Heap-box the parsed value so the stored pointer is never NULL.
+      out:append(("    %s val = ReallocateMemory(pFactory, NULL, sizeof(%s));\n")
+         :format(elmType, self._listType:cType()))
+      out:append(("    void * xls_ = Unmarshal(%s, pToken, pFactory);\n"):format(
+         self._listType:typeName()))
+      out:append(("    XML_SCALAR_LOAD_(%s, *val, xls_);\n"):format(
+         self._listType:cType()))
+      out:append(("    XML_SCALAR_FREE_(%s, xls_, pFactory);\n"):format(
+         self._listType:cType()))
+   else
+      out:append(("    %s val = Unmarshal(%s, pToken, pFactory);\n"):format(
+         elmType, self._listType:typeName()))
+   end
+   out:append("    list_push_(&list, &val, pFactory);\n")
    out:append("  }\n")
-   out:append("  _list_push(&list, &term, pFactory);\n")
-   out:append("  _tokenizer_destroy(&tokenizer, pFactory);\n")
-   out:append("  _list_trim(&list, pFactory);\n")
-   out:append("  return _list_carray(&list);\n")
+   out:append("  list_push_(&list, &term, pFactory);\n")
+   out:append("  tokenizer_destroy_(&tokenizer, pFactory);\n")
+   out:append("  list_trim_(&list, pFactory);\n")
+   out:append("  return list_carray_(&list);\n")
    out:append("}\n")
    return out:str()
 end
@@ -102,17 +133,19 @@ function list:defDestroy()
    out = stringBuffer:new()
    out:append(("static %s\n"):format(self:typeName()))
    out:append(
-      ("_%s_destroy(%s pVal, const xml_typeFactory * pFactory) {\n"):format(
+      ("%s_destroy_(%s pVal, const xml_typeFactory * pFactory) {\n"):format(
      self:typeName(), self:typeName())
    )
    out:append("  if (pVal) {\n")
-   out:append(("  %s * pItr = (%s *)pVal;\n"):format(
-         self._listType:typeName(),
-         self._listType:typeName())
-   )
-   out:append(("    for (; *pItr; ++pItr) *pItr = _%s_destroy(*pItr, pFactory);\n"):format(
-         self._listType:typeName())
-   )
+   local elmType = self:_elementType()
+   out:append(("  %s * pItr = (%s *)pVal;\n"):format(elmType, elmType))
+   if self._listType:inlineScalar() then
+      -- Each item is a heap-boxed value; free the box.
+      out:append("    for (; *pItr; ++pItr) *pItr = ReallocateMemory(pFactory, *pItr, 0);\n")
+   else
+      out:append(("    for (; *pItr; ++pItr) *pItr = %s_destroy_(*pItr, pFactory);\n"):format(
+            self._listType:typeName()))
+   end
    out:append("    pVal = ReallocateMemory(pFactory, pVal, 0);\n")
    out:append("  }\n")
    out:append("  return pVal;\n")

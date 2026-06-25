@@ -12,13 +12,13 @@
 					return table.concat({
 						'typedef struct {\n',
 						'\t', base.c_type.name(), '\t*', base.buildVar('','pArray'), ';\n',
-						'\tuint32_t\tm_nElements;\n',
+						'\tuint32_t\tnElements_;\n',
 						'} ', calcName(), ';\n',
 					})
 				end,
 				statement = function(varName) 
 					return table.concat({
-						calcName(), '\tm_', varName, ';\n',
+						calcName(), '\t', varName, '_;\n',
 					})
 				end,
 			},
@@ -26,10 +26,10 @@
 				definition = function() 
 					local objArray = base.buildVar('pObj->','pArray')
 					return table.concat({
-						'static void _destroy_', calcName(), '(xml_marshaller* pMarshaller, ', calcName(), '* pObj) {\n',
+						'static void destroy_', calcName(), '_(xml_marshaller* pMarshaller, ', calcName(), '* pObj) {\n',
 						'\tif (', objArray, ') {\n',
 						'\t\tunsigned ndx;\n',
-						'\t\tfor (ndx = 0; ndx < pObj->m_nElements; ++ndx) {\n',
+						'\t\tfor (ndx = 0; ndx < pObj->nElements_; ++ndx) {\n',
 						'\t\t\t', base.delete.statement(objArray..'[ndx]'),
 						'\t\t}\n',
 						'\t\tpMarshaller->realloc(pMarshaller, ', objArray, ', 0);\n',
@@ -39,12 +39,12 @@
 				end,
 				statement = function(obj) 
 					return table.concat({
-						'_destroy_', calcName(), '(pMarshaller, &', obj, ');\n',
+						'destroy_', calcName(), '_(pMarshaller, &', obj, ');\n',
 					})
 				end,
 			},
 			buildVar = function(obj, member) 
-				return table.concat({obj,'m_',member})
+				return table.concat({obj,member,'_'})
 			end,
 			baseType = function()
 				return base
@@ -53,35 +53,35 @@
 				marshal = {
 					definition = function() 
 						return table.concat({
-							'static void _marshal_', calcName(), '(xml_marshaller* pMarshaller, xml_cstr* pOutStr, const ', calcName(), '* pObj) {\n',
+							'static void marshal_', calcName(), '_(xml_marshaller* pMarshaller, xml_cstr* restrict pOutStr, const ', calcName(), '* restrict pObj) {\n',
 							'\tunsigned ndx;\n',
-							'\tfor (ndx = 0; ndx < pObj->m_nElements; ++ndx) {\n',
-							'\t\t', base.binding.marshal.statement('pOutStr', base.buildVar('pObj->','pArray[ndx]')),
-							'\t\t_cstr_append(pMarshaller, pOutStr, " ");\n',
+							'\tfor (ndx = 0; ndx < pObj->nElements_; ++ndx) {\n',
+							'\t\t', base.binding.marshal.statement('pOutStr', base.buildVar('pObj->','pArray')..'[ndx]'),
+							'\t\tcstr_append_(pMarshaller, pOutStr, " ");\n',
 							'\t}\n',
 							'}\n',
 						})
 					end,
 					statement = function(dst, obj)
 						return table.concat({
-							'_marshal_', calcName(), '(pMarshaller, ', dst, ', &', obj, ');\n',
+							'marshal_', calcName(), '_(pMarshaller, ', dst, ', &', obj, ');\n',
 						})
 					end,
 				},
 				unmarshal = {
 					definition = function() 
 						return table.concat({
-							'static void _unmarshal_', calcName(), '(xml_marshaller* pMarshaller, const char* pContent, ', calcName(), '* pObj) {\n',
+							'static void unmarshal_', calcName(), '_(xml_marshaller* pMarshaller, const char* restrict pContent, ', calcName(), '* restrict pObj) {\n',
 							'\tunsigned maxSz = 0;\n',
-							'\tchar* pToken, *pMutableContent = _CStrCpy(pMarshaller, pContent);\n',
-							'\tfor (pObj->m_nElements = 0, pToken = strtok(pMutableContent, " \\t\\n\\r");\n',
+							'\tchar* pToken, *pMutableContent = CStrCpy_(pMarshaller, pContent);\n',
+							'\tfor (pObj->nElements_ = 0, pToken = strtok(pMutableContent, " \\t\\n\\r");\n',
 							'\t\tpToken;\n',
-							'\t\tpToken = strtok(NULL, " \\t\\n\\r"), pObj->m_nElements++) {\n',
-							'\t\tif (maxSz == pObj->m_nElements) {\n',
+							'\t\tpToken = strtok(NULL, " \\t\\n\\r"), pObj->nElements_++) {\n',
+							'\t\tif (maxSz == pObj->nElements_) {\n',
 							'\t\t\tmaxSz = maxSz ? (maxSz << 1) : 8;\n',
 							'\t\t\t', base.buildVar('pObj->','pArray'), ' = pMarshaller->realloc(pMarshaller, ', base.buildVar('pObj->','pArray'), ', maxSz * sizeof(', base.c_type.name(), '));\n',
 							'\t\t}\n',
-							'\t\t', base.binding.unmarshal.statement('pToken', base.buildVar('pObj->', 'pArray[pObj->m_nElements]')),
+							'\t\t', base.binding.unmarshal.statement('pToken', base.buildVar('pObj->', 'pArray')..'[pObj->nElements_]'),
 							'\t}\n',
 							'\tpMarshaller->realloc(pMarshaller, pMutableContent, 0);\n',
 							'}\n',
@@ -89,7 +89,7 @@
 					end,
 					statement = function(src, obj)
 						return table.concat({
-							'_unmarshal_', calcName(), '(pMarshaller, ', src, ', &', obj, ');\n'
+							'unmarshal_', calcName(), '_(pMarshaller, ', src, ', &', obj, ');\n'
 						})
 					end,
 				},
@@ -103,17 +103,17 @@
 				end,
 				assign = function(subDefObj)
 					return string.format(
-						'{ %s = %s, .m_nElements = sizeof(%s)/sizeof(%s[0]) }', 
+						'{ %s = %s, .nElements_ = sizeof(%s)/sizeof(%s[0]) }', 
 						base.buildVar('.','pArray'), 
 						subDefObj, subDefObj, subDefObj
 					)
 				end,
 				assert = function(obj1, obj2)
 					return table.concat({
-						string.format("\tassert(%s.m_nElements ==  %s.m_nElements);\n", obj1, obj2),
+						string.format("\tassert(%s.nElements_ ==  %s.nElements_);\n", obj1, obj2),
 						"\t{\n",
 						"\t\tunsigned ndx;\n",
-						string.format("\t\tfor(ndx = 0; ndx < %s.m_nElements; ++ndx) {\n", obj1),
+						string.format("\t\tfor(ndx = 0; ndx < %s.nElements_; ++ndx) {\n", obj1),
 						"\t\t", base.test.assert(obj1..base.buildVar('.','pArray')..'[ndx]', obj2..base.buildVar('.','pArray')..'[ndx]'),
 						"\t\t}\n",
 						"\t}\n",

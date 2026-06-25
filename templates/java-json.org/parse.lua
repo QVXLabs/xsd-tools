@@ -2,6 +2,7 @@
    include 'java-json.org/itemstrategy.lua'
    include 'java-json.org/listitemstrategy.lua'
    include 'java-json.org/types.lua'
+   include 'java-json.org/adapters.lua'
 
    -- TODO: 1) use optJSONArray/opt... for optional fields
    --       2) make unmarshalling/marshalling handle fields which can be lists
@@ -77,6 +78,95 @@
    end
 
 
+   -- Narrowest signed Java boxed type whose range holds the facet int range,
+   -- or nil when no numeric facet constrains the field. Java has no unsigned,
+   -- so e.g. 0..255 widens to Short.
+   local javaNarrowType = facets_narrowestSigned
+
+   -- Effective Java type for a field: narrows numeric members to the smallest
+   -- signed boxed type the facet range allows. Byte/Short lack adapter
+   -- accessors, so they carry an int cast (unmarshal) / intValue (marshal); the
+   -- JSON number is identical, so round-trips are preserved.
+   local function effectiveType(fieldType, fieldTypedef)
+	  local base = types[fieldType]
+	  if base.typename ~= 'Integer' and base.typename ~= 'Long' then
+		 return base
+	  end
+	  local narrow = fieldTypedef and javaNarrowType(fieldTypedef.facets)
+	  if not narrow or narrow == base.typename then return base end
+	  local t = {typename = narrow, marshal = 'put', metaInfo = {primative = true}}
+	  if narrow == 'Byte' or narrow == 'Short' then
+		 t.unmarshalExpr = ('(%s) jObj.getInt'):format(narrow:lower())
+		 t.marshalVal = '.intValue()'
+	  else
+		 t.unmarshal = (narrow == 'Integer') and 'getInt' or 'getLong'
+	  end
+	  return t
+   end
+   -- Expose for the binding template's adapter de-bloat collector.
+   _effectiveType = effectiveType
+
+   -- Java literal for an attribute `default` (C). Strings quote; Long needs an
+   -- L suffix so `Long x = 5` boxes; narrowed/int types emit the bare number.
+   local function defaultLiteral(eff, raw)
+	  if eff.declrFmt == '"%s"' then return ('"%s"'):format(raw) end
+	  if eff.typename == 'Long' then return raw .. 'L' end
+	  return raw
+   end
+
+   -- Java numeric boxed types we can enum-compare without stringifying.
+   local _numericJavaType = {
+	  Byte = true, Short = true, Integer = true, Long = true,
+   }
+
+   -- Render facet checks (D2) on member `_var` into a validate() body. Range,
+   -- length and enum are enforced; pattern (P3) is not. No-op for nil facets.
+   -- `jType` is the member's Java typename; numeric enums compare numerically
+   -- (no allocation), string enums test a `static final Set` recorded in
+   -- `sets` (built once, not per call).
+   local function javaChecks(var, facets, jType, sets)
+	  local out = stringBuffer:new()
+	  -- guard that throws unless the value-condition `cond` holds
+	  local function guard(cond, msg)
+		 out:append(('\t\tif (_%s != null && !(%s))\n'):format(var, cond))
+		 out:append(('\t\t\tthrow new IllegalArgumentException("%s: %s");\n')
+			:format(var, msg))
+	  end
+	  table.map(facets_checks(facets), function(_, c)
+		 if c.kind == 'range' then
+			local cond = c.lo and c.hi and
+			   ('%s <= _%s && _%s <= %s'):format(c.lo, var, var, c.hi)
+			   or c.lo and ('%s <= _%s'):format(c.lo, var)
+			   or ('_%s <= %s'):format(var, c.hi)
+			guard(cond, 'out of range')
+		 elseif c.kind == 'length' then
+			local n, parts = ('String.valueOf(_%s).length()'):format(var), {}
+			if c.exact then parts = {n .. ' == ' .. c.exact} end
+			if c.min then parts[#parts + 1] = n .. ' >= ' .. c.min end
+			if c.max then parts[#parts + 1] = n .. ' <= ' .. c.max end
+			guard(table.concat(parts, ' && '), 'bad length')
+		 elseif c.kind == 'enum' then
+			if _numericJavaType[jType] then
+			   local vals = {}
+			   table.map(c.values, function(_, v)
+				  vals[#vals + 1] = ('_%s == %s'):format(var, v)
+			   end)
+			   guard('(' .. table.concat(vals, ' || ') .. ')', 'not permitted')
+			else
+			   -- string enum: membership in a once-built static Set
+			   local setName = '_ENUM_' .. var
+			   local quoted = {}
+			   table.map(c.values, function(_, v)
+				  quoted[#quoted + 1] = ('"%s"'):format(v)
+			   end)
+			   sets[setName] = table.concat(quoted, ', ')
+			   guard(('%s.contains(_%s)'):format(setName, var), 'not permitted')
+			end
+		 end
+	  end)
+	  return out:str()
+   end
+
    -- json output function
    local function objectOutput(typename, typedef)
 	  local str = stringBuffer:new()
@@ -99,7 +189,7 @@
 		 ('public class %s implements Marshalable {\n'):format(typename)
 	  )	  
 	  -- generate private members
-	  for JSONFieldName, fieldTypename in fieldIterator(typedef.fields) do
+	  for JSONFieldName, fieldTypename, fieldTypedef in fieldIterator(typedef.fields) do
 		 local memberName  = makeJavaSafeName(JSONFieldName)
 		 if isListType(fieldTypename) then
 			local lstTypename = getListType(fieldTypename)
@@ -109,10 +199,11 @@
 			   )
 			)
 		 else
+			local declEff = effectiveType(fieldTypename, fieldTypedef)
+			local declDef = fieldTypedef.default
+			   and defaultLiteral(declEff, fieldTypedef.default)
 			str:append(
-			   ItemStrategy.declaration(
-				  types[fieldTypename], memberName
-			   )
+			   ItemStrategy.declaration(declEff, memberName, declDef)
 			)
 		 end
 	  end
@@ -130,7 +221,14 @@
 		 local memberName  = makeJavaSafeName(fieldName)
 		 if not isFieldRequired(fieldTypedef) then
 			str:append(('\t\tif (!jObj.has("%s"))\n'):format(fieldName))
-			str:append(('\t\t\t_%s = null;\n'):format(memberName))
+			-- a declared default (C) survives an absent field; else null
+			if fieldTypedef.default and not isListType(fieldType) then
+			   local eff = effectiveType(fieldType, fieldTypedef)
+			   local lit = defaultLiteral(eff, fieldTypedef.default)
+			   str:append(('\t\t\t_%s = %s;\n'):format(memberName, lit))
+			else
+			   str:append(('\t\t\t_%s = null;\n'):format(memberName))
+			end
 			str:append('\t\telse\n')
 			if not isListType(fieldType) then str:append('\t') end
 		 end
@@ -143,13 +241,42 @@
 			   )
 			)
 		 else
-			str:append(
-			   ItemStrategy.unmarshal(
-				  types[fieldType], memberName, fieldName
-			   )
-			)
+			local eff = effectiveType(fieldType, fieldTypedef)
+			if eff.unmarshalExpr then
+			   str:append(('\t\t_%s= %s("%s");\n'):format(
+				  memberName, eff.unmarshalExpr, fieldName))
+			else
+			   str:append(ItemStrategy.unmarshal(eff, memberName, fieldName))
+			end
 		 end
 	  end
+	  -- enforce facet validation (D2) at the end of unmarshalling
+	  str:append('\t\tvalidate();\n')
+	  str:append('\t}\n\n')
+	  -- generate validate() body from each field's facets; string-enum sets
+	  -- are accumulated and emitted once as static fields above validate()
+	  local sets = {}
+	  local checksBody = stringBuffer:new()
+	  for fieldName, fieldType, fieldTypedef in fieldIterator(typedef.fields) do
+		 if fieldTypedef.facets then
+			local jType
+			if isListType(fieldType) then
+			   jType = types[getListType(fieldType)].typename
+			else
+			   jType = effectiveType(fieldType, fieldTypedef).typename
+			end
+			checksBody:append(javaChecks(
+			   makeJavaSafeName(fieldName), fieldTypedef.facets, jType, sets))
+		 end
+	  end
+	  for setName, vals in pairs(sets) do
+		 str:append(('\tprivate static final java.util.Set<String> %s =\n')
+			:format(setName))
+		 str:append(('\t\tnew java.util.HashSet<String>(java.util.Arrays.asList(%s));\n')
+			:format(vals))
+	  end
+	  str:append('\tpublic void validate() {\n')
+	  str:append(checksBody:str())
 	  str:append('\t}\n\n')
 	  -- generate 'set'ers
 	  for fieldName, fieldType, fieldTypedef in fieldIterator(typedef.fields) do
@@ -164,7 +291,7 @@
 			)
 			str:append(ListItemStrategy.seter(javaType, memberName))
 		 else
-			local javaType = types[fieldType]
+			local javaType = effectiveType(fieldType, fieldTypedef)
 			str:append(outputSeterJavadoc(javaType.typename, memberName))
 			str:append(ItemStrategy.seter(javaType, memberName))
 		 end
@@ -182,7 +309,7 @@
 			)
 			str:append(ListItemStrategy.geter(javaType, memberName))
 		 else
-			local javaType = types[fieldType]
+			local javaType = effectiveType(fieldType, fieldTypedef)
 			str:append(outputGeterJavadoc(javaType.typename, memberName))
 			str:append(ItemStrategy.geter(javaType, memberName))
 		 end
@@ -239,12 +366,13 @@
 			   )
 			)
 		 else
-			str:append(
-			   ItemStrategy.marshal(
-				  types[fieldType], memberName, fieldName
-			   )
-			)
-
+			local eff = effectiveType(fieldType, fieldTypedef)
+			if eff.marshalVal then
+			   str:append(('\t\tretObj.put("%s", _%s%s);\n'):format(
+				  fieldName, memberName, eff.marshalVal))
+			else
+			   str:append(ItemStrategy.marshal(eff, memberName, fieldName))
+			end
 		 end
 	  end
 	  str:append('\t\treturn retObj.getJSONObject();\n')
@@ -339,6 +467,20 @@
         return tostring(math.random(0,2400))
     end
 
+   -- Facet-satisfying JSON literal for a leaf, or nil to fall back to the
+   -- random generators. Numerics emit bare; strings emit single-quoted (the
+   -- form org.json round-trips and matches the random path).
+   local function facetSample(leafTypeName, facets)
+      if not facets then return nil end
+      local jType = types[leafTypeName].typename
+      if jType == 'Integer' or jType == 'Long' then
+         return facets_sampleInt(facets)
+      end
+      local s = facets_sampleString(facets)
+      if s then return "'"..s.."'" end
+      return facets_sampleInt(facets)
+   end
+
    local function elementOutput(typename, typedef, visitType)
       local generateData = {}
       generateData["boolean"] = generateBoolean()
@@ -373,13 +515,16 @@
 			local nextTableName, nextTable = next(tableDef)
             str:append("'"..tableName.."':")
             if (isListType(nextTableName)) then
-                if generateData[getListType(nextTableName)] == nil then
+                local lstLeaf = getListType(nextTableName)
+                local sample = facetSample(lstLeaf, nextTable.facets)
+                if generateData[lstLeaf] == nil then
                     str:append("[{"..elementOutput(nextTableName, nextTable, visitType).."}]")
                     visitType[nextTableName] = true
                 else
-                    str:append( "["..generateData[getListType(nextTableName)].."]" )
+                    str:append( "["..(sample or generateData[lstLeaf]).."]" )
                 end
             else
+                local sample = facetSample(nextTableName, nextTable.facets)
                 if not isSimpleType(nextTable) then
                     str:append ("{")
                     str:append(elementOutput(nextTableName, nextTable, visitType))
@@ -389,7 +534,7 @@
                     str:append(elementOutput(nextTableName, nextTable, visitType))
                     visitType[nextTableName] = true
                 else
-                    str:append( generateData[nextTableName] )
+                    str:append( sample or generateData[nextTableName] )
                 end
             end
             if count < tableLength then str:append(",") end

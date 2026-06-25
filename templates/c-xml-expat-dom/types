@@ -33,7 +33,7 @@ function types:new(tbl)
 end
 
 function types.getType(tbl, typedef)
-   local ctype = tbl[typedef]
+   local ctype = c_narrowSingleton(tbl[typedef], typedef.facets)
    local ret = ctype:new(tbl, typedef)
    return ret
 end

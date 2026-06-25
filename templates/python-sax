@@ -10,9 +10,17 @@
 	schema = schema.c_safeNames()
 	depOrder = schema.sortDependencies()
 	depOrderSansRoot = table.filter(depOrder, function(k,v) return v.name ~= schema.root and v or nil end)
-]import base64
-import binascii
-import xml.sax
+	-- gate binary-codec imports on actual type usage
+	local usedTypes = schema.uniqueTypes()
+	usesBase64 = usedTypes['base64Binary'] or usedTypes['list(base64Binary)']
+	usesHex = usedTypes['hexBinary'] or usedTypes['list(hexBinary)']
+][@lua
+	local imports = stringBuffer:new()
+	if usesBase64 then imports:append('import base64\n') end
+	if usesHex then imports:append('import binascii\n') end
+	imports:append('import xml.sax')
+	return imports:str()
+]
 
 
 class _handler(xml.sax.ContentHandler):
@@ -61,35 +69,46 @@ class _xmlelement:
 
 [@lua -- output class for each element
 	local outbuf = stringBuffer:new()
+	-- module-level frozensets for enum membership; emitted before the classes
+	local enumDefs = stringBuffer:new()
+	local enumSeq = 0
+	-- numeric py types compare enum values numerically (T1.4)
+	local numericPyTypes = {
+		[pythontype_int] = true, [pythontype_long] = true,
+		[pythontype_float] = true,
+	}
 	-- Render facet checks (D2) on the local `_v` into a validate() body.
 	-- Pattern facets (P3) are not enforced yet.
-	local function pyChecks(label, facets)
+	local function pyChecks(label, facets, isNumeric)
 		local out = stringBuffer:new()
+		-- emit a guard that raises unless the value-condition `cond` holds
+		local function guard(cond, msg)
+			out:append('        if _v is not None and not (' .. cond .. '):\n')
+			out:append('            raise ValueError("' .. label .. ': ' .. msg .. '")\n')
+		end
 		table.map(facets_checks(facets), function(_, c)
 			if c.kind == 'range' then
-				local cond
-				if c.lo and c.hi then cond = c.lo .. ' <= _v <= ' .. c.hi
-				elseif c.lo then cond = c.lo .. ' <= _v'
-				else cond = '_v <= ' .. c.hi end
-				out:append('        if _v is not None and not (' .. cond .. '):\n')
-				out:append('            raise ValueError("' .. label .. ': out of range")\n')
+				guard(c.lo and c.hi and (c.lo .. ' <= _v <= ' .. c.hi)
+					or c.lo and (c.lo .. ' <= _v') or ('_v <= ' .. c.hi),
+					'out of range')
 			elseif c.kind == 'length' then
-				local cond
-				if c.exact then cond = 'len(str(_v)) == ' .. c.exact
-				else
-					local parts = {}
-					if c.min then parts[#parts + 1] = 'len(str(_v)) >= ' .. c.min end
-					if c.max then parts[#parts + 1] = 'len(str(_v)) <= ' .. c.max end
-					cond = table.concat(parts, ' and ')
-				end
-				out:append('        if _v is not None and not (' .. cond .. '):\n')
-				out:append('            raise ValueError("' .. label .. ': bad length")\n')
+				local n, parts = 'len(str(_v))', {}
+				if c.exact then parts = {n .. ' == ' .. c.exact} end
+				if c.min then parts[#parts + 1] = n .. ' >= ' .. c.min end
+				if c.max then parts[#parts + 1] = n .. ' <= ' .. c.max end
+				guard(table.concat(parts, ' and '), 'bad length')
 			elseif c.kind == 'enum' then
+				-- numeric fields compare numerically (no str(_v)); strings
+				-- stay quoted. Membership via a module-level frozenset.
 				local vals = {}
-				table.map(c.values, function(_, v) vals[#vals + 1] = '"' .. v .. '"' end)
-				out:append('        if _v is not None and str(_v) not in ('
-					.. table.concat(vals, ', ') .. ',):\n')
-				out:append('            raise ValueError("' .. label .. ': not permitted")\n')
+				table.map(c.values, function(_, v)
+					vals[#vals + 1] = isNumeric and v or ('"' .. v .. '"')
+				end)
+				enumSeq = enumSeq + 1
+				local name = '_enum' .. enumSeq
+				enumDefs:append(name .. ' = frozenset((' ..
+					table.concat(vals, ', ') .. ',))\n')
+				guard('_v in ' .. name, 'not permitted')
 			end
 		end)
 		return out:str()
@@ -136,14 +155,11 @@ class _xmlelement:
 			'\n',
 			'    def unmarshal(self, attributes, content):\n',
 		}))
-		-- output unmarshal code for each element attribute
-		if next(node.attributes) then
-			outbuf:append('        for attribute in attributes:\n')
-			table.map(node.attributes, function(attributeName, attribute)
-				local pyType = py_type_info[attribute.type]
-				outbuf:append(pyType.unmarshal.attribute(attributeName))
-			end)
-		end
+		-- output unmarshal code for each element attribute (direct dict lookup)
+		table.map(node.attributes, function(attributeName, attribute)
+			local pyType = py_type_info[attribute.type]
+			outbuf:append(pyType.unmarshal.attribute(attributeName))
+		end)
 		if next(node.content) then
 			outbuf:append(py_type_info[node.content.type].unmarshal.content())
 		else
@@ -151,22 +167,26 @@ class _xmlelement:
 				"        self._content = content\n"
 			}))
 		end
-		-- emit facet validation (D2), invoked at the end of unmarshal
-		outbuf:append('        self.validate()\n')
-		outbuf:append('\n    def validate(self):\n')
+		-- emit facet validation (D2) only when the node actually has facets;
+		-- skip the method + its call entirely otherwise (T3)
 		local checks = stringBuffer:new()
 		if node.content.facets then
 			checks:append('        _v = self._content[0] if self._content else None\n')
-			checks:append(pyChecks('content', node.content.facets))
+			checks:append(pyChecks('content', node.content.facets,
+				numericPyTypes[py_type_info[node.content.type]]))
 		end
 		table.map(node.attributes, function(an, attr)
 			if attr.facets then
 				checks:append('        _v = self._' .. an .. '\n')
-				checks:append(pyChecks(an, attr.facets))
+				checks:append(pyChecks(an, attr.facets,
+					numericPyTypes[py_type_info[attr.type]]))
 			end
 		end)
-		if 0 == #checks:str() then checks:append('        pass\n') end
-		outbuf:append(checks:str())
+		if 0 ~= #checks:str() then
+			outbuf:append('        self.validate()\n')
+			outbuf:append('\n    def validate(self):\n')
+			outbuf:append(checks:str())
+		end
 		outbuf:append('\n')
 		-- output 'getters' code for each attribute
 		table.map(node.attributes, function(attributeName, attribute)
@@ -186,7 +206,7 @@ class _xmlelement:
 		end)
 		outbuf:append('\n')
 	end)
-	return outbuf:str()
+	return enumDefs:str() .. outbuf:str()
 ]
 class xml_[@lua return schema.root](_handler, _xmlelement):
     def __init__(self):

@@ -10,14 +10,14 @@
 			end,
 			statement = function(varName)
 				return table.concat({
-					'char*\tm_p', varName, ';\n',
+					'char*\tp', varName, '_;\n',
 				})
 			end,
 		},
 		delete = {
 			definition = function()
 				return table.concat({
-					'static void _destroy_charp(json_marshaller* pMarshaller, char** ppObj) {\n',
+					'static inline void destroy_charp_(json_marshaller* pMarshaller, char** ppObj) {\n',
 					'\tif (*ppObj) {\n',
 					'\t\t*ppObj = pMarshaller->realloc(pMarshaller, *ppObj, 0);\n',
 					'\t}\n',
@@ -26,12 +26,12 @@
 			end,
 			statement = function(obj)
 				return table.concat({
-					'_destroy_charp(pMarshaller, &', obj, ');\n',
+					'destroy_charp_(pMarshaller, &', obj, ');\n',
 				})
 			end,
 		},
 		buildVar = function(obj, member)
-			return table.concat({obj,'m_p',member})
+			return table.concat({obj,'p',member,'_'})
 		end,
 		binding = {
 			marshal = {
@@ -39,35 +39,37 @@
 					return ''
 				end,
 				value = function(obj)
-					return table.concat({'json_object_new_string(_safeCStr(', obj, '))'})
+					return table.concat({'json_object_new_string(safeCStr_(', obj, '))'})
 				end,
 				statement = function(dst, key, obj)
 					return table.concat({
 						'json_object_object_add(', dst, ', ', key,
-						', json_object_new_string(_safeCStr(', obj, ')));\n',
+						', json_object_new_string(safeCStr_(', obj, ')));\n',
 					})
 				end,
 			},
 			unmarshal = {
 				definition = function()
 					return table.concat({
-						'static void _unmarshal_charp(json_marshaller* pMarshaller, const char* pContent, char** ppObj) {\n',
+						'static inline void unmarshal_charp_(json_marshaller* pMarshaller, const char* restrict pContent, char** restrict ppObj) {\n',
 						'\tif (*ppObj) {\n',
 						'\t\t*ppObj = pMarshaller->realloc(pMarshaller, *ppObj, 0);\n',
 						'\t}\n',
-						'\t*ppObj = _CStrCpy(pMarshaller, _safeCStr(pContent));\n',
+						'\t*ppObj = CStrCpy_(pMarshaller, safeCStr_(pContent));\n',
 						'}\n',
 					})
 				end,
 				statement = function(src, obj)
 					return table.concat({
-						'_unmarshal_charp(pMarshaller, json_object_get_string(', src, '), &', obj, ');\n',
+						'unmarshal_charp_(pMarshaller, json_object_get_string(', src, '), &', obj, ');\n',
 					})
 				end,
 			},
 		},
 		test = {
-			assign = function()
+			assign = function(facets)
+				local s = facets_sampleString(facets)
+				if s then return '"'..s..'"' end
 				local tbl = { '"arch"', '"Ancestor"', '"Interaction"', '"Productivity"', '"Jelly"', '"Glue"', '"Way"'}
 				return tbl[math.random(1, #tbl)]
 			end,

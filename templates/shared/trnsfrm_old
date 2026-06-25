@@ -78,7 +78,8 @@ function trnsfrm_oldFmt(tbl)
 		elseif state == State.AttributeType then
 			attribName, attribDef = next(tbl)
 			if nil ~= attribName then
-				outTbl.type= attribName
+				outTbl.type = attribName
+				-- carry the attribute's restriction facets up for validation
 				outTbl.facets = attribDef.facets
 				if nil ~= attribDef.default then
 					outTbl.default = attribDef.default

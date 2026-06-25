@@ -10,7 +10,7 @@
 			end,
 			statement = function(varName)
 				return table.concat({
-					'json_bool_t\tm_', varName, ';\n',
+					'json_bool_t\t', varName, '_;\n',
 				})
 			end,
 		},
@@ -23,7 +23,7 @@
 			end,
 		},
 		buildVar = function(obj, member)
-			return table.concat({obj,'m_',member})
+			return table.concat({obj,member,'_'})
 		end,
 		binding = {
 			marshal = {

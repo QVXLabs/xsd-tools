@@ -1,4 +1,5 @@
 [@lua
+include 'shared/facets'
 include 'c-xml-expat-dom/shared'
 include 'c-xml-expat-dom/types'
 include 'c-xml-expat-dom/cstring'

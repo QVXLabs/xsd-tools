@@ -4,6 +4,7 @@
 ][@lua --include any shared 'helper' templates
 	return include 'shared/schemaEx'
 ][@lua -- include python json type info
+	include 'shared/facets'
 	return include 'python-json/python_type_info'
 ][@lua --rename any non-c-safe names to c-safe names
 	schema = schema.c_safeNames()
@@ -19,7 +20,7 @@ import [@lua return schemaName]
 	-- Render a test value as the Python literal the binding stores in
 	-- "content"/"attrs" for a given XSD type. Mirrors each type's marshal
 	-- output so json.loads(marshal()) compares equal.
-	local function pyLiteral(typeName, value)
+	local function pyLiteral(typeName, value, isAttr)
 		local t = pyjson_type_info[typeName]
 		if t == pyjsontype_int or t == pyjsontype_long then
 			return value
@@ -29,7 +30,11 @@ import [@lua return schemaName]
 			-- binding marshals bool(non-empty str) == True
 			return "True"
 		elseif t == pyjsontype_string then
-			-- simple-content string element stores a list of text nodes
+			-- an attribute stores a bare scalar; simple-content stores a
+			-- list of text nodes
+			if isAttr then
+				return table.concat({'"', value, '"'})
+			end
 			return table.concat({'["', value, '"]'})
 		elseif t == pyjsontype_base64 or t == pyjsontype_hex then
 			-- base64 test values carry a trailing escaped newline that the
@@ -71,15 +76,15 @@ import [@lua return schemaName]
 		outbuf:append(table.concat({'{"name": "', node.name, '", "attrs": {'}))
 		local attrParts = {}
 		table.map(node.attributes, function(attribName, attrib)
-			local v = pyjson_type_info[attrib.type].test.assign()
+			local v = pyjson_type_info[attrib.type].test.assign(attrib.facets)
 			attrParts[#attrParts + 1] = table.concat({
-				'"', attribName, '": ', pyLiteral(attrib.type, v)
+				'"', attribName, '": ', pyLiteral(attrib.type, v, true)
 			})
 		end)
 		outbuf:append(table.concat(attrParts, ', '))
 		outbuf:append('}, "content": ')
 		if next(node.content) then
-			local v = pyjson_type_info[node.content.type].test.assign()
+			local v = pyjson_type_info[node.content.type].test.assign(node.content.facets)
 			outbuf:append(pyLiteral(node.content.type, v))
 		elseif next(node.dependents) then
 			outbuf:append('[')

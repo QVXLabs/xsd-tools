@@ -3,7 +3,8 @@
 	schema = trnsfrm_oldFmt(schema)
 ][@lua --include any shared 'helper' templates
 	return include 'shared/schemaEx'
-][@lua --include xsd to c type mapping
+][@lua --include facet helpers + xsd to c type mapping
+	include 'shared/facets'
 	return include 'c-json-jsonc/c_type_info'
 ][@lua --generate helper globals
 	schema = schema.c_safeNames()
@@ -41,14 +42,17 @@
 	end)
 	local ID = 1
 	table.map(typeSansRoot, function(_, node)
-		valTbl = {'._eid = '..tostring(ID)}
+		-- eid_ is emitted only for nodes with dependents or empty leaves
+		local hasMembers = next(node.attributes) or next(node.content)
+		valTbl = (next(node.dependents) or not hasMembers)
+			and {'.eid_ = '..tostring(ID)} or {}
 		local prcssType = function(ncname, xsdType)
-			local c_type = c_type_info[xsdType.type]
+			local c_type = c_narrowCType(xsdType.type, xsdType.facets)
 			if "c_list" == c_type.type then
 				local cVarName = listTypeVarMap[c_type]
 				table.insert(valTbl, c_type.buildVar('.',ncname)..' = '..c_type.test.assign(cVarName))
 			else
-				table.insert(valTbl, c_type.buildVar('.',ncname)..' = '..c_type.test.assign())
+				table.insert(valTbl, c_type.buildVar('.',ncname)..' = '..c_type.test.assign(xsdType.facets))
 			end
 		end
 		table.map(node.attributes, prcssType)
@@ -79,7 +83,7 @@ static void* reallocCb(struct json_marshaller* pMarshaller, void* pMem, size_t s
 			"\t(void)pObj;\n",
 		}))
 		local prcssType = function(ncname, xsdtype)
-			local c_type = c_type_info[xsdtype.type]
+			local c_type = c_narrowCType(xsdtype.type, xsdtype.facets)
 			outbuf:append(c_type.test.assert(c_type.buildVar('pObj->', ncname), c_type.buildVar(node.name..'Tst'..'.', ncname)))
 		end
 		table.map(node.attributes, prcssType)
@@ -88,6 +92,44 @@ static void* reallocCb(struct json_marshaller* pMarshaller, void* pMem, size_t s
 		end
 		outbuf:append("}\n")
 	end)
+	return outbuf:str()
+]
+
+/* Exercise the overridable factory triple: wrappers delegate to the defaults
+ * but count alloc/construct/destroy so we can assert the path is taken and
+ * balanced. */
+static int g_allocCnt = 0;
+static int g_constructCnt = 0;
+static int g_destroyCnt = 0;
+
+[@lua -- per-element factory-override wrappers + a custom factories table
+	local outbuf = stringBuffer:new()
+	local dft = 'json_'..schemaName..'_default_factories()'
+	table.map(typeSansRoot, function(_, node)
+		outbuf:append(table.concat({
+			'static json_', node.name, '* ovr_', node.name, 'Allocator(struct json_marshaller* pM) {\n',
+			'\t++g_allocCnt;\n',
+			'\treturn ', dft, '->', node.name, 'Allocator(pM);\n',
+			'}\n',
+			'static void ovr_', node.name, 'Constructor(struct json_marshaller* pM, json_', node.name, '* pObj) {\n',
+			'\t(void)pM; (void)pObj; ++g_constructCnt;\n',
+			'}\n',
+			'static json_', node.name, '* ovr_', node.name, 'Destructor(struct json_marshaller* pM, json_', node.name, '* pObj) {\n',
+			'\t++g_destroyCnt;\n',
+			'\treturn ', dft, '->', node.name, 'Destructor(pM, pObj);\n',
+			'}\n',
+		}))
+	end)
+	outbuf:append('static const json_'..schemaName..'_factories g_overrideFactories = {\n')
+	local fnLst = table.filter(typeSansRoot, function(_, node)
+		return table.concat({
+			'\t.', node.name, 'Allocator = ovr_', node.name, 'Allocator,\n',
+			'\t.', node.name, 'Constructor = ovr_', node.name, 'Constructor,\n',
+			'\t.', node.name, 'Destructor = ovr_', node.name, 'Destructor',
+		})
+	end)
+	outbuf:append(table.concat(fnLst, ',\n'))
+	outbuf:append('\n};\n')
 	return outbuf:str()
 ]
 
@@ -129,17 +171,17 @@ int main(void) {
 	local function marshalRec(parent, node)
 		if next(node.dependents) then
 			outbuf:append(table.concat({
-				"\t", node.name, " = ", parent, ".marshal_", node.name, "(&mrshllr, &", node.name, "Tst);\n"
+				"\t", node.name, " = ", parent, ".marshal_", node.name, "(&mrshllr, &", node.name, "Tst, ", parent, ".pSelf);\n"
 			}))
 		else
 			outbuf:append(table.concat({
-				"\t", parent, ".marshal_", node.name, "(&mrshllr, &", node.name, "Tst);\n"
+				"\t", parent, ".marshal_", node.name, "(&mrshllr, &", node.name, "Tst, ", parent, ".pSelf);\n"
 			}))
 		end
 		table.map(node.dependents, function(k, v)
 			if next(v.dependents) then
 				outbuf:append(table.concat({
-					"\t", node.name, ".marshal_",k,"(&mrshllr, &", k, "Tst);\n"
+					"\t", node.name, ".marshal_",k,"(&mrshllr, &", k, "Tst, ", node.name, ".pSelf);\n"
 				}))
 			end
 		end)
@@ -150,7 +192,19 @@ int main(void) {
 ]	output = json_marshal_flush(&mrshllr, 1);
 	/* test unmarshalling through the default factory table */
 	json_unmarshal_ex(&mrshllr, &output, 1, json_[@lua return schemaName]_default_factories());
+	/* re-run through the override table to exercise the factory triple */
+	json_unmarshal_ex(&mrshllr, &output, 1, &g_overrideFactories);
+[@lua -- assert the override path ran (skip when schema has no elements)
+	if next(typeSansRoot) then
+		return table.concat({
+			'\tassert(g_allocCnt > 0);\n',
+			'\tassert(g_allocCnt == g_constructCnt);\n',
+			'\tassert(g_allocCnt == g_destroyCnt);\n',
+		})
+	end
+	return ''
+]
 	/* clean up */
-	output.m_pBuf = realloc(output.m_pBuf, 0);
+	output.pBuf_ = realloc(output.pBuf_, 0);
 	return 0;
 }

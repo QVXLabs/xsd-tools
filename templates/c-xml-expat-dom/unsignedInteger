@@ -19,8 +19,16 @@ function unsignedInteger:typeName()
    return ("xml_unsignedInteger")
 end
 
+function unsignedInteger:inlineScalar()
+   return true
+end
+
+function unsignedInteger:cType()
+   return "uint64_t"
+end
+
 function unsignedInteger:typeDef()
-   return ("typedef uint64_t * %s;\n"):format(self:typeName())
+   return self:scalarTypeDef()
 end
 
 function unsignedInteger:typeFactoryMethods()
@@ -28,40 +36,20 @@ function unsignedInteger:typeFactoryMethods()
 end
 
 function unsignedInteger:defMarshal(elementName)
-   out = stringBuffer:new()
-   out:append("static void\n")
-   out:append("_xml_unsignedInteger_marshal")
-   out:append("(const xml_unsignedInteger pVal, char ** ppOut, const xml_typeFactory * pFactory) {\n")
-   out:append("  char num[64];\n")
-   out:append("  snprintf(num, 64, \"%\" PRIu64, *pVal);\n")
-   out:append("  _cstr_append(ppOut, num, pFactory);\n")
-   out:append("}\n")   
-   return out:str()
+   return self:defScalarMarshal(function(v)
+      return ("  char num[64];\n  snprintf(num, 64, \"%%\" PRIu64, %s);\n  cstr_append_(ppOut, num, pFactory);\n"):format(v)
+   end)
 end
 
 function unsignedInteger:defUnmarshal(elementName)
-   out = stringBuffer:new()
-   out:append("static xml_unsignedInteger\n")
-   out:append("_xml_unsignedInteger_unmarshal(")
-   out:append("const char * pVal, const xml_typeFactory * pFactory) {\n")
-   out:append("  xml_unsignedInteger val = ReallocateMemory(pFactory, NULL, sizeof(int64_t));\n")
-   out:append("  return (*val  = strtoul(pVal, NULL, 0)), val;\n")
-   out:append("}\n")
-   return out:str()
+   return self:defScalarUnmarshal("strtoull(pVal, NULL, 0)")
 end
 
 function unsignedInteger:defDestroy()
-   out = stringBuffer:new()
-   out:append("static xml_unsignedInteger\n")
-   out:append("_xml_unsignedInteger_destroy")
-   out:append("(xml_unsignedInteger pVal, const xml_typeFactory * pFactory) {\n")
-   out:append("  if (pVal) pVal = ReallocateMemory(pFactory, pVal, 0);\n")
-   out:append("  return pVal;\n")
-   out:append("}\n")
-   return out:str()
+   return self:defScalarDestroy()
 end
 
-function unsignedInteger:test()
-   return "499403223"
+function unsignedInteger:test(facets)
+   return facets_sampleInt(facets) or "499403223"
 end
 ]

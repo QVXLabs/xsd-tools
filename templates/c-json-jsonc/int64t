@@ -10,7 +10,7 @@
 			end,
 			statement = function(varName)
 				return table.concat({
-					'int64_t\tm_', varName, ';\n',
+					'int64_t\t', varName, '_;\n',
 				})
 			end,
 		},
@@ -23,7 +23,7 @@
 			end,
 		},
 		buildVar = function(obj, member)
-			return table.concat({obj,'m_',member})
+			return table.concat({obj,member,'_'})
 		end,
 		binding = {
 			marshal = {
@@ -51,7 +51,9 @@
 			},
 		},
 		test = {
-			assign = function()
+			assign = function(facets)
+				local n = facets_sampleInt(facets)
+				if n then return n..'LL' end
 				return string.format("%.0f", math.floor(math.random() * 9223372036854775807.0))..'LL'
 			end,
 			assert = function(obj1, obj2)

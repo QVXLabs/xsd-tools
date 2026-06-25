@@ -22,4 +22,116 @@ end
 function schemaNameStripped()
    return __SCHEMA_NAME__:gsub("_xsd$",'')
 end
+
+-- D2b width narrowing for the shared-singleton model: pick the narrowest int
+-- singleton holding a type's facet range, so a facet-bounded int gets its own
+-- narrowed singleton instead of the wide xml_int/xml_integer default. Only the
+-- 8 int singletons (its values) are narrowable; float/double/string pass
+-- through. Globals resolve lazily since they are included after this helper.
+function c_narrowSingleton(baseClass, facets)
+   local byBits = {
+      ['8|true']=byte, ['16|true']=short, ['32|true']=int, ['64|true']=integer,
+      ['8|false']=unsignedByte, ['16|false']=unsignedShort,
+      ['32|false']=unsignedInt, ['64|false']=unsignedInteger,
+   }
+   local narrowable = {}
+   table.map(byBits, function(_, c) narrowable[c] = true end)
+   return facets_narrowType(baseClass, facets, byBits, narrowable)
+end
+
+-- The numeric leaf singletons (8 narrowed ints + float/double). An enum on one
+-- of these validates against the PARSED value, not the string form.
+function c_isNumericType(typedef)
+   local numeric = {
+      [byte]=true, [short]=true, [int]=true, [integer]=true,
+      [unsignedByte]=true, [unsignedShort]=true, [unsignedInt]=true,
+      [unsignedInteger]=true, [float]=true, [double]=true,
+   }
+   return numeric[ctypes[typedef]] == true
+end
+
+-- Collision-safe sdbm string-enum dispatch. Hash every key at codegen; if all
+-- distinct the bare hash switch is provably exact, else strcmp-confirm the
+-- colliding literals inside the shared case. `valExpr(literal)` renders the
+-- body to run on a match.
+function c_sdbmStringSwitch(strExpr, values, valExpr)
+   local byHash = sdbm_group(values)
+   local out = stringBuffer:new()
+   out:append(("  switch (sdbmHash_(%s)) {\n"):format(strExpr))
+   table.map(byHash, function(h, lits)
+      out:append(("    case 0x%xU:\n"):format(h))
+      if #lits == 1 then
+         out:append(valExpr(lits[1]))
+      else
+         -- hash collision: confirm the exact literal before accepting
+         local cmps = {}
+         table.map(lits, function(_, v)
+            cmps[#cmps + 1] = ("!strcmp(%s, \"%s\")"):format(strExpr, v)
+         end)
+         out:append(("      if (%s) {\n"):format(table.concat(cmps, " || ")))
+         out:append(valExpr(lits[1]))
+         out:append("      }\n")
+      end
+      out:append("      break;\n")
+   end)
+   out:append("  }\n")
+   return out:str()
+end
+
+-- Emit C facet validation (D2) over the raw string expression `strExpr`.
+-- Numeric bounds parse via atoll; length/enum work on the string directly.
+-- Pattern facets (P3) are skipped. A nil/empty facet set emits nothing.
+-- `typedef` (optional) lets enum checks pick numeric vs string handling.
+function c_facetChecks(label, strExpr, facets, typedef)
+   local out = stringBuffer:new()
+   local function guard(cond, msg)
+      out:append(("  if (%s && !(%s)) xml_invalid_(\"%s: %s\");\n"):format(
+         strExpr, cond, label, msg))
+   end
+   table.map(facets_checks(facets), function(_, c)
+      if c.kind == 'range' then
+         -- Parse the scalar once into a local, then bound-check that.
+         local v = "_v"
+         local cond = c.lo and c.hi
+               and ("%s <= %s && %s <= %s"):format(c.lo, v, v, c.hi)
+            or c.lo and ("%s <= %s"):format(c.lo, v)
+            or ("%s <= %s"):format(v, c.hi)
+         out:append(("  if (%s) { long long _v = atoll(%s);\n"):format(
+            strExpr, strExpr))
+         out:append(("    if (!(%s)) xml_invalid_(\"%s: out of range\");\n"):format(
+            cond, label))
+         out:append("  }\n")
+      elseif c.kind == 'length' then
+         local n = ("strlen(%s)"):format(strExpr)
+         local parts = {}
+         if c.exact then parts = {("%s == %s"):format(n, c.exact)} end
+         if c.min then parts[#parts + 1] = ("%s >= %s"):format(n, c.min) end
+         if c.max then parts[#parts + 1] = ("%s <= %s"):format(n, c.max) end
+         guard(table.concat(parts, " && "), "bad length")
+      elseif c.kind == 'enum' then
+         if typedef and c_isNumericType(typedef) then
+            -- Numeric enum: bound the PARSED value, not the string.
+            local cmps = {}
+            table.map(c.values, function(_, v)
+               cmps[#cmps + 1] = ("_v == %s"):format(v)
+            end)
+            out:append(("  if (%s) { long long _v = atoll(%s);\n"):format(
+               strExpr, strExpr))
+            out:append(("    if (!(%s)) xml_invalid_(\"%s: not permitted\");\n"):format(
+               table.concat(cmps, " || "), label))
+            out:append("  }\n")
+         else
+            -- String enum: collision-safe sdbm switch; flag a hit, fail if none.
+            out:append(("  if (%s) {\n"):format(strExpr))
+            out:append("    int _ok = 0;\n")
+            out:append(c_sdbmStringSwitch(strExpr, c.values,
+               function(_) return "        _ok = 1;\n" end))
+            out:append(("    if (!_ok) xml_invalid_(\"%s: not permitted\");\n"):format(
+               label))
+            out:append("  }\n")
+         end
+      end
+   end)
+   return out:str()
+end
 ]

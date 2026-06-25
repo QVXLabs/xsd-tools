@@ -15,8 +15,16 @@ function double:typeName()
    return ("xml_double")
 end
 
+function double:inlineScalar()
+   return true
+end
+
+function double:cType()
+   return "double"
+end
+
 function double:typeDef()
-   return ("typedef double * %s;\n"):format(self:typeName())
+   return self:scalarTypeDef()
 end
 
 function double:typeFactoryMethods()
@@ -24,37 +32,17 @@ function double:typeFactoryMethods()
 end
 
 function double:defMarshal(elementName)
-   out = stringBuffer:new()
-   out:append("static void")
-   out:append("_xml_double_marshal")
-   out:append("(const xml_double pVal, char ** ppOut, const xml_typeFactory * pFactory) {\n")
-   out:append("  char num[64];\n")
-   out:append("  snprintf(num, 64, \"%f\", *pVal);\n")
-   out:append("  _cstr_append(ppOut, num, pFactory);\n")
-   out:append("}\n")   
-   return out:str()
+   return self:defScalarMarshal(function(v)
+      return ("  char num[64];\n  snprintf(num, 64, \"%%f\", %s);\n  cstr_append_(ppOut, num, pFactory);\n"):format(v)
+   end)
 end
 
 function double:defUnmarshal(elementName)
-   out = stringBuffer:new()
-   out:append("static xml_double\n")
-   out:append("_xml_double_unmarshal(")
-   out:append("const char * pVal, const xml_typeFactory * pFactory) {\n")
-   out:append("  xml_double val = ReallocateMemory(pFactory, NULL, sizeof(double));\n")
-   out:append("  return (*val  = atof(pVal)), val;\n")
-   out:append("}\n")
-   return out:str()
+   return self:defScalarUnmarshal("atof(pVal)")
 end
 
 function double:defDestroy()
-   out = stringBuffer:new()
-   out:append("static xml_double\n")
-   out:append("_xml_double_destroy")
-   out:append("(xml_double pVal, const xml_typeFactory * pFactory) {\n")
-   out:append("  if (pVal) pVal = ReallocateMemory(pFactory, pVal, 0);\n")
-   out:append("  return pVal;\n")
-   out:append("}\n")
-   return out:str()
+   return self:defScalarDestroy()
 end
 
 function double:test()

@@ -10,7 +10,7 @@
 			end,
 			statement = function(varName) 
 				return table.concat({
-					'xml_bool\tm_', varName, ';\n',
+					'xml_bool\t', varName, '_;\n',
 				})
 			end,
 		},
@@ -23,7 +23,7 @@
 			end,
 		},
 		buildVar = function(obj, member) 
-			return table.concat({obj,'m_',member})
+			return table.concat({obj,member,'_'})
 		end,
 		binding = {
 			marshal = {
@@ -32,14 +32,14 @@
 				end,
 				statement = function(dst, obj)
 					return table.concat({
-						'_cstr_append(pMarshaller, ', dst, ', (', obj, ') ? "true" : "false");\n',
+						'cstr_append_(pMarshaller, ', dst, ', (', obj, ') ? "true" : "false");\n',
 					})
 				end,
 			},
 			unmarshal = {
 				definition = function() 
 					return table.concat({
-						'void _unmarshal_bool(xml_marshaller* pMarshaller, const char* pContent, xml_bool* pObj) {\n',
+						'void unmarshal_bool_(xml_marshaller* pMarshaller, const char* pContent, xml_bool* pObj) {\n',
 						'\tif(isDigit(pContent[0]) {\n',
 						'\t\tpVal = (0 != *pContent[0]);\n',
 						'\t} else {',
@@ -50,7 +50,7 @@
 				end,
 				statement = function(src, obj)
 					return table.concat({
-						'_unmarshal_bool(pMarshaller, ', src, ', &', obj, ');\n',
+						'unmarshal_bool_(pMarshaller, ', src, ', &', obj, ');\n',
 					})
 				end,
 			},

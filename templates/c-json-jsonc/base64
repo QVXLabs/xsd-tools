@@ -8,50 +8,50 @@
 			definition = function()
 				return table.concat({
 					'typedef struct {\n',
-					'\tuint8_t*\tm_pBuffer;\n',
-					'\tuint32_t\tm_size;\n',
+					'\tuint8_t*\tpBuffer_;\n',
+					'\tuint32_t\tsize_;\n',
 					'} json_base64;\n',
 				})
 			end,
 			statement = function(varName)
 				return table.concat({
-					'json_base64\tm_', varName, ';\n',
+					'json_base64\t', varName, '_;\n',
 				})
 			end,
 		},
 		delete = {
 			definition = function()
 				return table.concat({
-					'static void _destroy_jsonbase64(json_marshaller* pMarshaller, json_base64* pObj) {\n',
-					'\tif(pObj->m_pBuffer) {\n',
-					'\t\tpObj->m_pBuffer = pMarshaller->realloc(pMarshaller, pObj->m_pBuffer, 0);\n',
+					'static void destroy_jsonbase64_(json_marshaller* pMarshaller, json_base64* pObj) {\n',
+					'\tif(pObj->pBuffer_) {\n',
+					'\t\tpObj->pBuffer_ = pMarshaller->realloc(pMarshaller, pObj->pBuffer_, 0);\n',
 					'\t}\n',
 					'}\n',
 				})
 			end,
 			statement = function(obj)
 				return table.concat({
-					'_destroy_jsonbase64(pMarshaller, &', obj, ');\n',
+					'destroy_jsonbase64_(pMarshaller, &', obj, ');\n',
 				})
 			end,
 		},
 		buildVar = function(obj, member)
-			return table.concat({obj,'m_',member})
+			return table.concat({obj,member,'_'})
 		end,
 		binding = {
 			marshal = {
 				definition = function()
 					return table.concat({
-						'static struct json_object* _marshal_jsonbase64(json_marshaller* pMarshaller, const json_base64* pObj) {\n',
+						'static struct json_object* marshal_jsonbase64_(json_marshaller* pMarshaller, const json_base64* pObj) {\n',
 						'\tbase64_encodestate base64Encoder;\n',
-						'\tconst size_t srcSz = pObj->m_size;\n',
+						'\tconst size_t srcSz = pObj->size_;\n',
 						'\tconst size_t b64Sz = ((srcSz + 2 - ((srcSz + 2) % 3)) / 3 * 4) + 2;\n',
 						'\tsize_t encodedCnt = 0;\n',
 						'\tstruct json_object* pRet;\n',
 						'\tchar* outStr = pMarshaller->realloc(pMarshaller, NULL, b64Sz);\n',
 						'\tmemset(outStr, 0, b64Sz);\n',
 						'\tbase64_init_encodestate(&base64Encoder);\n',
-						'\tencodedCnt = base64_encode_block((const char*)pObj->m_pBuffer, srcSz, outStr, &base64Encoder);\n',
+						'\tencodedCnt = base64_encode_block((const char*)pObj->pBuffer_, srcSz, outStr, &base64Encoder);\n',
 						'\tbase64_encode_blockend(outStr + encodedCnt, &base64Encoder);\n',
 						'\tpRet = json_object_new_string(outStr);\n',
 						'\tpMarshaller->realloc(pMarshaller, outStr, 0);\n',
@@ -60,34 +60,34 @@
 					})
 				end,
 				value = function(obj)
-					return table.concat({'_marshal_jsonbase64(pMarshaller, &', obj, ')'})
+					return table.concat({'marshal_jsonbase64_(pMarshaller, &', obj, ')'})
 				end,
 				statement = function(dst, key, obj)
 					return table.concat({
 						'json_object_object_add(', dst, ', ', key,
-						', _marshal_jsonbase64(pMarshaller, &', obj, '));\n',
+						', marshal_jsonbase64_(pMarshaller, &', obj, '));\n',
 					})
 				end,
 			},
 			unmarshal = {
 				definition = function()
 					return table.concat({
-						'static void _unmarshal_jsonbase64(json_marshaller* pMarshaller, const char* pContent, json_base64* pObj) {\n',
+						'static void unmarshal_jsonbase64_(json_marshaller* pMarshaller, const char* restrict pContent, json_base64* restrict pObj) {\n',
 						'\tbase64_decodestate base64Decoder;\n',
 						'\tconst size_t srcLen = strlen(pContent);\n',
 						'\tconst size_t dataSz = ((srcLen * 3) / 4) + 1;\n',
 						'\tint decoded;\n',
-						'\tpObj->m_pBuffer = pMarshaller->realloc(pMarshaller, NULL, dataSz);\n',
-						'\tmemset(pObj->m_pBuffer, 0, dataSz);\n',
+						'\tpObj->pBuffer_ = pMarshaller->realloc(pMarshaller, NULL, dataSz);\n',
+						'\tmemset(pObj->pBuffer_, 0, dataSz);\n',
 						'\tbase64_init_decodestate(&base64Decoder);\n',
-						'\tdecoded = base64_decode_block(pContent, srcLen, (char*)pObj->m_pBuffer, &base64Decoder);\n',
-						'\tpObj->m_size = (uint32_t)decoded;\n',
+						'\tdecoded = base64_decode_block(pContent, srcLen, (char*)pObj->pBuffer_, &base64Decoder);\n',
+						'\tpObj->size_ = (uint32_t)decoded;\n',
 						'}\n',
 					})
 				end,
 				statement = function(src, obj)
 					return table.concat({
-						'_unmarshal_jsonbase64(pMarshaller, json_object_get_string(', src, '), &', obj, ');\n',
+						'unmarshal_jsonbase64_(pMarshaller, json_object_get_string(', src, '), &', obj, ');\n',
 					})
 				end,
 			},
@@ -100,12 +100,12 @@
 					math.random(0, 65535),
 					math.random(0, 65535)
 				)
-				return string.format('{ .m_pBuffer = (uint8_t*)\"%s\", .m_size = %d }', str, str:len())
+				return string.format('{ .pBuffer_ = (uint8_t*)\"%s\", .size_ = %d }', str, str:len())
 			end,
 			assert = function(obj1, obj2)
 				return table.concat({
-					string.format("\tassert(%s.m_size ==  %s.m_size);\n", obj1, obj2),
-					string.format("\tassert(!memcmp(%s.m_pBuffer, %s.m_pBuffer, %s.m_size));\n", obj1, obj2, obj2),
+					string.format("\tassert(%s.size_ ==  %s.size_);\n", obj1, obj2),
+					string.format("\tassert(!memcmp(%s.pBuffer_, %s.pBuffer_, %s.size_));\n", obj1, obj2, obj2),
 				})
 			end
 		},

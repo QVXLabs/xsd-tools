@@ -4,6 +4,7 @@
 ][@lua --include any shared 'helper' templates
 	return include 'shared/schemaEx'
 ][@lua --include Java/StAX type info
+	include 'shared/facets'
 	include 'java-xml-stax/java_type_info'
 ][@lua --c-safe names
 	javaPKGName = "com.mobitv.app"
@@ -21,6 +22,44 @@ public class RunTest {
 	local depOrder = schema.sortDependencies()
 	local depOrderSansRoot = table.filter(depOrder, function(k,v)
 		return v.name ~= schema.root and v or nil end)
+	-- Facet-aware test value: prefer a facet-satisfying sample so the value
+	-- passes the emitted validation; fall back to the type's random gen.
+	local function sampleFor(ti, facets)
+		if facets then
+			local s = (ti.jtype == "Integer" or ti.jtype == "Long")
+				and facets_sampleInt(facets) or facets_sampleString(facets)
+			if s then return s end
+		end
+		return ti.test.assign()
+	end
+	-- D2b: narrowed boxed type + primitive cast for numeric facet ranges,
+	-- mirroring the binding so builder temporaries match the setter signature.
+	local javaSigned = {
+		Byte    = {box = "Byte",    prim = "byte"},
+		Short   = {box = "Short",   prim = "short"},
+		Integer = {box = "Integer", prim = "int"},
+		Long    = {box = "Long",    prim = "long"},
+	}
+	local function javaNumType(ti, facets)
+		if ti.jtype ~= "Integer" and ti.jtype ~= "Long" then return nil end
+		local box = facets_narrowestSigned(facets)
+		return box and javaSigned[box]
+	end
+	-- Emit a `<box> tmp = ...;` assignment matching the (possibly narrowed)
+	-- field type, then return it. Narrowed numerics use a primitive cast so
+	-- both int- and long-sourced samples assign cleanly.
+	local function assignTmp(ti, facets)
+		local nw = javaNumType(ti, facets)
+		if nw then
+			return table.concat({
+				"\t\t\t", nw.box, " tmp = (", nw.prim, ") ",
+				sampleFor(ti, facets), ";\n",
+			})
+		end
+		local assign = ti.default("__T__", sampleFor(ti, facets))
+		return "\t\t\t" .. ti.jtype .. " tmp;\n"
+			.. assign:gsub("_+__T__", "tmp")
+	end
 	table.map(depOrderSansRoot, function(_, node)
 		local hasContent = next(node.content) ~= nil
 		local jn = javaSafeName(node.name)
@@ -30,25 +69,18 @@ public class RunTest {
 		}))
 		table.map(node.attributes, function(attribName, attribute)
 			local ti = java_type_info[attribute.type]
-			-- reuse the type's `default` codegen to assign a test value
-			local assign = ti.default("__T__", ti.test.assign())
-			assign = assign:gsub("_+__T__", "tmp")
 			outbuf:append(table.concat({
 				"\t\t{\n",
-				"\t\t\t", ti.jtype, " tmp;\n",
-				assign,
+				assignTmp(ti, attribute.facets),
 				"\t\t\te.set_", attribName, "(tmp);\n",
 				"\t\t}\n",
 			}))
 		end)
 		if hasContent then
 			local ti = java_type_info[node.content.type]
-			local assign = ti.default("__T__", ti.test.assign())
-			assign = assign:gsub("_+__T__", "tmp")
 			outbuf:append(table.concat({
 				"\t\t{\n",
-				"\t\t\t", ti.jtype, " tmp;\n",
-				assign,
+				assignTmp(ti, node.content.facets),
 				"\t\t\te.set_text(tmp);\n",
 				"\t\t}\n",
 			}))

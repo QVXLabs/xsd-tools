@@ -10,14 +10,14 @@
 			end,
 			statement = function(varName) 
 				return table.concat({
-					'char*\tm_p', varName, ';\n',
+					'char*\tp', varName, '_;\n',
 				})
 			end,
 		},
 		delete = {
 			definition = function() 
 				return table.concat({
-					'static void _destroy_charp(xml_marshaller* pMarshaller, char** ppObj) {\n',
+					'static void destroy_charp_(xml_marshaller* pMarshaller, char** ppObj) {\n',
 					'\tif (**ppObj) {\n',
 					'\t\t*ppObj = pMarshaller->realloc(pMarshaller, *ppObj, 0);\n',
 					'\t}\n',
@@ -26,12 +26,12 @@
 			end,
 			statement = function(obj) 
 				return table.concat({
-					'_destroy_charp(pMarshaller, &', obj, ');\n',
+					'destroy_charp_(pMarshaller, &', obj, ');\n',
 				})
 			end,
 		},
 		buildVar = function(obj, member) 
-			return table.concat({obj,'m_p',member})
+			return table.concat({obj,'p',member,'_'})
 		end,
 		binding = {
 			marshal = {
@@ -40,30 +40,32 @@
 				end,
 				statement = function(dst, obj)
 					return table.concat({
-						'_cstr_append(pMarshaller, ', dst, ', ', obj, ');\n',
+						'cstr_append_(pMarshaller, ', dst, ', ', obj, ');\n',
 					})
 				end,
 			},
 			unmarshal = {
 				definition = function() 
 					return table.concat({
-						'void _unmarshal_charp(xml_marshaller* pMarshaller, const char* pContent, char** ppObj) {\n',
+						'void unmarshal_charp_(xml_marshaller* pMarshaller, const char* restrict pContent, char** restrict ppObj) {\n',
 						'\tif (*ppObj) {\n',
 						'\t\t*ppObj = pMarshaller->realloc(pMarshaller, *ppObj, 0);\n',
 						'\t}\n',
-						'\t*ppObj = _CStrCpy(pMarshaller, pContent);\n',
+						'\t*ppObj = CStrCpy_(pMarshaller, pContent);\n',
 						'}\n',
 					})
 				end,
 				statement = function(src, obj)
 					return table.concat({
-						'_unmarshal_charp(pMarshaller, ', src, ', &', obj, ');\n',
+						'unmarshal_charp_(pMarshaller, ', src, ', &', obj, ');\n',
 					})
 				end,
 			},
 		},
 		test = {
-			assign = function()
+			assign = function(facets)
+				local s = facets_sampleString(facets)
+				if s then return '"'..s..'"' end
 				local tbl = { '"arch"', '"Ancestor"', '"Interaction"', '"Productivity"', '"Jelly"', '"Glue"', '"Way"'}
 				return tbl[math.random(1, #tbl)]
 			end,
