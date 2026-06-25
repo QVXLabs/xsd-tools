@@ -370,11 +370,11 @@ if(MSVC)
   set(_incbin_data "${CMAKE_BINARY_DIR}/generated/luascript_data.c")
   add_custom_command(
     OUTPUT "${_incbin_data}"
-    # incbin's arg parser only accepts the glued -Ipath form (a bare -I
-    # registers an empty path and the next token is misread as a source file),
-    # so the include flag must be a single token with no space.
+    # No -I: incbin's open_file only falls back to the bare path when it has
+    # zero search dirs, so with WORKING_DIRECTORY=<build> it opens the absolute
+    # resource.cpp and the relative luascript.luac (generated in <build>)
+    # directly — same lookup the POSIX .incbin directive uses.
     COMMAND incbin-tool "${CMAKE_CURRENT_SOURCE_DIR}/src/resource.cpp"
-            "-I${CMAKE_CURRENT_SOURCE_DIR}/third-party/incbin"
             -o "${_incbin_data}"
     DEPENDS "${LUASCRIPT_LUAC}" incbin-tool
     WORKING_DIRECTORY "${CMAKE_BINARY_DIR}"
