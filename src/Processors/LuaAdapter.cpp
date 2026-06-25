@@ -30,6 +30,7 @@
 #define FIXED_TAG      "fixed"
 #define USE_TAG        "use"
 #define MAXOCCURS_TAG  "maxOccurs"
+#define MINOCCURS_TAG  "minOccurs"
 #define FACETS_TAG     "facets"
 #define DEBUG_LUASTACK (0)
 
@@ -96,8 +97,9 @@ LuaContent::~LuaContent() {
 }
 
 LuaType *
-LuaContent::Type(const std::string& rTypeName, const int maxOccurs) {
-	return new LuaType(_getLuaState(), rTypeName, maxOccurs);
+LuaContent::Type(const std::string& rTypeName, const int maxOccurs,
+                 const int minOccurs) {
+	return new LuaType(_getLuaState(), rTypeName, maxOccurs, minOccurs);
 }
 
 /* Class LuaSchema */
@@ -121,8 +123,9 @@ LuaSchema::~LuaSchema()
 { }
 
 /* Class LuaType */
-LuaType::LuaType(lua_State* pLuaState, const std::string& rTypeName, const int maxOccurs)
-	: LuaAdapter(pLuaState) { 
+LuaType::LuaType(lua_State* pLuaState, const std::string& rTypeName,
+                 const int maxOccurs, const int minOccurs)
+	: LuaAdapter(pLuaState) {
 	/* create new table for type and append it as a child element to the current
 	   element on stack */
 	lua_newtable(pLuaState);
@@ -137,6 +140,8 @@ LuaType::LuaType(lua_State* pLuaState, const std::string& rTypeName, const int m
 
  	lua_pushnumber(pLuaState, maxOccurs);
 	lua_setfield(pLuaState, -2, MAXOCCURS_TAG);
+	lua_pushnumber(pLuaState, minOccurs);
+	lua_setfield(pLuaState, -2, MINOCCURS_TAG);
 	/* debug */
 	_luaStackDump(pLuaState);
 }
@@ -193,7 +198,7 @@ LuaAttribute::LuaAttribute(	lua_State * pLuaState,
 							const std::string * pDefault,
 							const std::string * pFixed,
 							const std::string * pUse) 
-	: LuaAdapter(pLuaState) {
+	: LuaAdapter(pLuaState), m_name(rName), m_typeName(rType.Name()) {
 	/* push attribute table to stack top */
 	lua_getfield(pLuaState, -1, ATTRIBUTE_TAG);
 	/* create emtpty table for attribute name/type pair */
@@ -218,6 +223,38 @@ LuaAttribute::LuaAttribute(	lua_State * pLuaState,
 	delete pType;
 	/* append attribute to attribute table */
 	lua_setfield(pLuaState, -2, rName.c_str());
+	/* debug */
+	_luaStackDump(pLuaState);
+}
+
+void
+LuaAttribute::Facets(const LuaFacets& rFacets) {
+	/* only emit a `facets` block when there is something to emit */
+	if (rFacets.empty())
+		return;
+	lua_State * pLuaState = _getLuaState();
+	/* the ATTRIBUTE_TAG table is at stack top; descend attributes[name] ->
+	   [typeName] so facets land on the type sub-table (where targets read
+	   attr.<type>.facets, mirroring content-type facets) */
+	lua_getfield(pLuaState, -1, m_name.c_str());
+	lua_getfield(pLuaState, -1, m_typeName.c_str());
+	lua_newtable(pLuaState);
+	for (size_t i = 0; i < rFacets.scalars.size(); ++i) {
+		lua_pushstring(pLuaState, rFacets.scalars[i].second.c_str());
+		lua_setfield(pLuaState, -2, rFacets.scalars[i].first.c_str());
+	}
+	for (size_t i = 0; i < rFacets.lists.size(); ++i) {
+		const std::vector<std::string>& rVals = rFacets.lists[i].second;
+		lua_newtable(pLuaState);
+		for (size_t j = 0; j < rVals.size(); ++j) {
+			lua_pushstring(pLuaState, rVals[j].c_str());
+			lua_rawseti(pLuaState, -2, static_cast<int>(j + 1));
+		}
+		lua_setfield(pLuaState, -2, rFacets.lists[i].first.c_str());
+	}
+	lua_setfield(pLuaState, -2, FACETS_TAG);
+	/* pop the type + attribute tables, restoring ATTRIBUTE_TAG at top */
+	lua_pop(pLuaState, 2);
 	/* debug */
 	_luaStackDump(pLuaState);
 }

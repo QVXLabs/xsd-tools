@@ -46,6 +46,8 @@ namespace XSD {
 			void ParseChildren(BaseProcessor& rProcessor) const noexcept(false);;
 			void ParseElement(BaseProcessor& rProcessor) const noexcept(false);;
 			Types::BaseType * GetParentType(void) const noexcept(false);;
+			/* the restriction child, or NULL when this simpleType has none */
+			Restriction * GetRestriction() const noexcept;
 			std::string Name() const noexcept(false);;
 			bool HasName() const;
 			bool HasUnion() const;

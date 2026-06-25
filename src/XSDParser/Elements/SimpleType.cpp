@@ -80,6 +80,11 @@ SimpleType::GetParentType(void) const noexcept(false) {
 	}
 }
 
+Restriction *
+SimpleType::GetRestriction() const noexcept {
+	return Node::SearchXSDChildElm<Restriction>();
+}
+
 std::string
 SimpleType::Name() const noexcept(false) {
 	return std::string(this->GetAttribute<const char*>("name"));

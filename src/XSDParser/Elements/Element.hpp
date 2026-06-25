@@ -52,12 +52,14 @@ namespace XSD {
 			Types::BaseType* Type() const noexcept(false);;
 			Element* RefElement() const noexcept(false);;
 			int MaxOccurs() const;
+			int MinOccurs() const;
 			bool HasName() const;
 			bool HasSubstitutionGroup() const;
 			bool HasRef() const;
 			bool HasType() const;
 			bool HasChildType() const;
 			bool HasMaxOccurs() const;
+			bool HasMinOccurs() const;
 		};
 	}
 }

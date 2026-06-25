@@ -71,6 +71,8 @@ namespace Processors {
 		LuaProcessor();
 		/* dispatch a restriction's facet children to this processor */
 		void _walkFacets(const XSD::Elements::Node* pNode);
+		/* accumulate an attribute's restriction facets onto m_facets */
+		void _walkAttributeFacets(const XSD::Types::BaseType* pType);
 		/* facets accumulated across a restriction derivation chain */
 		LuaFacets m_facets;
 	};

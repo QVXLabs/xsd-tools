@@ -147,6 +147,11 @@ Element::MaxOccurs() const {
 	return -1;
 }
 
+int
+Element::MinOccurs() const {
+	return Node::GetAttribute<int>("minOccurs");
+}
+
 bool
 Element::HasName() const {
 	return Node::HasAttribute("name");
@@ -176,6 +181,11 @@ Element::HasChildType() const {
 bool
 Element::HasMaxOccurs() const {
 	return Node::HasAttribute("maxOccurs");
+}
+
+bool
+Element::HasMinOccurs() const {
+	return Node::HasAttribute("minOccurs");
 }
 
 Types::BaseType*

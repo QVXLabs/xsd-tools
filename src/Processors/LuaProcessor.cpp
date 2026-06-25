@@ -111,9 +111,11 @@ LuaProcessor::ProcessElement(const XSD::Elements::Element* pNode) {
 			LuaProcessor processor(pLuaType->Content());
 			processor.ProcessElement(pNode);
 		} else {
-			/* Default maxOccurs is 1 */
+			/* Default min/maxOccurs is 1 */
 			int maxOccurs = pNode->HasMaxOccurs() ?	pNode->MaxOccurs() : 1;
-			LuaProcessor luaPrcssr(pLuaContent->Type(pNode->Name(), maxOccurs));
+			int minOccurs = pNode->HasMinOccurs() ?	pNode->MinOccurs() : 1;
+			LuaProcessor luaPrcssr(
+				pLuaContent->Type(pNode->Name(), maxOccurs, minOccurs));
 			luaPrcssr._parseType(*pElmType);
 		}
 	} else {
@@ -226,15 +228,42 @@ LuaProcessor::ProcessAttribute(const XSD::Elements::Attribute* pNode) {
 						(pNode->Use() != XSD::Elements::Attribute::REQUIRED));
 			}
 		}
-		unique_ptr<LuaAttribute> pAttribute(	
-			pLuaType->Attribute(pNode->Name(), 
-								typeXtr.Extract(*pType), 
+		unique_ptr<LuaAttribute> pAttribute(
+			pLuaType->Attribute(pNode->Name(),
+								typeXtr.Extract(*pType),
 								pDefault.get(),
 								pFixed.get(),
 								pUse.get()
 							)
 			);
+		/* bridge the attribute's restriction facets (clear first so prior
+		   content facets don't leak in), then attach to the attribute */
+		m_facets.clear();
+		_walkAttributeFacets(pType.get());
+		pAttribute->Facets(m_facets);
+		m_facets.clear();
 	}
+}
+
+/* Accumulate the facets of an attribute's simpleType restriction onto
+   m_facets, following the derivation chain when a restriction's base is
+   itself a user-defined simpleType (covers inline and named-type
+   attributes uniformly: both resolve to a Types::SimpleType). */
+void
+LuaProcessor::_walkAttributeFacets(const XSD::Types::BaseType* pType) {
+	if (!(XSD_ISTYPE(pType, XSD::Types::SimpleType)))
+		return;
+	const XSD::Types::SimpleType* pSimpleType =
+		dynamic_cast<const XSD::Types::SimpleType*>(pType);
+	const XSD::Elements::SimpleType* pElm = pSimpleType->m_pValue;
+	unique_ptr<XSD::Elements::Restriction> pRestriction(pElm->GetRestriction());
+	if (NULL == pRestriction.get())
+		return;
+	_walkFacets(pRestriction.get());
+	/* follow the chain when the base is another user-defined simpleType */
+	unique_ptr<XSD::Types::BaseType> pBase(pRestriction->Base());
+	if (XSD_ISTYPE(pBase.get(), XSD::Types::SimpleType))
+		_walkAttributeFacets(pBase.get());
 }
 
 /* virtual */ void 

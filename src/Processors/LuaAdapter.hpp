@@ -78,7 +78,8 @@ namespace Processors {
 		friend class LuaType;
 	public:
 		virtual ~LuaContent();
-		LuaType * Type(const std::string& rTypeName, const int maxOccurs);
+		LuaType * Type(const std::string& rTypeName, const int maxOccurs,
+		               const int minOccurs = 1);
 	protected:
 		LuaContent();
 		LuaContent(lua_State* pLuaState);
@@ -108,13 +109,16 @@ namespace Processors {
 		/* attach a `facets` sub-table; no-op when rFacets is empty */
 		void Facets(const LuaFacets& rFacets);
 	protected:
-		LuaType(lua_State * pLuaState, const std::string& rTypeName, const int maxOccurs);
+		LuaType(lua_State * pLuaState, const std::string& rTypeName,
+		        const int maxOccurs, const int minOccurs = 1);
 	};
 	/* lua attribute class */
 	class LuaAttribute : public LuaAdapter {
 		friend class LuaType;
 	public:
 		virtual ~LuaAttribute();
+		/* attach a `facets` sub-table; no-op when rFacets is empty */
+		void Facets(const LuaFacets& rFacets);
 	protected:
 		LuaAttribute(	lua_State * pLuaState,
 						const std::string& rAttribName,
@@ -123,6 +127,11 @@ namespace Processors {
 						const std::string * pFixed,
 						const std::string * pUse
 					);
+	private:
+		/* attribute + type-table keys; let Facets() re-descend to the type
+		   sub-table where targets read `attr.<type>.facets` */
+		std::string m_name;
+		std::string m_typeName;
 	};
 }
 #endif /* LUAADAPTER_HPP_ */
