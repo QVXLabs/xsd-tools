@@ -67,19 +67,27 @@ function parser:new(obj)
 	return obj
 end
 
+-- Fold the template into a stringBuffer, recursing over byte offsets: find the
+-- next [@lua marker, balance-match its block from there (%b[] anchored on the
+-- marker, so a literal '[' just before it -- e.g. arr[[@lua..]] -- is left
+-- intact), and substitute it; a backslash before the marker emits it verbatim.
+-- Threading the offset (not the remainder) keeps it O(template length).
 function parser:parse(str)
-	return str:gsub("(.?)(%[@lua.*)", function(s1, s2)
-			s1 = s1 or ""
-			local luaBlk, remStr = s2:match("(%b[])(.*)")
-			local msg = luaBlk
-			if luaBlk then
-				if s1 ~= '\\' then
-					_, msg = self.prvtEnv:invoke(luaBlk:match("%[@lua(.*)%]$"))
-				end
-				return s1..(msg or "")..self:parse(remStr)
-			end
-			return s1..remStr
-		end)
+	local function scan(pos, out)
+		local s = str:find("[@lua", pos, true)
+		if not s then return out:append(str:sub(pos)) end
+		out:append(str:sub(pos, s - 1))
+		local _, e = str:find("%b[]", s)
+		local blk = str:sub(s, e)
+		if str:sub(s - 1, s - 1) == '\\' then
+			out:append(blk)
+		else
+			local _, msg = self.prvtEnv:invoke(blk:match("^%[@lua(.*)%]$"))
+			out:append(msg or "")
+		end
+		return scan(e + 1, out)
+	end
+	return scan(1, stringBuffer:new()):str()
 end
 
 function parser:include(str)

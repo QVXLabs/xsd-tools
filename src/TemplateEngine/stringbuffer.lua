@@ -61,6 +61,7 @@ end
 function stringBuffer:append(str)
 	local buf = self._buf
 	buf[#buf + 1] = str
+	return self
 end
 
 function stringBuffer:str()
