@@ -101,9 +101,12 @@ _homeDir() noexcept {
 #endif
 }
 
-/* The directory containing the running executable, or "" if it cannot be
- * resolved. Lets a relocatable install (tarball) find its templates without
- * env setup, independent of the prefix baked in at build time. */
+/* Directory of the running executable ("" if unresolved); lets a relocatable
+ * tarball find templates with no env setup. noinline: its 4 KB buffer inlined
+ * under -fomit-frame-pointer made a frameless frame libunwind crashed on. */
+#if defined(__GNUC__) || defined(__clang__)
+__attribute__((noinline))
+#endif
 static string
 _exeDir() noexcept {
 	char buf[4096];
