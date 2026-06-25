@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!-- Imported secondary schema (namespace B). Defines AddressType, referenced
+     cross-namespace from nsImport.xsd via xs:import. -->
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+           targetNamespace="urn:example:address">
+  <xs:complexType name="AddressType">
+    <xs:sequence>
+      <xs:element name="street" type="xs:string"/>
+      <xs:element name="zip" type="xs:string"/>
+    </xs:sequence>
+  </xs:complexType>
+</xs:schema>

@@ -330,6 +330,7 @@ set(LIBXSDB_SOURCES
   src/XSDParser/Elements/Enumeration.cpp
   src/XSDParser/Elements/AttributeGroup.cpp
   src/XSDParser/Elements/Include.cpp
+  src/XSDParser/Elements/Import.cpp
   src/XSDParser/Elements/Annotation.cpp
   src/XSDParser/Elements/Documentation.cpp
   src/XSDParser/Elements/All.cpp

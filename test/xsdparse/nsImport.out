@@ -1,0 +1,58 @@
+order = {
+	attributes = {}
+	namespace = urn:example:order
+	maxOccurs = 1
+	content = {
+		id = {
+			attributes = {}
+			namespace = urn:example:order
+			maxOccurs = 1
+			content = {
+				string = {
+					attributes = {}
+					maxOccurs = 1
+					content = {}
+					minOccurs = 1
+				}
+			}
+			minOccurs = 1
+		}
+		shipTo = {
+			attributes = {}
+			namespace = urn:example:order
+			maxOccurs = 1
+			content = {
+				zip = {
+					attributes = {}
+					namespace = urn:example:address
+					maxOccurs = 1
+					content = {
+						string = {
+							attributes = {}
+							maxOccurs = 1
+							content = {}
+							minOccurs = 1
+						}
+					}
+					minOccurs = 1
+				}
+				street = {
+					attributes = {}
+					namespace = urn:example:address
+					maxOccurs = 1
+					content = {
+						string = {
+							attributes = {}
+							maxOccurs = 1
+							content = {}
+							minOccurs = 1
+						}
+					}
+					minOccurs = 1
+				}
+			}
+			minOccurs = 1
+		}
+	}
+	minOccurs = 1
+}

@@ -98,3 +98,17 @@ TEST(Schema, DefaultNamespaceEqualsTargetResolves) {
 	EXPECT_EQ(std::string(XSD::XSD_NS), root->ResolvePrefix("xs"));
 	delete root;
 }
+
+/* E2: the importing schema declares the imported namespace on a prefix; the
+ * prefix resolves to the imported namespace URI (end-to-end cross-document
+ * type resolution is covered by the nsImport golden in generateTests). */
+TEST(Schema, ImportedNamespacePrefixResolves) {
+	XSD::Parser parser;
+	XSD::Elements::Schema* root = NULL;
+	ASSERT_NO_THROW(root = parser.Parse(
+		std::string(XSD_CORPUS_DIR "/nsImport.xsd")));
+	ASSERT_NE((XSD::Elements::Schema*)NULL, root);
+	EXPECT_EQ(std::string("urn:example:order"), root->TargetNamespace());
+	EXPECT_EQ(std::string("urn:example:address"), root->ResolvePrefix("addr"));
+	delete root;
+}

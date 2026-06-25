@@ -61,6 +61,9 @@ namespace XSD {
 			const TiXmlElement* ContentElement(const char* pElemName) const noexcept(false);
 			const TiXmlElement* FindChildXMLElement_(const char* pXMLElmTag, const char* pAttrib, const char* pName) const noexcept(false);
 			Node* FindXSDElm_(const XsdQName& rName, const char* pTypeName) const noexcept(false);
+			/* Cross-namespace resolution: search xs:import'ed documents whose
+			 * loaded target namespace matches rName.ns. NULL if none match. */
+			Node* FindImportedXSDElm_(const XsdQName& rName, const char* pTypeName) const noexcept(false);
 			Node* ConstructNode_(const TiXmlElement* pElm, const Parser& rParser) const;
 			Node* FindXSDNode_(const XsdQName& rName, const char* pTypeName) const noexcept(false);
 			Node* FindChildXSDNode_(const char* pXMLTag) const noexcept(false);
@@ -99,6 +102,11 @@ namespace XSD {
 			/* The "name" attribute as a string; shared by named nodes. */
 			std::string name_() const noexcept(false);
 			std::string QualifyElementName(const char* pElemName) const noexcept;
+			/* Resolve a schemaLocation-style attribute to a loadable URI,
+			 * making relative file paths absolute against this document.
+			 * Shared by xs:include and xs:import. */
+			std::string resolveSchemaURI_(const char* pAttrib)
+				const noexcept(false);
 			template<typename T> T GetAttribute(const char* pAttrib) const noexcept(false) {
 				T retVal;
 				std::stringstream sstrm(Attribute_(pAttrib));

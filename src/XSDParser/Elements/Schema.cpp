@@ -28,6 +28,7 @@
 #include "./src/XSDParser/Elements/Schema.hpp"
 #include "./src/XSDParser/Elements/Element.hpp"
 #include "./src/XSDParser/Elements/Include.hpp"
+#include "./src/XSDParser/Elements/Import.hpp"
 #include "./src/XSDParser/Elements/Annotation.hpp"
 
 using namespace XSD;
@@ -51,7 +52,8 @@ Schema::ParseChildren(BaseProcessor& rProcessor) const noexcept(false) {
 	eachChild_([&rProcessor](const Node& rNode) {
 		if (XSD_ISELEMENT(&rNode, Element) ||
 			XSD_ISELEMENT(&rNode, Annotation) ||
-			XSD_ISELEMENT(&rNode, Include)) {
+			XSD_ISELEMENT(&rNode, Include) ||
+			XSD_ISELEMENT(&rNode, Import)) {
 			rNode.ParseElement(rProcessor);
 		}
 	});
