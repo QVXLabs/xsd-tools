@@ -1,0 +1,42 @@
+[@lua --define double type
+	ctype_double = {
+		type = 'cpp_type',
+		cpp_type = {
+			name = function() return 'double' end,
+			definition = function() return '' end,
+			statement = function(varName) return 'double\t'..varName..'_ = 0;\n' end,
+		},
+		buildVar = function(obj, member) return table.concat({obj, member, '_'}) end,
+		binding = {
+			marshal = {
+				definition = function()
+					return table.concat({
+						'json_object* _marshal_ctype_double(const double val) {\n',
+						'\tchar valBuf[512];\n',
+						'\tsnprintf(valBuf, sizeof(valBuf), "%.17g", val);\n',
+						'\treturn json_object_new_string(valBuf);\n',
+						'}\n',
+					})
+				end,
+				value = function(obj) return '_marshal_ctype_double('..obj..')' end,
+				statement = function(dst, key, obj)
+					return 'json_object_object_add('..dst..', '..key..', _marshal_ctype_double('..obj..'));\n'
+				end,
+			},
+			unmarshal = {
+				definition = function() return '' end,
+				statement = function(src, obj)
+					return obj..' = (double)strtod(json_object_get_string('..src..'), nullptr);\n'
+				end,
+			},
+		},
+		test = {
+			assign = function()
+				return tostring(math.random() * math.random(-32767, 32767))
+			end,
+			assert = function(obj1, obj2)
+				return string.format("\tassert(%s == %s);\n", obj1, obj2)
+			end
+		},
+	}
+]

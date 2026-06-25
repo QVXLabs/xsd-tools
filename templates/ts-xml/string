@@ -1,0 +1,22 @@
+[@lua --TS string type (also the fallback for date/uri/qname/etc.)
+	tstype_string = {
+		tsType = "string",
+		field = function(name)
+			return table.concat({ "\t_", name, "?: string;\n" })
+		end,
+		default = function(name, value)
+			return table.concat({ "\t\tthis._", name, ' = "', value, '";\n' })
+		end,
+		-- value (typed) -> XML string
+		toText = function(expr) return expr end,
+		-- XML string -> typed value
+		fromText = function(expr) return expr end,
+		test = {
+			assign = function()
+				local tbl = { 'arch', 'Ancestor', 'Interaction',
+					'Productivity', 'Jelly', 'Glue', 'Way' }
+				return '"' .. tbl[math.random(1, #tbl)] .. '"'
+			end,
+		},
+	}
+]

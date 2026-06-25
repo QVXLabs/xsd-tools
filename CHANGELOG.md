@@ -10,6 +10,10 @@ All notable changes to xsd-tools are documented here. The format is based on
 - Output targets completing the C/Python/Java × XML/JSON grid: **Python→JSON**
   (stdlib `json`), **C→JSON** (json-c), **Java→XML** (StAX). Each constructs
   types through overridable factory methods so consumers can inject subtypes.
+- Three more language targets (nine total): **C++11→XML** (`cpp-xml-expat`),
+  **C++11→JSON** (`cpp-json-jsonc`) — RAII, classes, overridable factory
+  methods — and **TypeScript→XML** (`ts-xml`, fast-xml-parser). All inherit
+  facet validation and namespace emission, and are round-trip tested.
 - CLI: `--out-dir` (split multi-file `/* FILE: */` output into real files),
   `--list` (enumerate templates), `--version`, `-h/--help`, and distinct
   error/exit codes for missing XSD vs template vs parse error.

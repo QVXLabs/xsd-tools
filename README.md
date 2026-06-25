@@ -4,16 +4,19 @@
 ### Overview ###
 xsd-tools is a set of tools for generating code from xml xsd schema documents, mainly around generating marshalling & unmarshalling code. It is designed such that it can be easily extended by any user to enable code generation for any language.
 
-It ships output targets covering the C / Python / Java languages in both XML and JSON, all round-trip tested:
+It ships output targets covering the C / C++ / Python / Java / TypeScript languages, all round-trip tested:
 
 | Target template      | Language | Format | Library          |
 |----------------------|----------|--------|------------------|
 | `c-xml-expat`        | C        | XML    | expat            |
 | `c-json-jsonc`       | C        | JSON   | json-c           |
+| `cpp-xml-expat`      | C++11    | XML    | expat            |
+| `cpp-json-jsonc`     | C++11    | JSON   | json-c           |
 | `python-sax`         | Python   | XML    | stdlib `xml.sax` |
 | `python-json.tmpl`   | Python   | JSON   | stdlib `json`    |
 | `java-json.org.tmpl` | Java     | JSON   | org.json         |
 | `java-xml-stax.tmpl` | Java     | XML    | JDK StAX         |
+| `ts-xml.tmpl`        | TypeScript | XML  | fast-xml-parser  |
 
 Generated code constructs schema types through overridable factory methods, so consumers can subclass and inject custom types.
 
@@ -21,7 +24,8 @@ It processes XSD schema documents and invokes a template file which outputs code
 
 ### Features ###
   * XSD schema parsing
-  * Six built-in output targets (C/Python/Java × XML/JSON), easily extendable
+  * Nine built-in output targets across C/C++/Python/Java/TypeScript,
+    easily extendable
   * Generated unmarshallers enforce XSD restriction facets at parse time
     (range, length, enumeration on elements and attributes) — invalid documents
     are rejected.

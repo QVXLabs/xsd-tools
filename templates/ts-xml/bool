@@ -1,0 +1,21 @@
+[@lua --TS boolean type
+	tstype_bool = {
+		tsType = "boolean",
+		field = function(name)
+			return table.concat({ "\t_", name, "?: boolean;\n" })
+		end,
+		default = function(name, value)
+			return table.concat({ "\t\tthis._", name, " = ", value, ";\n" })
+		end,
+		toText = function(expr) return "String(" .. expr .. ")" end,
+		fromText = function(expr)
+			return "(" .. expr .. ".trim() === \"true\")"
+		end,
+		test = {
+			assign = function()
+				local tbl = { 'true', 'false' }
+				return tbl[math.random(1, 2)]
+			end,
+		},
+	}
+]

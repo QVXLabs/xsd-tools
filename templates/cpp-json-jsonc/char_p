@@ -1,0 +1,45 @@
+[@lua --define string type
+	ctype_char_p = {
+		type = 'cpp_type',
+		cpp_type = {
+			name = function() return 'std::string' end,
+			definition = function() return '' end,
+			statement = function(varName)
+				return 'std::string\t'..varName..'_;\n'
+			end,
+		},
+		buildVar = function(obj, member)
+			return table.concat({obj, member, '_'})
+		end,
+		binding = {
+			marshal = {
+				definition = function() return '' end,
+				value = function(obj)
+					return 'json_object_new_string('..obj..'.c_str())'
+				end,
+				statement = function(dst, key, obj)
+					return 'json_object_object_add('..dst..', '..key
+						..', json_object_new_string('..obj..'.c_str()));\n'
+				end,
+			},
+			unmarshal = {
+				definition = function() return '' end,
+				statement = function(src, obj)
+					return '{ const char* s = json_object_get_string('..src..'); '
+						..obj..' = s ? s : ""; }\n'
+				end,
+			},
+		},
+		test = {
+			assign = function(facets)
+				local s = facets_sampleString(facets)
+				if s then return '"'..s..'"' end
+				local tbl = { '"arch"', '"Ancestor"', '"Interaction"', '"Productivity"', '"Jelly"', '"Glue"', '"Way"'}
+				return tbl[math.random(1, #tbl)]
+			end,
+			assert = function(obj1, obj2)
+				return string.format("\tassert(%s == %s);\n", obj1, obj2)
+			end
+		},
+	}
+]

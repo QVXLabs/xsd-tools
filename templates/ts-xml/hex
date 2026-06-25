@@ -1,0 +1,30 @@
+[@lua --TS hexBinary type (Uint8Array via Node Buffer, lowercase hex)
+	tstype_hex = {
+		tsType = "Uint8Array",
+		field = function(name)
+			return table.concat({ "\t_", name, "?: Uint8Array;\n" })
+		end,
+		default = function(name, value)
+			return table.concat({
+				"\t\tthis._", name,
+				' = new Uint8Array(Buffer.from("', value, '", "hex"));\n' })
+		end,
+		toText = function(expr)
+			return "Buffer.from(" .. expr .. ").toString(\"hex\")"
+		end,
+		fromText = function(expr)
+			return "new Uint8Array(Buffer.from((" .. expr
+				.. ").trim(), \"hex\"))"
+		end,
+		test = {
+			assign = function()
+				return 'new Uint8Array(Buffer.from("'
+					.. string.format('%.4x%.4x%.4x',
+						math.random(0, 65535),
+						math.random(0, 65535),
+						math.random(0, 65535))
+					.. '", "hex"))'
+			end,
+		},
+	}
+]

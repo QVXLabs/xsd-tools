@@ -1,0 +1,27 @@
+[@lua --TS list(bigint) type (space-separated 64-bit integers)
+	tstype_listBigint = {
+		tsType = "bigint[]",
+		field = function(name)
+			return table.concat({ "\t_", name, "?: bigint[];\n" })
+		end,
+		default = function(name, value)
+			return table.concat({
+				"\t\tthis._", name,
+				' = "', value, '".split(" ").map((s) => BigInt(s));\n' })
+		end,
+		toText = function(expr)
+			return expr .. '.map((v) => v.toString()).join(" ")'
+		end,
+		fromText = function(expr)
+			return "(" .. expr
+				.. ').trim().split(" ").map((s) => BigInt(s))'
+		end,
+		test = {
+			assign = function()
+				return string.format("[%dn, %dn, %dn]",
+					math.random(0, 2147483647), math.random(0, 2147483647),
+					math.random(0, 2147483647))
+			end,
+		},
+	}
+]
