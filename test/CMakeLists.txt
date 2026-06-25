@@ -130,46 +130,58 @@ else()
   endif()
 endif()
 
-# -- Auto-generate the round-trip .cpp at configure time. Re-run configure
-#    when the corpus changes. --
-file(GLOB _corpus_xsds CONFIGURE_DEPENDS "${CORPUS_DIR}/*.xsd")
-set(GEN_DIR "${CMAKE_CURRENT_BINARY_DIR}/generated-tests")
-execute_process(
-  COMMAND "${Python3_EXECUTABLE}"
-          "${CMAKE_CURRENT_SOURCE_DIR}/gen_roundtrip_tests.py"
-          "${CORPUS_DIR}" "${GEN_DIR}"
-  RESULT_VARIABLE _gen_rc)
-if(NOT _gen_rc EQUAL 0)
-  message(FATAL_ERROR "gen_roundtrip_tests.py failed (${_gen_rc})")
-endif()
-set(GENERATED_ROUNDTRIP_SOURCES
-  "${GEN_DIR}/roundtrip_python_sax.cpp"
-  "${GEN_DIR}/roundtrip_python_json.cpp"
-  "${GEN_DIR}/roundtrip_c_xml_expat.cpp"
-  "${GEN_DIR}/roundtrip_c_xml_expat_dom.cpp"
-  "${GEN_DIR}/roundtrip_c_json.cpp"
-  "${GEN_DIR}/roundtrip_java_json.cpp"
-  "${GEN_DIR}/roundtrip_java_xml.cpp"
-  "${GEN_DIR}/roundtrip_cpp_xml.cpp"
-  "${GEN_DIR}/roundtrip_cpp_json.cpp"
-  "${GEN_DIR}/roundtrip_ts_xml.cpp")
+# The round-trip harness (roundtrip_util.cpp) is POSIX-only (popen/mkdtemp/
+# system/shell quoting) and the round-trips shell out to cc/mvn/python/node;
+# generateTests lists goldens via dirent. On Windows, build only the
+# parser/codegen/resource tests (no POSIX) — they exercise the library and
+# every target's code generation; the round-trips run on the POSIX runners.
+if(WIN32)
+  add_executable(xsdb-test
+    facetTests.cpp
+    parserTests.cpp
+    resourceTests.cpp)
+else()
+  # -- Auto-generate the round-trip .cpp at configure time. Re-run configure
+  #    when the corpus changes. --
+  file(GLOB _corpus_xsds CONFIGURE_DEPENDS "${CORPUS_DIR}/*.xsd")
+  set(GEN_DIR "${CMAKE_CURRENT_BINARY_DIR}/generated-tests")
+  execute_process(
+    COMMAND "${Python3_EXECUTABLE}"
+            "${CMAKE_CURRENT_SOURCE_DIR}/gen_roundtrip_tests.py"
+            "${CORPUS_DIR}" "${GEN_DIR}"
+    RESULT_VARIABLE _gen_rc)
+  if(NOT _gen_rc EQUAL 0)
+    message(FATAL_ERROR "gen_roundtrip_tests.py failed (${_gen_rc})")
+  endif()
+  set(GENERATED_ROUNDTRIP_SOURCES
+    "${GEN_DIR}/roundtrip_python_sax.cpp"
+    "${GEN_DIR}/roundtrip_python_json.cpp"
+    "${GEN_DIR}/roundtrip_c_xml_expat.cpp"
+    "${GEN_DIR}/roundtrip_c_xml_expat_dom.cpp"
+    "${GEN_DIR}/roundtrip_c_json.cpp"
+    "${GEN_DIR}/roundtrip_java_json.cpp"
+    "${GEN_DIR}/roundtrip_java_xml.cpp"
+    "${GEN_DIR}/roundtrip_cpp_xml.cpp"
+    "${GEN_DIR}/roundtrip_cpp_json.cpp"
+    "${GEN_DIR}/roundtrip_ts_xml.cpp")
 
-# node/tsc are probed at run time (programAvailable) so cases SKIP cleanly when
-# absent; detect at configure too for an informative status line.
-find_program(NODE_EXECUTABLE node)
-find_program(NPM_EXECUTABLE npm)
-if(NOT NODE_EXECUTABLE OR NOT NPM_EXECUTABLE)
-  message(STATUS "ts-xml round-trip: node/npm not found; cases will SKIP")
-endif()
+  # node/tsc are probed at run time (programAvailable) so cases SKIP cleanly
+  # when absent; detect at configure too for an informative status line.
+  find_program(NODE_EXECUTABLE node)
+  find_program(NPM_EXECUTABLE npm)
+  if(NOT NODE_EXECUTABLE OR NOT NPM_EXECUTABLE)
+    message(STATUS "ts-xml round-trip: node/npm not found; cases will SKIP")
+  endif()
 
-add_executable(xsdb-test
-  roundtrip_util.cpp
-  generateTests.cpp
-  facetTests.cpp
-  parserTests.cpp
-  resourceTests.cpp
-  ${GENERATED_ROUNDTRIP_SOURCES})
-add_dependencies(xsdb-test b64 ${EXPAT_EXTRA_DEP} ${JSONC_EXTRA_DEP})
+  add_executable(xsdb-test
+    roundtrip_util.cpp
+    generateTests.cpp
+    facetTests.cpp
+    parserTests.cpp
+    resourceTests.cpp
+    ${GENERATED_ROUNDTRIP_SOURCES})
+  add_dependencies(xsdb-test b64 ${EXPAT_EXTRA_DEP} ${JSONC_EXTRA_DEP})
+endif()
 target_include_directories(xsdb-test PRIVATE
   "${CMAKE_CURRENT_SOURCE_DIR}" "${CMAKE_SOURCE_DIR}")
 target_link_libraries(xsdb-test PRIVATE xsdb-lib GTest::gtest_main xsd_flags)
