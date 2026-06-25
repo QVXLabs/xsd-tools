@@ -24,6 +24,7 @@
 #include <memory>
 #include <string.h>
 #include <boost/algorithm/string/predicate.hpp>
+#include <boost/filesystem.hpp>
 #include "./src/XSDParser/Elements/Node.hpp"
 #include "./src/XSDParser/Elements/Attribute.hpp"
 #include "./src/XSDParser/Elements/Choice.hpp"
@@ -54,6 +55,7 @@
 #include "./src/XSDParser/Elements/WhiteSpace.hpp"
 #include "./src/XSDParser/Elements/AttributeGroup.hpp"
 #include "./src/XSDParser/Elements/Include.hpp"
+#include "./src/XSDParser/Elements/Import.hpp"
 #include "./src/XSDParser/Elements/Annotation.hpp"
 #include "./src/XSDParser/Elements/Documentation.hpp"
 #include "./src/XSDParser/Elements/All.hpp"
@@ -228,6 +230,9 @@ Node::ConstructNode_(const TiXmlElement* pElm, const Parser& rParser) const {
 		{ Include::XSDTag(),
 			[](const TiXmlElement& e, const Parser& p) -> Node*
 				{ return new Include(e, p); } },
+		{ Import::XSDTag(),
+			[](const TiXmlElement& e, const Parser& p) -> Node*
+				{ return new Import(e, p); } },
 		{ Annotation::XSDTag(),
 			[](const TiXmlElement& e, const Parser& p) -> Node*
 				{ return new Annotation(e, p); } },
@@ -261,7 +266,7 @@ Node::FindXSDElm_(const XsdQName& rName, const char* pTypeName) const noexcept(f
 		(pSchemaRoot->TargetNamespace() == rName.ns)
 			? pSchemaRoot->FindChildXMLElement_(elementName.c_str(), "name", pLocal)
 			: NULL;
-	/* search all included documents */
+	/* search all included documents (same-namespace merge) */
 	if (!pElm) {
 		const TiXmlElement* pIncludElm = pSchemaRoot->GetXMLElm().FirstChildElement(XSD::Elements::Include::XSDTag());
 		for ( ; pIncludElm; pIncludElm = pIncludElm->NextSiblingElement(XSD::Elements::Include::XSDTag()) ) {
@@ -276,7 +281,33 @@ Node::FindXSDElm_(const XsdQName& rName, const char* pTypeName) const noexcept(f
 		}
 	} else
 		pRetNode = ConstructNode_(pElm, rParser_);
+	/* cross-namespace reference: resolve against an xs:import whose loaded
+	 * target namespace matches rName.ns. The imported doc keeps a distinct
+	 * namespace, unlike xs:include's same-namespace merge above. */
+	if (!pRetNode)
+		pRetNode = FindImportedXSDElm_(rName, pTypeName);
 	return pRetNode;
+}
+
+Node*
+Node::FindImportedXSDElm_(const XsdQName& rName, const char* pTypeName) const noexcept(false) {
+	const char* pLocal = rName.local.c_str();
+	std::unique_ptr<Schema> pSchemaRoot(GetSchema());
+	std::string importTag = QualifyElementName(XSD::Elements::Import::XSDTag());
+	const TiXmlElement* pImportElm = pSchemaRoot->GetXMLElm().FirstChildElement(importTag.c_str());
+	for ( ; pImportElm; pImportElm = pImportElm->NextSiblingElement(importTag.c_str()) ) {
+		std::unique_ptr<Import> pNode(static_cast<Import*>(ConstructNode_(pImportElm, rParser_)));
+		const Schema* pSchema = pNode->QuerySchema();
+		if (NULL == pSchema || pSchema->TargetNamespace() != rName.ns)
+			continue;
+		/* qualify the type tag against the imported doc's own XSD-lang prefix */
+		std::string elementName = pSchema->QualifyElementName(pTypeName);
+		const TiXmlElement* pElm =
+			pSchema->FindChildXMLElement_(elementName.c_str(), "name", pLocal);
+		if (NULL != pElm)
+			return ConstructNode_(pElm, pSchema->rParser_);
+	}
+	return NULL;
 }
 
 Node*
@@ -524,9 +555,52 @@ Node::QualifyElementName(const char* pElemName) const throw() {
 	return elementName;
 }
 
-const TiXmlDocument& 
+const TiXmlDocument&
 Node::GetXmlDocument() const {
 	const TiXmlNode * pNode = &rXmlElm_;
 	for (; pNode->Parent(); pNode = pNode->Parent()) {}
 	return *(pNode->ToDocument());
+}
+
+/* Shared schemaLocation -> loadable-URI resolution for xs:include/xs:import. */
+namespace {
+	std::string extractURIPath_(const std::string& uri) {
+		std::string noQuery = uri.substr(0, uri.find("?"));
+		const size_t protoNdx = noQuery.find("://");
+		return noQuery.substr(
+			(std::string::npos == protoNdx) ? 0 : protoNdx + 3);
+	}
+	bool isFileURI_(const std::string& uri) {
+		std::string noQuery = uri.substr(0, uri.find("?"));
+		bool hasFileProto = (std::string::npos != noQuery.find("file://"));
+		bool hasProto = (std::string::npos != noQuery.find("://"));
+		return (hasFileProto || !hasProto);
+	}
+	std::string extractQuery_(const std::string& uri) {
+		const size_t queryNdx = uri.find("?");
+		return (std::string::npos == queryNdx)
+			? std::string("") : uri.substr(queryNdx);
+	}
+}
+
+std::string
+Node::resolveSchemaURI_(const char* pAttrib) const noexcept(false) {
+	std::string uri(GetAttribute<const char*>(pAttrib));
+	if (!isFileURI_(uri))
+		return uri;
+	std::string retStr("file://");
+	boost::filesystem::path path(extractURIPath_(uri));
+	if (path.has_root_path()) {
+		retStr += (path.string() + extractQuery_(uri));
+		return retStr;
+	}
+	std::unique_ptr<Schema> pDocRoot(GetSchema());
+#if defined(BOOST_FILESYSTEM_VERSION) && (BOOST_FILESYSTEM_VERSION > 2)
+	boost::filesystem::path schemaPath = (boost::filesystem::absolute(extractURIPath_(pDocRoot->URI()))).branch_path();
+#else
+	boost::filesystem::path schemaPath = (boost::filesystem::complete(extractURIPath_(pDocRoot->URI()))).branch_path();
+#endif
+	(schemaPath /= extractURIPath_(uri)).normalize();
+	retStr += schemaPath.string();
+	return retStr;
 }

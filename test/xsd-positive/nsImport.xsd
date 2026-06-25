@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!-- E2: primary schema (target NS A) xs:imports a different-namespace schema
+     (NS B on the "addr" prefix) and references AddressType cross-namespace via
+     a prefixed type="addr:AddressType". -->
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+           xmlns:tns="urn:example:order"
+           xmlns:addr="urn:example:address"
+           targetNamespace="urn:example:order">
+  <xs:import namespace="urn:example:address"
+             schemaLocation="include/AddressType.xsd"/>
+  <xs:element name="order">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element name="id" type="xs:string"/>
+        <xs:element name="shipTo" type="addr:AddressType"/>
+      </xs:sequence>
+    </xs:complexType>
+  </xs:element>
+</xs:schema>

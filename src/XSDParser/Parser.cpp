@@ -29,7 +29,7 @@
 using namespace XSD;
 
 Parser::Parser()
-  : typesDb_(), docLst_()
+  : typesDb_(), docLst_(), nsIndex_()
 { }
 
 /* virtual */
@@ -118,8 +118,22 @@ Parser::GetDocument(const std::string& rUri) const {
 	return pRec ? pRec->pDocument_ : NULL;
 }
 
-bool 
+bool
 Parser::isRootDocument(const TiXmlDocument& document) const {
 	return ((*(docLst_.begin()))->pDocument_ == &document);
+}
+
+void
+Parser::RegisterNamespace(const std::string& rNamespace,
+		const std::string& rUri) const {
+	if (!rNamespace.empty())
+		nsIndex_[rNamespace] = rUri;
+}
+
+std::string
+Parser::GetNamespaceUri(const std::string& rNamespace) const {
+	std::map<std::string, std::string>::const_iterator it =
+		nsIndex_.find(rNamespace);
+	return (it != nsIndex_.end()) ? it->second : std::string("");
 }
 

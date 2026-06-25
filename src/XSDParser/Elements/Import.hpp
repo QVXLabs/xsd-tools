@@ -1,9 +1,9 @@
 /*
- * Include.hpp
+ * Import.hpp
  *
- *  Created on: Aug 10, 2011
+ *  Created on: Jun 25, 2026
  *      Author: QVXLabs LLC
- *   Copyright: (c)2011 QVXLabs LLC
+ *   Copyright: (c)2026 QVXLabs LLC
  *
  *  This file is part of xsd-tools.
  *
@@ -21,8 +21,8 @@
  *  along with xsd-tools.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef INCLUDE_HPP_
-#define INCLUDE_HPP_
+#ifndef IMPORT_HPP_
+#define IMPORT_HPP_
 #ifndef TIXML_USE_STL
 #	define TIXML_USE_STL
 #endif /* TIXML_USE_STL */
@@ -33,21 +33,28 @@
 
 namespace XSD {
 	namespace Elements {
-		class Include : public Node {
-			XSD_ELEMENT_TAG("include")
+		/* xs:import brings in a DIFFERENT-namespace schema; unlike xs:include
+		 * (a same-namespace merge) the loaded document keeps its own target
+		 * namespace, registered against the importing Parser. */
+		class Import : public Node {
+			XSD_ELEMENT_TAG("import")
 		private:
 			mutable Schema*	pSchema_;
-			Include();
+			Import();
 		public:
-			Include(const TiXmlElement& elm, const Parser& rParser);
-			Include(const Include& elm);
-			virtual ~Include();
-			void ParseChildren(BaseProcessor& rProcessor) const noexcept(false);;
-			void ParseElement(BaseProcessor& rProcessor) const noexcept(false);;
-			const Schema* QuerySchema() const noexcept(false);;
+			Import(const TiXmlElement& elm, const Parser& rParser);
+			Import(const Import& elm);
+			virtual ~Import();
+			void ParseChildren(BaseProcessor& rProcessor) const noexcept(false);
+			void ParseElement(BaseProcessor& rProcessor) const noexcept(false);
+			/* The imported document's schema; NULL if no schemaLocation. */
+			const Schema* QuerySchema() const noexcept(false);
+			/* The declared import namespace attr value ("" if absent). */
+			std::string ImportNamespace() const noexcept;
+			XSD_HAS_ATTR(HasNamespace, "namespace")
 			XSD_HAS_ATTR(HasSchema, "schemaLocation")
 		};
 	}	/* namespace Elements */
 }	/* namespace XSD */
 
-#endif /* INCLUDE_HPP_ */
+#endif /* IMPORT_HPP_ */

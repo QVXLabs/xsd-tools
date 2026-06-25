@@ -55,6 +55,7 @@ namespace XSD {
 		class WhiteSpace;
 		class AttributeGroup;
 		class Include;
+		class Import;
 		class Annotation;
 		class Documentation;
 		class All;
@@ -92,6 +93,9 @@ namespace XSD {
 		virtual void ProcessWhiteSpace(const Elements::WhiteSpace* pNode) = 0;
 		virtual void ProcessAttributeGroup(const Elements::AttributeGroup* pNode) = 0;
 		virtual void ProcessInclude(const Elements::Include* pNode) = 0;
+		/* Non-pure so existing processors need no update; xs:import resolution
+		 * happens lazily in FindXSDElm_, so the default visit is a no-op. */
+		virtual void ProcessImport(const Elements::Import* pNode) {}
 		virtual void ProcessAnnotation(const Elements::Annotation* pNode) = 0;
 		virtual void ProcessDocumentation(const Elements::Documentation* pNode) = 0;
 		virtual void ProcessAll(const Elements::All* pNode) = 0;
