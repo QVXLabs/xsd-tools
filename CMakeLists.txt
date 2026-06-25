@@ -374,7 +374,11 @@ if(MSVC)
     # zero search dirs, so with WORKING_DIRECTORY=<build> it opens the absolute
     # resource.cpp and the relative luascript.luac (generated in <build>)
     # directly — same lookup the POSIX .incbin directive uses.
+    # -p _binary_ matches INCBIN_PREFIX below so the emitted data symbols
+    # (_binary_luascript_luacData/Size) resolve resource.cpp's externs;
+    # incbin's default prefix is "g", which would not match.
     COMMAND incbin-tool "${CMAKE_CURRENT_SOURCE_DIR}/src/resource.cpp"
+            -p _binary_
             -o "${_incbin_data}"
     DEPENDS "${LUASCRIPT_LUAC}" incbin-tool
     WORKING_DIRECTORY "${CMAKE_BINARY_DIR}"
