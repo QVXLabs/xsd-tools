@@ -173,7 +173,7 @@ Resource::GetTemplatePath(const std::string& templateName) noexcept(false) {
 		return globalFilePath;
 	/* source-tree convenience: ./templates/<name> */
 	string localPath("templates/" + templateName);
-	if (0 == access(localPath.c_str(), R_OK))
+	if (readable_(localPath))
 		return localPath;
 	throw ResourceException("Could not open template " + templateName);
 	return std::string("");
@@ -182,19 +182,18 @@ Resource::GetTemplatePath(const std::string& templateName) noexcept(false) {
 string
 Resource::TemplatesDir() noexcept {
 	const char* val = getenv("XSDTOOLS_DATA");
-	if (nullptr != val && 0 == access(val, R_OK))
+	if (nullptr != val && readable_(val))
 		return string(val);
-	struct passwd* pw = getpwuid(getuid());
-	if (nullptr != pw) {
-		string homeDir(pw->pw_dir);
+	string homeDir(homeDir_());
+	if (!homeDir.empty()) {
 		homeDir += "/" + gscHOMEPATH.substr(1);
-		if (0 == access(homeDir.c_str(), R_OK))
+		if (readable_(homeDir))
 			return homeDir;
 	}
-	if (0 == access(gscGLOBALPATH.c_str(), R_OK))
+	if (readable_(gscGLOBALPATH))
 		return gscGLOBALPATH;
 	/* source-tree convenience: ./templates */
-	if (0 == access("templates", R_OK))
+	if (readable_("templates"))
 		return string("templates");
 	return string("");
 }
@@ -205,6 +204,20 @@ Resource::ListTemplates() noexcept {
 	string dir = TemplatesDir();
 	if (dir.empty())
 		return names;
+#if defined(_WIN32)
+	WIN32_FIND_DATAA fd;
+	HANDLE h = FindFirstFileA((dir + "/*").c_str(), &fd);
+	if (INVALID_HANDLE_VALUE == h)
+		return names;
+	do {
+		string name(fd.cFileName);
+		if ("." == name || ".." == name)
+			continue;
+		if (readable_(dir + "/" + name))
+			names.push_back(name);
+	} while (FindNextFileA(h, &fd));
+	FindClose(h);
+#else
 	DIR* pDir = opendir(dir.c_str());
 	if (nullptr == pDir)
 		return names;
@@ -213,10 +226,11 @@ Resource::ListTemplates() noexcept {
 		string name(pEnt->d_name);
 		if ("." == name || ".." == name)
 			continue;
-		if (0 == access((dir + "/" + name).c_str(), R_OK))
+		if (readable_(dir + "/" + name))
 			names.push_back(name);
 	}
 	closedir(pDir);
+#endif
 	sort(names.begin(), names.end());
 	return names;
 }
