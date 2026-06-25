@@ -2,14 +2,28 @@
 
 # xsd-tools
 ### Overview ###
-xsd-tools is a set of tools for generating code from xml xsd schema documents, mainly around generating marshalling & unmarshalling code. It is designed such that it can be easily extended by any user to enable code generation for any language. By default it has a support for a simple python-sax marshalling/unmarshalling code generator as well as a C based expat marshalling/unmarshalling code generator.
+xsd-tools is a set of tools for generating code from xml xsd schema documents, mainly around generating marshalling & unmarshalling code. It is designed such that it can be easily extended by any user to enable code generation for any language.
+
+It ships output targets covering the C / Python / Java languages in both XML and JSON, all round-trip tested:
+
+| Target template      | Language | Format | Library          |
+|----------------------|----------|--------|------------------|
+| `c-xml-expat`        | C        | XML    | expat            |
+| `c-json-jsonc`       | C        | JSON   | json-c           |
+| `python-sax`         | Python   | XML    | stdlib `xml.sax` |
+| `python-json.tmpl`   | Python   | JSON   | stdlib `json`    |
+| `java-json.org.tmpl` | Java     | JSON   | org.json         |
+| `java-xml-stax.tmpl` | Java     | XML    | JDK StAX         |
+
+Generated code constructs schema types through overridable factory methods, so consumers can subclass and inject custom types.
 
 It processes XSD schema documents and invokes a template file which outputs code. The templates files use Lua for scripting withing the template file. Custom user templates can be easily be created to extend the tool to generate different output code.
 
 ### Features ###
   * XSD schema parsing
-  * Easily Extendable
+  * Six built-in output targets (C/Python/Java × XML/JSON), easily extendable
   * Simple Lua based templates for customizing code generation.
+  * Usable as a C++ library (`XsdTools::Generate()`) as well as a CLI.
   * Open Source!
 
 _Look at the Wiki section for more information._
@@ -123,10 +137,24 @@ class xml_testA002(_handler, _xmlelement):
 
 To use xsd-tools, invoke xsdb using the following syntax from the console
 
-`# ./xsdb <template file> <xsd schema file>`
+`# ./xsdb [options] <template> <input.xsd> [k v ...]`
 
-#### example ####
-`# xsdb python-sax testA022.xsd`
+Generated code is printed to stdout. Trailing `k v` pairs are passed to the
+template as `__CMD_ARGS__`.
+
+Options:
+  * `--out-dir <dir>` — split multi-file output (the `/* FILE: name */` markers
+    some targets emit) into real files under `<dir>`.
+  * `--list` — list the available templates.
+  * `--version` — print the version.
+  * `-h`, `--help` — show usage.
+
+#### examples ####
+```
+# xsdb python-sax testA022.xsd                       # print Python to stdout
+# xsdb --out-dir out c-json-jsonc testA022.xsd        # write the C/JSON files
+# xsdb --list                                         # show templates
+```
 
 ### Install Instructions ###
 

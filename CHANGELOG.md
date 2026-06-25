@@ -7,12 +7,18 @@ All notable changes to xsd-tools are documented here. The format is based on
 ## [Unreleased]
 
 ### Added
-- (planned) Output targets to complete the C/Python/Java × XML/JSON grid:
-  Python→JSON, C→JSON (json-c), Java→XML (StAX).
+- Output targets completing the C/Python/Java × XML/JSON grid: **Python→JSON**
+  (stdlib `json`), **C→JSON** (json-c), **Java→XML** (StAX). Each constructs
+  types through overridable factory methods so consumers can inject subtypes.
+- CLI: `--out-dir` (split multi-file `/* FILE: */` output into real files),
+  `--list` (enumerate templates), `--version`, `-h/--help`, and distinct
+  error/exit codes for missing XSD vs template vs parse error.
+- Public library API: `XsdTools::Generate()` / `XsdTools::SplitMarkedFiles()`,
+  installed header + exported `xsdtools::xsdtools` CMake target.
+- Version derived from the git tag (`cmake/GitVersion.cmake`), reported by
+  `xsdb --version`.
 - (planned) Namespace awareness and `xs:import` support. Closes #10.
 - (planned) Runtime enforcement of XSD restriction facets in generated code.
-- (planned) Overridable type factory methods in all generated targets.
-- (planned) CLI: `--out-dir` (split multi-file output), `--list`, `--version`.
 - (planned) Prebuilt binary releases (Linux/macOS), Homebrew formula, Docker image.
 
 ### Changed
