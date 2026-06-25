@@ -224,19 +224,19 @@ LuaProcessor::ProcessAttribute(const XSD::Elements::Attribute* pNode) {
 		}
 		if (pNode->HasUse()) {
 			switch (pNode->Use()) {
-			case XSD::Elements::Attribute::OPTIONAL:
+			case XSD::Elements::Attribute::Optional:
 				pUse.reset(new string("optional"));
 				break;
-			case XSD::Elements::Attribute::PROHIBITIED:
+			case XSD::Elements::Attribute::Prohibited:
 				pUse.reset(new string("prohibited"));
 				break;
-			case XSD::Elements::Attribute::REQUIRED:
+			case XSD::Elements::Attribute::Required:
 				pUse.reset(new string("required"));
 				break;
 			default:
-				assert(	(pNode->Use() != XSD::Elements::Attribute::OPTIONAL) &&
-						(pNode->Use() != XSD::Elements::Attribute::PROHIBITIED) &&
-						(pNode->Use() != XSD::Elements::Attribute::REQUIRED));
+				assert(	(pNode->Use() != XSD::Elements::Attribute::Optional) &&
+						(pNode->Use() != XSD::Elements::Attribute::Prohibited) &&
+						(pNode->Use() != XSD::Elements::Attribute::Required));
 			}
 		}
 		unique_ptr<LuaAttribute> pAttribute(
@@ -316,7 +316,7 @@ LuaProcessor::ProcessAny(const XSD::Elements::Any* pNode) {
 	/* an any type can be any element in the schema as a child */
 	pNode->ParseChildren(*this);
 	/* if any is strict, then only the elements allowed in the schema doc tree are valid */
-	if (XSD::Elements::Any::STRICT == pNode->ProcessContents()) {
+	if (XSD::Elements::Any::Strict == pNode->ProcessContents()) {
 		ElementExtracter::ElementLst elmLst = pNode->GetAllowedElements();
 		for (	ElementExtracter::ElementLst::iterator itr = elmLst.begin();
 				itr != elmLst.end();

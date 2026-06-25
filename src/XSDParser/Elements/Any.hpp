@@ -39,9 +39,9 @@ namespace XSD {
 			static Element * findParentElement_(const Node * pNode);
 		public:
 			typedef enum {
-				STRICT,
-				LAX,
-				SKIP
+				Strict,
+				Lax,
+				Skip
 			} ContentValidation;
 			Any(const TiXmlElement& elm, const Parser& rParser);
 			Any(const Any& cpy);

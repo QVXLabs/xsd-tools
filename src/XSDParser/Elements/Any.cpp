@@ -72,7 +72,7 @@ Any::ParseElement(BaseProcessor& rProcessor) const noexcept(false) {
 Processors::ElementExtracter::ElementLst
 Any::GetAllowedElements() const {
   Processors::ElementExtracter::ElementLst retLst;
-	if (STRICT == ProcessContents()) {
+	if (Strict == ProcessContents()) {
 		Processors::ElementExtracter elmExtrctr;
 		std::unique_ptr<Schema> pDocRoot(Node::GetSchema());
 		retLst = elmExtrctr.Extract(*pDocRoot);
@@ -115,15 +115,15 @@ Any::ProcessContents() const {
 	if (HasProcessContents()) {
 		std::string processContents(Node::GetAttribute<const char*>("processContents"));
 		if (!processContents.compare("lax")) {
-			return Any::LAX;
+			return Any::Lax;
 		} else if (!processContents.compare("skip")) {
-			return Any::SKIP;
+			return Any::Skip;
 		} else if (!processContents.compare("strict")) {
-			return Any::STRICT;
+			return Any::Strict;
 		} else
 			throw XMLException(Node::GetXMLElm(), XMLException::InvalidAttributeValue);
 	}
-	return Any::STRICT;
+	return Any::Strict;
 }
 
 /* static */ Element *
