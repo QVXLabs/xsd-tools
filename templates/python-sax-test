@@ -4,6 +4,7 @@
 ][@lua --include any shared 'helper' templates
 	return include 'shared/schemaEx'
 ][@lua -- include python type info
+	include 'shared/facets'
 	return include 'python-xml/python_type_info'
 ][@lua --rename any non-c-safe names to c-safe names & sort dependencies so that they are matched correctly
 	schema = schema.c_safeNames()
@@ -19,12 +20,12 @@ test = [
 		outbuf:append(table.concat({'<', node.name}))
 		table.map(node.attributes, function(attribName, attrib)
 			outbuf:append(table.concat({
-				' ', attribName, '=\\"', py_type_info[attrib.type].test.assign(), '\\"',
+				' ', attribName, '=\\"', py_type_info[attrib.type].test.assign(attrib.facets), '\\"',
 			}))
 		end)
 		outbuf:append('>')
 		if next(node.content) then
-			outbuf:append(py_type_info[node.content.type].test.assign())
+			outbuf:append(py_type_info[node.content.type].test.assign(node.content.facets))
 		end
 		if next(node.dependents) then
 			table.map(node.dependents, dpOutput)

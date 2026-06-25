@@ -58,7 +58,9 @@ function trnsfrm_oldFmt(tbl)
 			local substate = Substate.ContentNotFound
 			for k, v in pairs(tbl) do
 				if isBaseType(v) and substate == Substate.ContentNotFound then
-					outTbl['content'] = { type = k }
+					-- carry the leaf type's facets (D1) onto the normalized
+					-- content so targets can emit validation/narrowing.
+					outTbl['content'] = { type = k, facets = v.facets }
 					substate = Substate.ContentFound
 				elseif not isBaseType(v) then
 					outTbl.dependents[k]={}
@@ -77,6 +79,7 @@ function trnsfrm_oldFmt(tbl)
 			attribName, attribDef = next(tbl)
 			if nil ~= attribName then
 				outTbl.type= attribName
+				outTbl.facets = attribDef.facets
 				if nil ~= attribDef.default then
 					outTbl.default = attribDef.default
 				end

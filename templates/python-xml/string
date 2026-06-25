@@ -33,7 +33,9 @@
 			return table.concat({"        self._", attribName, " = \"", value, "\"\n"})
 		end,
 		test = {
-			assign = function()
+			assign = function(facets)
+				local s = facets_sampleString(facets)
+				if s then return s end
 				local tbl = { 'arch', 'Ancestor', 'Interaction', 'Productivity', 'Jelly', 'Glue', 'Way'}
 				return tbl[math.random(1, #tbl)]
 			end,

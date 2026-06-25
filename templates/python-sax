@@ -4,6 +4,7 @@
 ][@lua --include any shared 'helper' templates
 	return include 'shared/schemaEx'
 ][@lua -- include python type info
+	include 'shared/facets'
 	include 'python-xml/python_type_info'
 ][@lua --rename any non-c-safe names to c-safe names & sort dependencies so that they are matched correctly
 	schema = schema.c_safeNames()
@@ -60,6 +61,39 @@ class _xmlelement:
 
 [@lua -- output class for each element
 	local outbuf = stringBuffer:new()
+	-- Render facet checks (D2) on the local `_v` into a validate() body.
+	-- Pattern facets (P3) are not enforced yet.
+	local function pyChecks(label, facets)
+		local out = stringBuffer:new()
+		table.map(facets_checks(facets), function(_, c)
+			if c.kind == 'range' then
+				local cond
+				if c.lo and c.hi then cond = c.lo .. ' <= _v <= ' .. c.hi
+				elseif c.lo then cond = c.lo .. ' <= _v'
+				else cond = '_v <= ' .. c.hi end
+				out:append('        if _v is not None and not (' .. cond .. '):\n')
+				out:append('            raise ValueError("' .. label .. ': out of range")\n')
+			elseif c.kind == 'length' then
+				local cond
+				if c.exact then cond = 'len(str(_v)) == ' .. c.exact
+				else
+					local parts = {}
+					if c.min then parts[#parts + 1] = 'len(str(_v)) >= ' .. c.min end
+					if c.max then parts[#parts + 1] = 'len(str(_v)) <= ' .. c.max end
+					cond = table.concat(parts, ' and ')
+				end
+				out:append('        if _v is not None and not (' .. cond .. '):\n')
+				out:append('            raise ValueError("' .. label .. ': bad length")\n')
+			elseif c.kind == 'enum' then
+				local vals = {}
+				table.map(c.values, function(_, v) vals[#vals + 1] = '"' .. v .. '"' end)
+				out:append('        if _v is not None and str(_v) not in ('
+					.. table.concat(vals, ', ') .. ',):\n')
+				out:append('            raise ValueError("' .. label .. ': not permitted")\n')
+			end
+		end)
+		return out:str()
+	end
 	table.map(depOrderSansRoot, function(_, node)
 		outbuf:append(table.concat({
 			'\n',
@@ -117,6 +151,22 @@ class _xmlelement:
 				"        self._content = content\n"
 			}))
 		end
+		-- emit facet validation (D2), invoked at the end of unmarshal
+		outbuf:append('        self.validate()\n')
+		outbuf:append('\n    def validate(self):\n')
+		local checks = stringBuffer:new()
+		if node.content.facets then
+			checks:append('        _v = self._content[0] if self._content else None\n')
+			checks:append(pyChecks('content', node.content.facets))
+		end
+		table.map(node.attributes, function(an, attr)
+			if attr.facets then
+				checks:append('        _v = self._' .. an .. '\n')
+				checks:append(pyChecks(an, attr.facets))
+			end
+		end)
+		if 0 == #checks:str() then checks:append('        pass\n') end
+		outbuf:append(checks:str())
 		outbuf:append('\n')
 		-- output 'getters' code for each attribute
 		table.map(node.attributes, function(attributeName, attribute)

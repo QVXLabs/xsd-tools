@@ -1,0 +1,104 @@
+[@lua -- Facet helpers: derive integer bounds, narrowest int type, and an
+	-- ordered list of abstract validation checks from a type's `facets`
+	-- sub-table (bridged in D1). Pure: no code emission. Each target renders
+	-- the returned data in its own language/type vocabulary.
+
+	local function _num(facets, key)
+		local v = facets and facets[key]
+		return v and tonumber(v) or nil
+	end
+
+	-- Inclusive integer [lo, hi] from min/max In/Exclusive, or nil when no
+	-- numeric bound is present. Exclusive bounds are tightened by one (the
+	-- model is integer here; decimal narrowing is out of scope).
+	function facets_intRange(facets)
+		if not facets then return nil end
+		local lo, hi
+		local minI, maxI = _num(facets, 'minInclusive'), _num(facets, 'maxInclusive')
+		local minE, maxE = _num(facets, 'minExclusive'), _num(facets, 'maxExclusive')
+		if minI then lo = minI elseif minE then lo = minE + 1 end
+		if maxI then hi = maxI elseif maxE then hi = maxE - 1 end
+		if not lo and not hi then return nil end
+		return lo, hi
+	end
+
+	-- {bits = 8|16|32|64, signed = bool}: the narrowest C-style integer that
+	-- holds the whole [lo, hi] range. nil when either end is unbounded (cannot
+	-- size — caller keeps the declared type). Targets lacking unsigned or
+	-- fixed-width integers map this abstract requirement as best they can
+	-- (e.g. Java has only signed byte/short/int/long; Python does not narrow).
+	function facets_narrowest(lo, hi)
+		if not lo or not hi then return nil end
+		if lo < 0 then
+			local bits = {8, 16, 32}
+			local smin = {[8] = -128, [16] = -32768, [32] = -2147483648}
+			local smax = {[8] = 127, [16] = 32767, [32] = 2147483647}
+			for _, b in ipairs(bits) do
+				if lo >= smin[b] and hi <= smax[b] then
+					return {bits = b, signed = true}
+				end
+			end
+			return {bits = 64, signed = true}
+		end
+		local bits = {8, 16, 32}
+		local umax = {[8] = 255, [16] = 65535, [32] = 4294967295}
+		for _, b in ipairs(bits) do
+			if hi <= umax[b] then return {bits = b, signed = false} end
+		end
+		return {bits = 64, signed = false}
+	end
+
+	-- Ordered list of abstract checks a target renders into validation code:
+	--   {kind = 'range',   lo =, hi =}             numeric inclusive bounds
+	--   {kind = 'length',  min =, max =, exact =}  string / list length
+	--   {kind = 'enum',    values = {...}}         allowed values
+	--   {kind = 'pattern', regexes = {...}}        XSD regexes (P3)
+	function facets_checks(facets)
+		local checks = {}
+		if not facets then return checks end
+		local lo, hi = facets_intRange(facets)
+		if lo or hi then
+			checks[#checks + 1] = {kind = 'range', lo = lo, hi = hi}
+		end
+		local lmin = _num(facets, 'minLength')
+		local lmax = _num(facets, 'maxLength')
+		local lexact = _num(facets, 'length')
+		if lmin or lmax or lexact then
+			checks[#checks + 1] =
+				{kind = 'length', min = lmin, max = lmax, exact = lexact}
+		end
+		if facets.enumeration then
+			checks[#checks + 1] = {kind = 'enum', values = facets.enumeration}
+		end
+		if facets.pattern then
+			checks[#checks + 1] = {kind = 'pattern', regexes = facets.pattern}
+		end
+		return checks
+	end
+
+	-- Facet-respecting sample values for test-vector generation (so the
+	-- positive round-trip feeds data that passes the emitted validation).
+	-- Return nil when no facet constrains the value; the caller then falls
+	-- back to its own random generator. Pattern facets (P3) are not modelled
+	-- here, so a sampler returns nil for pattern-only restrictions.
+
+	-- An integer literal (string) inside the range / enumeration.
+	function facets_sampleInt(facets)
+		if not facets then return nil end
+		if facets.enumeration then return facets.enumeration[1] end
+		local lo, hi = facets_intRange(facets)
+		if lo then return tostring(lo) end
+		if hi then return tostring(hi) end
+		return nil
+	end
+
+	-- A string satisfying the length / enumeration facets.
+	function facets_sampleString(facets)
+		if not facets then return nil end
+		if facets.enumeration then return facets.enumeration[1] end
+		local n = _num(facets, 'length') or _num(facets, 'maxLength')
+			or _num(facets, 'minLength')
+		if not n then return nil end
+		return string.rep('a', n)
+	end
+]
