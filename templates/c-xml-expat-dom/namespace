@@ -1,0 +1,64 @@
+[@lua
+-- E3b namespace emission for the DOM target. All behavior is gated on a node's
+-- `namespace` field being present; non-namespaced schemas hit none of this and
+-- emit byte-identical output. Pure functions, mirroring shared/facets.
+
+-- Deterministic prefix for a target-namespace URI. The XSD source prefix is not
+-- in the model, so synthesize a stable one keyed by URI string; the same URI
+-- always maps to the same prefix across marshal/parse/test, keeping the
+-- round-trip self-consistent. Single-target schemas get a single "ns" prefix;
+-- additional URIs (future xs:import) sort by URI for a stable nsN suffix.
+local _nsPrefixCache = nil
+local function _nsPrefixMap()
+   if _nsPrefixCache then return _nsPrefixCache end
+   local uris = {}
+   local function collect(node)
+      if type(node) ~= 'table' then return end
+      if node.namespace then uris[node.namespace] = true end
+      if node.content then
+         table.map(node.content, function(_, child) collect(child) end)
+      end
+      if node.attributes then
+         for _, _, atrTypedef in attrIterator(node.attributes) do
+            collect(atrTypedef)
+         end
+      end
+   end
+   table.map(schema, function(_, v) collect(v) end)
+   local sorted = {}
+   table.map(uris, function(uri, _) sorted[#sorted + 1] = uri end)
+   table.sort(sorted)
+   _nsPrefixCache = {}
+   for i, uri in ipairs(sorted) do
+      _nsPrefixCache[uri] = (#sorted == 1) and "ns" or ("ns" .. i)
+   end
+   return _nsPrefixCache
+end
+
+function c_nsPrefix(uri)
+   return _nsPrefixMap()[uri]
+end
+
+-- Tag name as emitted on the wire: qualified nodes carry a prefix, otherwise
+-- the bare local name (default-ns form, declared via xmlns on the root).
+function c_nsTagName(localName, typedef)
+   if typedef and typedef.namespace and typedef.qualified then
+      return c_nsPrefix(typedef.namespace) .. ":" .. localName
+   end
+   return localName
+end
+
+-- xmlns declaration(s) for a root element's open tag (after "<tag"). Empty when
+-- the root carries no namespace. A qualified root binds its synthesized prefix;
+-- an unqualified root binds the default xmlns to the target URI so its bare
+-- child tags inherit it. Both the marshal body and the -test driver place this
+-- inside a C string literal, so the quotes are backslash-escaped.
+function c_nsRootDecl(typedef)
+   if not (typedef and typedef.namespace) then return "" end
+   if typedef.qualified then
+      return (" xmlns:%s=\\\"%s\\\""):format(
+         c_nsPrefix(typedef.namespace), typedef.namespace)
+   end
+   return (" xmlns=\\\"%s\\\""):format(typedef.namespace)
+end
+]

@@ -1,6 +1,7 @@
 [@lua
 include 'shared/facets'
 include 'c-xml-expat-dom/shared'
+include 'c-xml-expat-dom/namespace'
 include 'c-xml-expat-dom/types'
 include 'c-xml-expat-dom/cstring'
 include 'c-xml-expat-dom/base64'
@@ -76,7 +77,7 @@ function outputTestXml(XSDDoc)
    local typename, typedef = next(XSDDoc)
    if typename then
       local ctype = ctypes:getType(typedef)
-      out:append(ctype:test(typename))
+      out:append(ctype:test(typename, true))
    end
    return out:str()
 end
