@@ -189,6 +189,7 @@ target_compile_definitions(xsdb-test PRIVATE
   TEMPLATES_DIR="${TEMPLATES_DIR}"
   XSD_CORPUS_DIR="${CORPUS_DIR}"
   XSD_NEGATIVE_DIR="${NEGATIVE_DIR}"
+  QUICKSTART_DIR="${CMAKE_SOURCE_DIR}/examples/quickstart"
   XSDPARSE_DIR="${XSDPARSE_DIR}"
   C_COMPILER="${CMAKE_C_COMPILER}"
   CXX_COMPILER="${CMAKE_CXX_COMPILER}"
@@ -198,8 +199,8 @@ target_compile_definitions(xsdb-test PRIVATE
   EXPAT_LINK="${EXPAT_LINK_VAL}"
   JSONC_INCLUDE_DIR="${JSONC_INCLUDE_DIR_VAL}"
   JSONC_LINK="${JSONC_LINK_VAL}"
-  JAVA_POM="${CMAKE_CURRENT_SOURCE_DIR}/java-json.org.tmpl/pom.xml"
-  JAVA_XML_POM="${CMAKE_CURRENT_SOURCE_DIR}/java-xml-stax.tmpl/pom.xml"
+  JAVA_POM="${CMAKE_CURRENT_SOURCE_DIR}/java-json.org/pom.xml"
+  JAVA_XML_POM="${CMAKE_CURRENT_SOURCE_DIR}/java-xml-stax/pom.xml"
   TS_PACKAGE_JSON="${CMAKE_CURRENT_SOURCE_DIR}/ts-xml/package.json"
   TS_TSCONFIG="${CMAKE_CURRENT_SOURCE_DIR}/ts-xml/tsconfig.json")
 

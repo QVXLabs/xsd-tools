@@ -1,0 +1,48 @@
+package com.mobitv.app;                                                         
+import java.util.Vector;                                                        
+import org.json.JSONObject;                                                     
+import org.apache.commons.codec.DecoderException;
+[@lua
+    --include 'includes/java-json.org/carlos-parse.lua'
+    include 'shared/facets'
+    include 'includes/java-json.org/parse.lua'
+    include 'includes/java-json.org/json-transform.lua'
+
+    schema = JSONTransform(schema)                                                  
+    local visitType = {}                                                    
+    local outputStr = stringBuffer:new()                                    
+                                                                            
+    local function _traverse(JSONType)                                      
+        for tagname, typetable in pairs(JSONType.fields) do                 
+            local typename, typedef = next(typetable)                       
+            -- if type is not simple and not already referenced             
+            fList = typename:match("%((.-)%)")                                  
+            if fList ~= nil then typename = fList end 
+            if not (visitType[typename] or isSimpleType(typedef)) then      
+                visitType[typename] = true                                  
+                                                                            
+                _traverse(typedef)                                          
+                if isRootElement( JSONType.fields, typedef) then            
+                    outputStr:append("import com.mobitv.generated.json."..typename..";\n")
+                end                                                         
+
+                                                                            
+            end                                                             
+        end                                                                 
+    end                                                                     
+    
+    _traverse({fields = schema})   
+
+    return(outputStr:str())
+]
+public class RunTest
+{                                                                               
+    public static void main(String[] args)  throws DecoderException                                    
+    {    
+        [@lua 
+            return marshalUnmarshalTest(schema)
+        ]
+    }                                                                           
+}
+
+

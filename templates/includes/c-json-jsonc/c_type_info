@@ -1,0 +1,142 @@
+[@lua --C type mapping objects
+	include 'shared/facets'
+	include 'includes/c-json-jsonc/char_p'
+	include 'includes/c-json-jsonc/bool'
+	include 'includes/c-json-jsonc/longdouble'
+	include 'includes/c-json-jsonc/int64t'
+	include 'includes/c-json-jsonc/uint64t'
+	include 'includes/c-json-jsonc/int32t'
+	include 'includes/c-json-jsonc/uint32t'
+	include 'includes/c-json-jsonc/int16t'
+	include 'includes/c-json-jsonc/uint16t'
+	include 'includes/c-json-jsonc/int8t'
+	include 'includes/c-json-jsonc/uint8t'
+	include 'includes/c-json-jsonc/float'
+	include 'includes/c-json-jsonc/double'
+	include 'includes/c-json-jsonc/hex'
+	include 'includes/c-json-jsonc/base64'
+	include 'includes/c-json-jsonc/list'
+	-- todo list types & make it return a copy of the original table
+	c_type_info = {
+		['anySimpleType']		= ctype_char_p,
+		['anyAtomicType']		= ctype_char_p,
+		['anyURI']				= ctype_char_p,
+		['boolean']				= ctype_bool,
+		['date']				= ctype_char_p,
+		['dateTime']			= ctype_char_p,
+		['dateTimeStamp']		= ctype_char_p,
+		['duration']			= ctype_char_p,
+		['dayTimeDuration']		= ctype_char_p,
+		['yearMonthDuration']	= ctype_char_p,
+		['gDay']				= ctype_char_p,
+		['gMonth']				= ctype_char_p,
+		['gMonthDay']			= ctype_char_p,
+		['gYear']				= ctype_char_p,
+		['gYearMonth']			= ctype_char_p,
+		['NOTATION']			= ctype_char_p,
+		['QName']				= ctype_char_p,
+		['string']				= ctype_char_p,
+		['normalizedString']	= ctype_char_p,
+		['token']				= ctype_char_p,
+		['language']			= ctype_char_p,
+		['name']				= ctype_char_p,
+		['NCName']				= ctype_char_p,
+		['ENTITY']				= ctype_char_p,
+		['ID']					= ctype_char_p,
+		['IDREF']				= ctype_char_p,
+		['NMTOKEN']				= ctype_char_p,
+		['time']				= ctype_char_p,
+		['ENTITIES']			= ctype_char_p,
+		['IDREFS']				= ctype_char_p,
+		['NMTOKENS']			= ctype_char_p,
+		['decimal'] 			= ctype_longdouble,
+		['integer'] 			= ctype_int64t,
+		['long'] 				= ctype_int64t,
+		['int'] 				= ctype_int32t,
+		['short'] 				= ctype_int16t,
+		['byte'] 				= ctype_int8t,
+		['positiveInteger']		= ctype_uint64t,
+		['unsignedLong']		= ctype_uint64t,
+		['unsignedInt']			= ctype_uint32t,
+		['unsignedShort'] 		= ctype_uint16t,
+		['unsignedByte']		= ctype_uint8t,
+		['negativeInteger']		= ctype_int8t,
+		['double']				= ctype_double,
+		['float'] 				= ctype_float,
+		['precisionDecimal']	= ctype_longdouble,
+		['nonPositiveInteger'] 	= ctype_int64t,
+		['nonNegativeInteger'] 	= ctype_uint64t,
+		['base64Binary']		= ctype_base64,
+		['hexBinary'] 			= ctype_hex,
+		['list(anySimpleType)']		= c_list:new(ctype_char_p),
+		['list(anyAtomicType)']		= c_list:new(ctype_char_p),
+		['list(anyURI)']			= c_list:new(ctype_char_p),
+		['list(boolean)']			= c_list:new(ctype_bool),
+		['list(date)']				= c_list:new(ctype_char_p),
+		['list(dateTime)']			= c_list:new(ctype_char_p),
+		['list(dateTimeStamp)']		= c_list:new(ctype_char_p),
+		['list(duration)']			= c_list:new(ctype_char_p),
+		['list(dayTimeDuration)']	= c_list:new(ctype_char_p),
+		['list(yearMonthDuration)']	= c_list:new(ctype_char_p),
+		['list(gDay)']				= c_list:new(ctype_char_p),
+		['list(gMonth)']			= c_list:new(ctype_char_p),
+		['list(gMonthDay)']			= c_list:new(ctype_char_p),
+		['list(gYear)']				= c_list:new(ctype_char_p),
+		['list(gYearMonth)']		= c_list:new(ctype_char_p),
+		['list(NOTATION)']			= c_list:new(ctype_char_p),
+		['list(QName)']				= c_list:new(ctype_char_p),
+		['list(string)']			= c_list:new(ctype_char_p),
+		['list(normalizedString)']	= c_list:new(ctype_char_p),
+		['list(token)']				= c_list:new(ctype_char_p),
+		['list(language)']			= c_list:new(ctype_char_p),
+		['list(name)']				= c_list:new(ctype_char_p),
+		['list(NCName)']			= c_list:new(ctype_char_p),
+		['list(ENTITY)']			= c_list:new(ctype_char_p),
+		['list(ID)']				= c_list:new(ctype_char_p),
+		['list(IDREF)']				= c_list:new(ctype_char_p),
+		['list(NMTOKEN)']			= c_list:new(ctype_char_p),
+		['list(time)']				= c_list:new(ctype_char_p),
+		['list(ENTITIES)']			= c_list:new(ctype_char_p),
+		['list(IDREFS)']			= c_list:new(ctype_char_p),
+		['list(NMTOKENS)']			= c_list:new(ctype_char_p),
+		['list(decimal)'] 			= c_list:new(ctype_longdouble),
+		['list(integer)'] 			= c_list:new(ctype_int64t),
+		['list(long)'] 				= c_list:new(ctype_int64t),
+		['list(int)'] 				= c_list:new(ctype_int32t),
+		['list(short)'] 			= c_list:new(ctype_int16t),
+		['list(byte)'] 				= c_list:new(ctype_int8t),
+		['list(positiveInteger)']	= c_list:new(ctype_uint64t),
+		['list(unsignedLong)']		= c_list:new(ctype_uint64t),
+		['list(unsignedInt)']		= c_list:new(ctype_uint32t),
+		['list(unsignedShort)'] 	= c_list:new(ctype_uint16t),
+		['list(unsignedByte)']		= c_list:new(ctype_uint8t),
+		['list(negativeInteger)']	= c_list:new(ctype_int8t),
+		['list(double)']			= c_list:new(ctype_double),
+		['list(float)'] 			= c_list:new(ctype_float),
+		['list(precisionDecimal)']	= c_list:new(ctype_longdouble),
+		['list(nonPositiveInteger)']= c_list:new(ctype_int64t),
+		['list(nonNegativeInteger)']= c_list:new(ctype_uint64t),
+		['list(base64Binary)']		= c_list:new(ctype_base64),
+		['list(hexBinary)'] 		= c_list:new(ctype_hex),
+	}
+
+	-- D2b: map a {bits, signed} narrowing to its fixed-width ctype.
+	local c_narrowMap = {
+		['8|true'] = ctype_int8t,   ['16|true'] = ctype_int16t,
+		['32|true'] = ctype_int32t, ['64|true'] = ctype_int64t,
+		['8|false'] = ctype_uint8t, ['16|false'] = ctype_uint16t,
+		['32|false'] = ctype_uint32t, ['64|false'] = ctype_uint64t,
+	}
+
+	-- Effective ctype for an XSD type given its facets: the narrowest int that
+	-- holds the facet range when both bounds are known, else the default. Only
+	-- narrows scalar integer ctypes (skips strings, floats, lists, base64/hex).
+	local c_intTypes = {
+		[ctype_int8t]=true, [ctype_int16t]=true, [ctype_int32t]=true,
+		[ctype_int64t]=true, [ctype_uint8t]=true, [ctype_uint16t]=true,
+		[ctype_uint32t]=true, [ctype_uint64t]=true,
+	}
+	function c_narrowCType(xsdType, facets)
+		return facets_narrowType(c_type_info[xsdType], facets, c_narrowMap, c_intTypes)
+	end
+]

@@ -8,11 +8,11 @@ streaming/event variant see [c-xml-expat](c-xml-expat.md).
 
 ## Generate
 
-The DOM target's main template has a `.template` extension:
+Generate the DOM binding (multi-file output):
 
 ```sh
-build/xsdb c-xml-expat-dom.template test/xsd-positive/testA026.xsd      # stdout
-build/xsdb --out-dir out/ c-xml-expat-dom.template test/xsd-positive/testA026.xsd
+build/xsdb c-xml-expat-dom test/xsd-positive/testA026.xsd      # stdout
+build/xsdb --out-dir out/ c-xml-expat-dom test/xsd-positive/testA026.xsd
 # -> out/xml_testA026.h  out/xml_testA026.c
 ```
 
@@ -28,7 +28,7 @@ Output is split on `/* FILE: */` markers (`xml_<schema>.h`, `xml_<schema>.c`).
 - Standard headers used: `<inttypes.h>`, `<ctype.h>`, `<alloca.h>`.
 
 Harness flow (`test/roundtrip_util.cpp`, `cExpatDomRoundtrip`): generate
-binding + `c-xml-expat-dom.template-test` driver, split, then
+binding + `c-xml-expat-dom-test` driver, split, then
 `cc -std=c11 -I<dir> -I<libb64> <base>-bin.c xml_<base>.c <libb64.a> <expat>`
 and run.
 
@@ -109,7 +109,7 @@ unqualified root binds the default `xmlns`. Element dispatch hashes the wire tag
 ## Example
 
 ```sh
-build/xsdb --out-dir out/ c-xml-expat-dom.template test/xsd-positive/testA026.xsd
+build/xsdb --out-dir out/ c-xml-expat-dom test/xsd-positive/testA026.xsd
 ```
 
 Unmarshal, traverse, re-marshal, destroy:

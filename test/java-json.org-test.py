@@ -88,7 +88,7 @@ def genBinding(xsdfile, rsltPath, template):
 
     _splitFile('/tmp/schema-out')
 
-    cmd = 'cp java-json.org.tmpl/pom.xml ' + rsltPath
+    cmd = 'cp java-json.org/pom.xml ' + rsltPath
     out, err, retCode = consoleIO.call(cmd)
     if _handleError(err, retCode):
         return False
@@ -111,7 +111,7 @@ def genBindingTest(xsdfile, rsltPath, template):
 
     # use tool to generate test code
     cmd = '../xsdb ' + template + ' ' + xsdfile + ' >' + \
-          'java-json.org.tmpl/' + schemaName + \
+          'java-json.org/' + schemaName + \
           '/src/main/java/com/mobitv/app/RunTest.java'
     out, err, retCode = consoleIO.call(cmd)
 
@@ -196,7 +196,7 @@ def runTest(testPath, bindingTemplate, cmdlineArguments):
 
 def main(args):
     cmdlineArguments = args[1] if len(args) > 1 and "clean" == args[1] else ""
-    runTest("xsd-positive/", "../templates/java-json.org.tmpl", cmdlineArguments)
+    runTest("xsd-positive/", "../templates/java-json.org", cmdlineArguments)
 
 
 if __name__ == "__main__":

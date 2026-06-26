@@ -1,0 +1,40 @@
+[@lua
+include 'includes/c-xml-expat-dom/shared'
+include 'includes/c-xml-expat-dom/list'
+include 'includes/c-xml-expat-dom/complexType'
+
+types = {}
+
+types.isListType = function(typename)
+   return (typename:match("^(list)%(.+%)") ~= nil)
+end
+
+types.getListType = function(typename)
+   return typename:match("list%((.+)%)")
+end
+
+types.__index = function(tbl, typedef)
+   local typename = typedef.struct or typedef
+   if 'string' == type(typename) and types[typename] then
+      return types[typename]
+   elseif isSimpleType(typedef) and rawget(tbl, typename) then
+      return rawget(tbl, typename)
+   elseif types.isListType(typename) then
+      return list
+   else
+      return complexType
+   end
+end
+
+function types:new(tbl)
+   local retTbl = tbl or {}
+   setmetatable(retTbl, types)
+   return retTbl
+end
+
+function types.getType(tbl, typedef)
+   local ctype = c_narrowSingleton(tbl[typedef], typedef.facets)
+   local ret = ctype:new(tbl, typedef)
+   return ret
+end
+]

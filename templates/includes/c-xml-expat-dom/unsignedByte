@@ -1,0 +1,51 @@
+[@lua
+include 'includes/c-xml-expat-dom/baseType'
+
+unsignedByte = {}
+unsignedByte.__index = unsignedByte
+setmetatable(unsignedByte, {__index = baseType})
+
+function unsignedByte:new(typeFactory, typedef)
+   local retObj = baseType:new(typeFactory, typedef)
+   setmetatable(retObj, unsignedByte)
+   return retObj
+end
+
+function unsignedByte:typeName()
+   return ("xml_unsignedByte")
+end
+
+function unsignedByte:inlineScalar()
+   return true
+end
+
+function unsignedByte:cType()
+   return "uint8_t"
+end
+
+function unsignedByte:typeDef()
+   return self:scalarTypeDef()
+end
+
+function unsignedByte:typeFactoryMethods()
+   return ""
+end
+
+function unsignedByte:defMarshal(elementName)
+   return self:defScalarMarshal(function(v)
+      return ("  char num[8];\n  snprintf(num, 8, \"%%u\", %s);\n  cstr_append_(ppOut, num, pFactory);\n"):format(v)
+   end)
+end
+
+function unsignedByte:defUnmarshal(elementName)
+   return self:defScalarUnmarshal("(uint8_t)atoll(pVal)")
+end
+
+function unsignedByte:defDestroy()
+   return self:defScalarDestroy()
+end
+
+function unsignedByte:test(facets)
+   return facets_sampleInt(facets) or "215"
+end
+]

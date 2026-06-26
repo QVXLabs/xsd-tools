@@ -204,8 +204,8 @@ namespace xsdtest {
 	}
 
 	::testing::AssertionResult pythonJsonRoundtrip(const std::string& xsdPath) {
-		return pythonRoundtripImpl(xsdPath, "python-json.tmpl",
-		                           "python-json.tmpl-test");
+		return pythonRoundtripImpl(xsdPath, "python-json",
+		                           "python-json-test");
 	}
 
 	::testing::AssertionResult cExpatRoundtrip(const std::string& xsdPath) {
@@ -214,14 +214,14 @@ namespace xsdtest {
 	}
 
 	::testing::AssertionResult cExpatDomRoundtrip(const std::string& xsdPath) {
-		return cRoundtripImpl(xsdPath, "c-xml-expat-dom.template",
-		                      "c-xml-expat-dom.template-test",
+		return cRoundtripImpl(xsdPath, "c-xml-expat-dom",
+		                      "c-xml-expat-dom-test",
 		                      "xml_", EXPAT_INCLUDE_DIR, EXPAT_LINK);
 	}
 
 	::testing::AssertionResult cJsonRoundtrip(const std::string& xsdPath) {
-		return cRoundtripImpl(xsdPath, "c-json-jsonc.template",
-		                      "c-json-jsonc.template-test",
+		return cRoundtripImpl(xsdPath, "c-json-jsonc",
+		                      "c-json-jsonc-test",
 		                      "json_", JSONC_INCLUDE_DIR, JSONC_LINK);
 	}
 
@@ -232,8 +232,8 @@ namespace xsdtest {
 	}
 
 	::testing::AssertionResult cppJsonRoundtrip(const std::string& xsdPath) {
-		return ccRoundtripImpl(xsdPath, "cpp-json-jsonc.template",
-		                       "cpp-json-jsonc.template-test",
+		return ccRoundtripImpl(xsdPath, "cpp-json-jsonc",
+		                       "cpp-json-jsonc-test",
 		                       CXX_COMPILER, "-std=c++11", ".cpp",
 		                       "json_", JSONC_INCLUDE_DIR, JSONC_LINK);
 	}
@@ -260,9 +260,9 @@ namespace xsdtest {
 				<< "npm install failed:\n" << deps.output;
 		try {
 			XsdTools::SplitMarkedFiles(
-				generate(TEMPLATES_DIR "/ts-xml.tmpl", xsdPath), root);
+				generate(TEMPLATES_DIR "/ts-xml", xsdPath), root);
 			writeFile(root + "/RunTest.ts",
-			          generate(TEMPLATES_DIR "/ts-xml.tmpl-test", xsdPath));
+			          generate(TEMPLATES_DIR "/ts-xml-test", xsdPath));
 		} catch (std::exception& e) {
 			return ::testing::AssertionFailure()
 				<< "generation failed: " << e.what();
@@ -325,13 +325,13 @@ namespace xsdtest {
 	}
 
 	::testing::AssertionResult javaRoundtrip(const std::string& xsdPath) {
-		return javaRoundtripImpl(xsdPath, "java-json.org.tmpl",
-		                         "java-json.org.tmpl-test", JAVA_POM);
+		return javaRoundtripImpl(xsdPath, "java-json.org",
+		                         "java-json.org-test", JAVA_POM);
 	}
 
 	::testing::AssertionResult javaXmlRoundtrip(const std::string& xsdPath) {
-		return javaRoundtripImpl(xsdPath, "java-xml-stax.tmpl",
-		                         "java-xml-stax.tmpl-test", JAVA_XML_POM);
+		return javaRoundtripImpl(xsdPath, "java-xml-stax",
+		                         "java-xml-stax-test", JAVA_XML_POM);
 	}
 }
 
@@ -453,7 +453,7 @@ namespace {
 			return ::testing::AssertionFailure() << "could not create tempdir";
 		try {
 			XsdTools::SplitMarkedFiles(xsdtest::generate(
-				TEMPLATES_DIR "/c-xml-expat-dom.template", xsd), dir);
+				TEMPLATES_DIR "/c-xml-expat-dom", xsd), dir);
 		} catch (std::exception& e) {
 			return ::testing::AssertionFailure() << "generation: " << e.what();
 		}
@@ -486,7 +486,7 @@ namespace {
 			return ::testing::AssertionFailure() << "could not create tempdir";
 		try {
 			writeFile(dir + "/m.py",
-				xsdtest::generate(TEMPLATES_DIR "/python-json.tmpl", xsd));
+				xsdtest::generate(TEMPLATES_DIR "/python-json", xsd));
 		} catch (std::exception& e) {
 			return ::testing::AssertionFailure() << "generation: " << e.what();
 		}
@@ -541,7 +541,7 @@ namespace {
 			return ::testing::AssertionFailure() << "could not copy pom.xml";
 		try {
 			XsdTools::SplitMarkedFiles(xsdtest::generate(
-				TEMPLATES_DIR "/java-xml-stax.tmpl", xsd), pkg);
+				TEMPLATES_DIR "/java-xml-stax", xsd), pkg);
 		} catch (std::exception& e) {
 			return ::testing::AssertionFailure() << "generation: " << e.what();
 		}
@@ -590,7 +590,7 @@ namespace {
 			return ::testing::AssertionFailure() << "could not create tempdir";
 		try {
 			XsdTools::SplitMarkedFiles(xsdtest::generate(
-				TEMPLATES_DIR "/c-json-jsonc.template", xsd), dir);
+				TEMPLATES_DIR "/c-json-jsonc", xsd), dir);
 		} catch (std::exception& e) {
 			return ::testing::AssertionFailure() << "generation: " << e.what();
 		}
@@ -645,7 +645,7 @@ namespace {
 			return ::testing::AssertionFailure() << "could not copy pom.xml";
 		try {
 			XsdTools::SplitMarkedFiles(xsdtest::generate(
-				TEMPLATES_DIR "/java-json.org.tmpl", xsd), pkg);
+				TEMPLATES_DIR "/java-json.org", xsd), pkg);
 		} catch (std::exception& e) {
 			return ::testing::AssertionFailure() << "generation: " << e.what();
 		}
@@ -686,4 +686,86 @@ TEST(Reject, JavaJsonRange) {
 TEST(Reject, JavaJsonEnum) {
 	EXPECT_TRUE(javaJsonRejects(XSD_CORPUS_DIR "/facet_enum.xsd",
 		"Color", "{'$':'purple'}"));
+}
+
+/* --- Quickstart interop relay (examples/quickstart) ----------------------- */
+namespace {
+	/* Generate the three bindings from examples/quickstart/message.xsd, build
+	   the C++ and Java endpoints, run the five-endpoint relay, and assert the
+	   message crossed all five (ep5 exits 0 and the final message has five
+	   hops). Mirrors what `run-quickstart` does, but as a gtest. */
+	::testing::AssertionResult quickstartRelay() {
+		const std::string qs = QUICKSTART_DIR;
+		const std::string schema = qs + "/message.xsd";
+		const std::string dir = makeTempDir("quickstart");
+		if (dir.empty())
+			return ::testing::AssertionFailure() << "could not create tempdir";
+		if (0 != runCommand("mkdir -p cpp java javac", dir).exitCode)
+			return ::testing::AssertionFailure() << "mkdir failed";
+		try {
+			writeFile(dir + "/message.py",
+			          xsdtest::generate(TEMPLATES_DIR "/python-sax", schema));
+			XsdTools::SplitMarkedFiles(
+			    xsdtest::generate(TEMPLATES_DIR "/cpp-xml-expat", schema),
+			    dir + "/cpp");
+			std::ostringstream java;
+			XsdTools::Generate(TEMPLATES_DIR "/java-xml-stax", schema, java,
+			                   { "-package", "interop" });
+			XsdTools::SplitMarkedFiles(java.str(), dir + "/java");
+		} catch (std::exception& e) {
+			return ::testing::AssertionFailure() << "generation failed: "
+			                                     << e.what();
+		}
+		const char* cppEps[][2] = { { "ep2_relay", "ep2" },
+		                            { "ep5_sink",  "ep5" } };
+		for (const auto& ep : cppEps) {
+			std::ostringstream cc;
+			cc << CXX_COMPILER << " -std=c++11"
+			   << includeFlag(dir + "/cpp") << includeFlag(qs)
+			   << includeFlags(EXPAT_INCLUDE_DIR)
+			   << " '" << qs << "/" << ep[0] << ".cpp'"
+			   << " '" << dir << "/cpp/xml_message.cpp'"
+			   << " " << EXPAT_LINK
+			   << " -o '" << dir << "/" << ep[1] << "'";
+			CommandResult b = runCommand(cc.str(), dir);
+			if (0 != b.exitCode)
+				return ::testing::AssertionFailure()
+				    << ep[0] << " compile failed:\n" << b.output;
+		}
+		CommandResult jc = runCommand(
+		    "javac -d javac java/*.java '" + qs + "/Ep3Relay.java'", dir);
+		if (0 != jc.exitCode)
+			return ::testing::AssertionFailure() << "javac failed:\n"
+			                                     << jc.output;
+		CommandResult run = runCommand(
+		    "PYTHONPATH='" + dir + "' python3 '" + qs + "/ep1_producer.py'"
+		    " | ./ep2"
+		    " | java -cp javac interop.Ep3Relay"
+		    " | PYTHONPATH='" + dir + "' python3 '" + qs + "/ep4_relay.py'"
+		    " | ./ep5", dir);
+		if (0 != run.exitCode)
+			return ::testing::AssertionFailure()
+			    << "relay failed (exit " << run.exitCode << "):\n" << run.output;
+		int hops = 0;
+		for (std::string::size_type p = run.output.find("<hop ");
+		     p != std::string::npos; p = run.output.find("<hop ", p + 1))
+			++hops;
+		if (5 != hops)
+			return ::testing::AssertionFailure()
+			    << "expected 5 hops in final message, got " << hops << ":\n"
+			    << run.output;
+		return ::testing::AssertionSuccess();
+	}
+}
+
+/* The quickstart example, exercised end to end through the gtest binary. Skips
+   when python3 or a JDK is absent (the C++ toolchain that built this binary is
+   always present). */
+TEST(Quickstart, Relay) {
+	if (!xsdtest::programAvailable("python3"))
+		GTEST_SKIP() << "python3 not on PATH";
+	if (!xsdtest::programAvailable("javac") ||
+	    !xsdtest::programAvailable("java"))
+		GTEST_SKIP() << "JDK (javac/java) not on PATH";
+	EXPECT_TRUE(quickstartRelay());
 }

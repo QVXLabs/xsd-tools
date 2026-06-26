@@ -7,10 +7,10 @@ using [json-c](https://github.com/json-c/json-c) for the JSON DOM.
 
 ```sh
 # print all files to stdout (separated by /* FILE: name */ markers)
-xsdb c-json-jsonc.template schema.xsd
+xsdb c-json-jsonc schema.xsd
 
 # split the marked output into real files under build/
-xsdb --out-dir build c-json-jsonc.template schema.xsd
+xsdb --out-dir build c-json-jsonc schema.xsd
 ```
 
 A schema named `schema.xsd` produces three files:
@@ -133,7 +133,7 @@ as a JSON array.
 ```
 
 ```sh
-xsdb --out-dir build c-json-jsonc.template rating.xsd
+xsdb --out-dir build c-json-jsonc rating.xsd
 ```
 
 The range narrows the member to `uint8_t` and emits a validator:
@@ -191,5 +191,5 @@ int main(void) {
   the notify callback with no error signal; there is no way to distinguish "field
   absent" from "field present but invalid" at the callback boundary.
 - Adding a new output target is template-only — no C++ change. This target lives
-  in `templates/c-json-jsonc.template` plus the per-type subtemplates under
-  `templates/c-json-jsonc/`.
+  in `templates/c-json-jsonc` plus the per-type subtemplates under
+  `templates/includes/c-json-jsonc/`.

@@ -25,7 +25,7 @@ def main(arg):
     op = arg[1] if len(arg) > 1 and "clean" == arg[1] else ""
     test_framework.runTest("xml_",
                            "xsd-positive/",
-                           "../templates/c-xml-expat-dom.template",
+                           "../templates/c-xml-expat-dom",
                            op)
 
 

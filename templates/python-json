@@ -1,0 +1,228 @@
+[@lua --include and transform old format
+	include 'shared/trnsfrm_old'
+	schema = trnsfrm_oldFmt(schema)
+][@lua --include any shared 'helper' templates
+	return include 'shared/schemaEx'
+][@lua -- include python json type info
+	include 'shared/doc'
+	include 'shared/facets'
+	include 'includes/python-json/python_type_info'
+][@lua --rename any non-c-safe names to c-safe names & sort dependencies so that they are matched correctly
+	schema = schema.c_safeNames()
+	depOrder = schema.sortDependencies()
+	depOrderSansRoot = table.filter(depOrder, function(k,v) return v.name ~= schema.root and v or nil end)
+]# JSON representation: each element marshals to
+#   {"name": <element name>, "attrs": {<attr>: value, ...},
+#    "content": <content>}
+# where <content> is the typed scalar/list for a simple-content element, or a
+# list of child element dicts for a complex element. The document root
+# marshals to json.dumps of a list of top-level element dicts. Element objects
+# are constructed via the module-level `factories` registry so a consumer can
+# override factories['<name>'] to inject a subclass; the unmarshal path always
+# goes through it.
+[@lua -- emit base64/binascii imports only when the schema uses those types
+	local used = schema.uniqueTypes()
+	local out = {}
+	if used['base64Binary'] or used['list(base64Binary)'] then
+		out[#out + 1] = 'import base64\n'
+	end
+	if used['hexBinary'] or used['list(hexBinary)'] then
+		out[#out + 1] = 'import binascii\n'
+	end
+	out[#out + 1] = 'import json\n'
+	return table.concat(out)
+]
+
+class _jsonelement:
+    def __init__(self):
+        self._content = []
+
+    def getContent(self):
+        return self._content
+
+[@lua -- output class for each element
+	local outbuf = stringBuffer:new()
+	-- Module-level frozenset definitions for numeric enum membership.
+	local enumbuf = stringBuffer:new()
+	-- A field is numeric when its type maps to int/long/float; then `_v` is a
+	-- parsed number and enum membership compares numerically (no stringify).
+	local function pyNumeric(typeName)
+		local t = pyjson_type_info[typeName]
+		return t == pyjsontype_int or t == pyjsontype_long
+			or t == pyjsontype_float
+	end
+	-- Render facet checks (D2) on the local `_v` into a validate() body.
+	-- Pattern facets (P3) are not enforced yet. `prefix`/`typeName` scope the
+	-- numeric enum frozenset.
+	local function pyChecks(prefix, label, typeName, facets)
+		local out = stringBuffer:new()
+		-- emit a guard that raises unless the value-condition `cond` holds
+		local function guard(cond, msg)
+			out:append('        if _v is not None and not (' .. cond .. '):\n')
+			out:append('            raise ValueError("' .. label .. ': ' .. msg .. '")\n')
+		end
+		table.map(facets_checks(facets), function(_, c)
+			if c.kind == 'range' then
+				guard(c.lo and c.hi and (c.lo .. ' <= _v <= ' .. c.hi)
+					or c.lo and (c.lo .. ' <= _v') or ('_v <= ' .. c.hi),
+					'out of range')
+			elseif c.kind == 'length' then
+				local n, parts = 'len(str(_v))', {}
+				if c.exact then parts = {n .. ' == ' .. c.exact} end
+				if c.min then parts[#parts + 1] = n .. ' >= ' .. c.min end
+				if c.max then parts[#parts + 1] = n .. ' <= ' .. c.max end
+				guard(table.concat(parts, ' and '), 'bad length')
+			elseif c.kind == 'enum' then
+				if pyNumeric(typeName) then
+					local name = '_ENUM_' .. prefix .. '_' .. label
+					local vals = {}
+					table.map(c.values, function(_, v) vals[#vals + 1] = v end)
+					enumbuf:append(name .. ' = frozenset((' ..
+						table.concat(vals, ', ') .. ',))\n')
+					guard('_v in ' .. name, 'not permitted')
+				else
+					local vals = {}
+					table.map(c.values,
+						function(_, v) vals[#vals + 1] = '"' .. v .. '"' end)
+					guard('str(_v) in (' .. table.concat(vals, ', ') .. ',)',
+						'not permitted')
+				end
+			end
+		end)
+		return out:str()
+	end
+	table.map(depOrderSansRoot, function(_, node)
+		outbuf:append('\n')
+		-- emit the element/type annotation (#4) above its class
+		outbuf:append(docComment(node.documentation, 'hash', ''))
+		outbuf:append(table.concat({
+			'class json_', node.name, '(_jsonelement):\n',
+			'    def __init__(self):\n',
+			'        _jsonelement.__init__(self)\n'
+		}))
+		-- output default attribute values
+		if next(node.attributes) then
+			table.map(node.attributes, function(attributeName, attribute)
+				-- emit the attribute annotation (#4) above its field
+				outbuf:append(docComment(attribute.documentation, 'hash', '        '))
+				if attribute.default then
+					local pyType = pyjson_type_info[attribute.type]
+					outbuf:append(pyType.default(attributeName, attribute.default))
+				else
+					outbuf:append(table.concat({'        self._', attributeName, ' = None\n'}))
+				end
+			end)
+		end
+		outbuf:append(table.concat({
+			'\n',
+			'    def marshal(self):\n',
+			'        attrs = {}\n',
+		}))
+		-- output marshal code for each element attribute
+		table.map(node.attributes, function(attributeName, attribute)
+			local pyType = pyjson_type_info[attribute.type]
+			outbuf:append(pyType.marshal.attribute(attributeName))
+		end)
+		if next(node.content) then
+			outbuf:append(pyjson_type_info[node.content.type].marshal.content())
+		else
+			outbuf:append(table.concat({
+				"        content = []\n",
+				"        for node in self.getContent():\n",
+				"            if isinstance(node, _jsonelement):\n",
+				"                content.append(node.marshal())\n"
+			}))
+		end
+		outbuf:append(table.concat({
+			'        return {"name": "', node.name, '", "attrs": attrs, "content": content}\n',
+			'\n',
+			'    def unmarshal(self, obj):\n',
+			'        attributes = obj["attrs"]\n',
+		}))
+		-- output unmarshal code for each element attribute
+		if next(node.attributes) then
+			outbuf:append('        for attribute in attributes:\n')
+			table.map(node.attributes, function(attributeName, attribute)
+				local pyType = pyjson_type_info[attribute.type]
+				outbuf:append(pyType.unmarshal.attribute(attributeName))
+			end)
+		end
+		outbuf:append('        content = obj["content"]\n')
+		if next(node.content) then
+			outbuf:append(pyjson_type_info[node.content.type].unmarshal.content())
+		else
+			outbuf:append(table.concat({
+				"        self._content = []\n",
+				"        for child in content:\n",
+				"            element = factories[child[\"name\"]]()\n",
+				"            element.unmarshal(child)\n",
+				"            self._content.append(element)\n"
+			}))
+		end
+		-- emit facet validation (D2) only when the element carries facets;
+		-- skip the empty validate() + call otherwise (T3).
+		local checks = stringBuffer:new()
+		if node.content.facets then
+			checks:append('        _v = self._content[0] if self._content else None\n')
+			checks:append(pyChecks(node.name, 'content', node.content.type,
+				node.content.facets))
+		end
+		table.map(node.attributes, function(an, attr)
+			if attr.facets then
+				checks:append('        _v = self._' .. an .. '\n')
+				checks:append(pyChecks(node.name, an, attr.type, attr.facets))
+			end
+		end)
+		if #checks:str() > 0 then
+			outbuf:append('        self.validate()\n')
+			outbuf:append('\n    def validate(self):\n')
+			outbuf:append(checks:str())
+			outbuf:append('\n')
+		end
+		-- output 'getters' code for each attribute
+		table.map(node.attributes, function(attributeName, attribute)
+			outbuf:append(table.concat({
+				'    def ', attributeName, '(self):\n',
+				'        return self._', attributeName, '\n',
+				'\n'
+			}))
+		end)
+		-- output 'setters' code for each attribute
+		table.map(node.attributes, function(attributeName, attribute)
+			outbuf:append(table.concat({
+				'    def set_', attributeName, '(self, value):\n',
+				'        self._', attributeName, '= value\n',
+				'\n'
+			}))
+		end)
+		outbuf:append('\n')
+	end)
+	return enumbuf:str() .. outbuf:str()
+]
+[@lua -- module-level overridable factory registry: element name -> class
+	local outbuf = stringBuffer:new()
+	outbuf:append('factories = {\n')
+	table.map(depOrderSansRoot, function(_, node)
+		outbuf:append(table.concat({
+			"    '", node.name, "': json_", node.name, ",\n"
+		}))
+	end)
+	outbuf:append('}\n')
+	return outbuf:str()
+]
+
+class json_[@lua return schema.root](_jsonelement):
+    def __init__(self):
+        _jsonelement.__init__(self)
+
+    def marshal(self):
+        return json.dumps(
+            [elm.marshal() for elm in self.getContent()
+             if isinstance(elm, _jsonelement)])
+
+    def unmarshal(self, obj):
+        self._content = []
+        for child in obj:
+            element = factories[child["name"]]()
+            element.unmarshal(child)
+            self._content.append(element)
