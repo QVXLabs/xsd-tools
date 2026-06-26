@@ -408,8 +408,13 @@ LuaProcessor::ProcessExtension(const XSD::Elements::Extension* pNode) {
 	if (pBaseKey && 0 != activePath_->count(pBaseKey))
 		throw XSD::XMLException(pNode->GetXMLElm(),
 			XSD::XMLException::CyclicTypeDefinition);
-	PathMark mark(*activePath_, pBaseKey);
-	parseType_(*pBase);
+	/* Mark only while resolving the base derivation chain. The extension's own
+	   content (ParseChildren) may legitimately contain elements whose types
+	   derive from the SAME base (common in WSDL), which is not a cycle. */
+	{
+		PathMark mark(*activePath_, pBaseKey);
+		parseType_(*pBase);
+	}
 	pNode->ParseChildren(*this);
 }
 

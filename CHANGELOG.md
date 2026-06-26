@@ -61,6 +61,15 @@ All notable changes to xsd-tools are documented here. The format is based on
   emit Python 3). Closes #33.
 
 ### Fixed
+- A type extension whose content contains an element whose own type derives
+  from the **same base** (e.g. WSDL's `tDefinitions` extends
+  `tExtensibleDocumented` and contains a `types` element of type `tTypes`,
+  which also extends it) is no longer mis-reported as a `CyclicTypeDefinition`.
+  The derivation-cycle guard now scopes to the base-resolution chain only, not
+  the extension's content. WSDL and similar real-world schemas now generate.
+- The `c-xml-expat-dom` round-trip test driver no longer collides with a
+  schema that declares an element named `doc`: its sample-document variable was
+  hard-coded as `xml_doc`, clashing with the generated `xml_doc` type.
 - Same-named child elements of different types no longer collapse into a
   single generated struct/class. Structurally-distinct types that share a
   local name are disambiguated (`id`, `id1`, …) while identically-structured
