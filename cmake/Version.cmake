@@ -1,17 +1,21 @@
 # Derive the project version. The base version is the single source of truth in
-# the top-level VERSION file; git only decorates non-release dev builds.
+# the top-level VERSION.txt file; git only decorates non-release dev builds.
 #
 # Priority:
 #   1. -DXSD_VERSION=<x>   a published release sets this to the release tag
 #                          (leading 'v' stripped below); used verbatim, clean.
-#   2. the VERSION file    base M.M.P, plus a git dev-suffix when the tree
+#   2. VERSION.txt         base M.M.P, plus a git dev-suffix when the tree
 #                          isn't a clean release of that base.
-#   3. fallback 0.0.0      no override and no VERSION file.
+#   3. fallback 0.0.0      no override and no VERSION.txt.
 #
 # Sets XSD_VERSION       — numeric MAJOR.MINOR.PATCH, for project(VERSION ...)
 #      XSD_VERSION_FULL  — descriptive string for display / --version
 
-set(_xsd_version_file "${CMAKE_CURRENT_LIST_DIR}/../VERSION")
+# VERSION.txt, not VERSION: the repo root is on the compiler include path (for
+# the "./src/..." includes), and a root file named VERSION shadows the C++
+# standard <version> header on case-insensitive filesystems (Windows/macOS),
+# breaking the build.
+set(_xsd_version_file "${CMAKE_CURRENT_LIST_DIR}/../VERSION.txt")
 
 # Re-run CMake when the authority file changes, so version.h regenerates on the
 # next build instead of going stale.
