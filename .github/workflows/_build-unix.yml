@@ -1,0 +1,73 @@
+name: _build-unix
+
+# Reusable build+test body for Linux/macOS. The per-platform workflows
+# (ci-linux-*, ci-macos-*) call this so each platform gets its own badge while
+# the build steps live in one place. Deps resolve via the in-tree fallback:
+# boost/expat/googletest submodules + lua/tinyxml fetched by CMake; the bundled
+# lua build yields the matching 5.1 luac the engine requires.
+on:
+  workflow_call:
+    inputs:
+      os:
+        required: true
+        type: string
+
+jobs:
+  build:
+    runs-on: ${{ inputs.os }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          submodules: recursive
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      # Node for the ts-xml round-trips (tsc + fast-xml-parser via npm).
+      # lts/* tracks the current LTS so the version never ages into EOL.
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 'lts/*'
+
+      # Warm the shared Maven local repo across runs: the Java round-trips
+      # all read ~/.m2, so a cold runner would otherwise re-download every
+      # dependency. Locally this cache is already warm; it only matters here.
+      - uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository
+          key: m2-${{ runner.os }}-${{ hashFiles('test/**/pom.xml') }}
+          restore-keys: m2-${{ runner.os }}-
+
+      - name: Install build tools
+        run: |
+          if [ "$RUNNER_OS" = "Linux" ]; then
+            sudo apt-get update
+            sudo apt-get install -y ninja-build maven
+            # The runner image ships a stray Lua dev package; find_package(Lua
+            # 5.1 EXACT) matches it and links system liblua, but a mismatched
+            # luac then compiles bytecode liblua rejects (LUA_ERRSYNTAX at
+            # load). Show what's present, then remove it so the self-contained
+            # bundled lua+luac pair is used.
+            echo "Lua packages present before removal:"
+            dpkg -l | grep -i lua || echo "  (none)"
+            sudo apt-get remove -y 'liblua5.*' 'lua5.*' || true
+          else
+            brew install ninja maven || true
+          fi
+
+      - name: Configure + build + test
+        run: |
+          cmake -S . -B build -G "Ninja Multi-Config" -DCMAKE_DISABLE_FIND_PACKAGE_Lua=ON
+          cmake --build build --config Release -j
+          # Run the gtest binary directly (project convention: no ctest),
+          # sharded across cores for the mvn/cc/python round-trips.
+          python3 test/run_parallel.py --binary build/test/Release/xsdb-test

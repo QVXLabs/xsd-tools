@@ -1,6 +1,13 @@
-![ubuntu latest x86_64 workflow](https://github.com/Ardy123/xsd-tools/actions/workflows/build-and-test.yml/badge.svg)
-
 # xsd-tools
+
+Build status (one badge per CI build, all on push/PR to `master`):
+
+| Platform | x86_64 | arm64 |
+|----------|--------|-------|
+| Linux   | ![linux-x86_64](https://github.com/QVXLabs/xsd-tools/actions/workflows/ci-linux-x86_64.yml/badge.svg?branch=master) | ![linux-arm64](https://github.com/QVXLabs/xsd-tools/actions/workflows/ci-linux-arm64.yml/badge.svg?branch=master) |
+| macOS   | ![macos-x86_64](https://github.com/QVXLabs/xsd-tools/actions/workflows/ci-macos-x86_64.yml/badge.svg?branch=master) | ![macos-arm64](https://github.com/QVXLabs/xsd-tools/actions/workflows/ci-macos-arm64.yml/badge.svg?branch=master) |
+| Windows | ![windows-x86_64](https://github.com/QVXLabs/xsd-tools/actions/workflows/ci-windows-x86_64.yml/badge.svg?branch=master) | ![windows-arm64](https://github.com/QVXLabs/xsd-tools/actions/workflows/ci-windows-arm64.yml/badge.svg?branch=master) |
+
 ### Overview ###
 xsd-tools is a set of tools for generating code from xml xsd schema documents, mainly around generating marshalling & unmarshalling code. It is designed such that it can be easily extended by any user to enable code generation for any language.
 
