@@ -35,7 +35,7 @@
 #include "./src/luaScriptAdapter.hpp"
 #include "./src/resource.hpp"
 #include "./src/XSDParser/Parser.hpp"
-#include "resource_config.hpp"
+#include "version.h"
 
 using namespace std;
 

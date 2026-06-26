@@ -14,8 +14,7 @@
 #ifndef RESOURCE_CONFIG_HPP_
 #define RESOURCE_CONFIG_HPP_
 
-/* Project version (from the git tag, or -DXSD_VERSION), set at configure time. */
-#define XSDTOOLS_VERSION "@XSDTOOLS_VERSION@"
+/* The version lives in the generated version.h (single VERSION-file source). */
 
 /* Absolute path the installed template tree lands in, derived from
  * CMAKE_INSTALL_PREFIX + CMAKE_INSTALL_DATADIR at configure time. */
