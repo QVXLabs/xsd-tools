@@ -7,7 +7,7 @@ on:
     branches: [ master ]
 
 jobs:
-  build:
+  windows-x86_64:
     uses: ./.github/workflows/_build-windows.yml
     with:
       os: windows-latest

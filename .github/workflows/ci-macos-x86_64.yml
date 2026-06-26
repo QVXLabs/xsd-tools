@@ -8,7 +8,7 @@ on:
     branches: [ master ]
 
 jobs:
-  build:
+  macos-x86_64:
     uses: ./.github/workflows/_build-unix.yml
     with:
       os: macos-15-large

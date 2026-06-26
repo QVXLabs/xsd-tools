@@ -7,7 +7,7 @@ on:
     branches: [ master ]
 
 jobs:
-  build:
+  windows-arm64:
     uses: ./.github/workflows/_build-windows.yml
     with:
       os: windows-11-arm

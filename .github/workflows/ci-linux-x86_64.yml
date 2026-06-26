@@ -7,7 +7,7 @@ on:
     branches: [ master ]
 
 jobs:
-  build:
+  linux-x86_64:
     uses: ./.github/workflows/_build-unix.yml
     with:
       os: ubuntu-latest
