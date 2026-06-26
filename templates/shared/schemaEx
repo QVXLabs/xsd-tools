@@ -33,6 +33,7 @@
 				return newName
 			end
 		end
+		local seen = {}
 		local function recurse(nodeName, node, tbl)
 			tbl.name = renameNCName(nodeName, schema.types)
 			tbl.attributes = tbl.attributes or {}
@@ -44,9 +45,15 @@
 			table.map(node.dependents, function(k,v)
 				local CSafeName = renameNCName(k, schema.types)
 				tbl.dependents[CSafeName], ret.types[CSafeName] = v, v
-				recurse(k, v, tbl.dependents[CSafeName])
+				-- guard the recursive graph: a type already visited keeps its
+				-- wired reference but is not re-descended (would not terminate).
+				if not seen[v] then
+					seen[v] = true
+					recurse(k, v, tbl.dependents[CSafeName])
+				end
 			end)
 		end
+		seen[schema.types[schema.root]] = true
 		recurse(schema.root, schema.types[schema.root],ret.types[schema.root])
 		return ret
 	end
@@ -66,7 +73,10 @@
 ][@lua -- find all unique types used in xsd
 	schema.uniqueTypes = function()
 		local ret = {}
+		local seen = {}
 		local function recurse(k, v)
+			if seen[v] then return end
+			seen[v] = true
 			if next(v.content) then
 				ret[v.content.type] = v.content.type
 			end
