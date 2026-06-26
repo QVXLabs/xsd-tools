@@ -1,0 +1,35 @@
+<?xml version="1.0"?>
+<!-- #4: xs:documentation should surface as a comment at the matching spot in
+     generated code: on an element (book), a nested element (title), an
+     attribute (isbn), and a named complexType referenced by an element
+     (Author, via the author element, whose own element has no annotation). -->
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+  <xs:complexType name="Author">
+    <xs:annotation>
+      <xs:documentation>An author of the book.</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="fullName" type="xs:string"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:element name="book">
+    <xs:annotation>
+      <xs:documentation>A book record.</xs:documentation>
+    </xs:annotation>
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element name="title" type="xs:string">
+          <xs:annotation>
+            <xs:documentation>The book's title.</xs:documentation>
+          </xs:annotation>
+        </xs:element>
+        <xs:element name="author" type="Author"/>
+      </xs:sequence>
+      <xs:attribute name="isbn" type="xs:string">
+        <xs:annotation>
+          <xs:documentation>ISBN-13 identifier.</xs:documentation>
+        </xs:annotation>
+      </xs:attribute>
+    </xs:complexType>
+  </xs:element>
+</xs:schema>

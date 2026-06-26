@@ -34,6 +34,7 @@
 	return include 'shared/schemaEx'
 ][@lua --include Java/StAX type info
 	include 'shared/facets'
+	include 'shared/doc'
 	include 'java-xml-stax/java_type_info'
 ][@lua --c-safe names & dependency order (mirror python-sax)
 	-- handle custom template arguments
@@ -340,11 +341,15 @@ public class Document {
 			"import javax.xml.stream.XMLStreamReader;\n",
 			"import javax.xml.stream.XMLStreamWriter;\n",
 			"import javax.xml.stream.XMLStreamException;\n\n",
+			-- #4: emit the element/type annotation above its class
+			docComment(node.documentation, 'c', ''),
 			"public class ", jn, " extends Element {\n",
 		}))
 
 		-- attribute fields (narrowed boxed type for numeric facets, D2b)
 		table.map(node.attributes, function(attribName, attribute)
+			-- #4: emit the attribute annotation above its field
+			outbuf:append(docComment(attribute.documentation, 'c', '\t'))
 			local nw = javaNumType(java_type_info[attribute.type],
 				attribute.facets)
 			if nw then

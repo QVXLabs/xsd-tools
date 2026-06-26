@@ -112,6 +112,9 @@ namespace Processors {
 		void Namespace(const std::string& rNamespace);
 		/* attach the qualified flag; no-op when unqualified (the default) */
 		void Qualified(bool qualified);
+		/* attach the xs:documentation text; no-op when empty, and does not
+		   overwrite a doc already set (element-level wins over type-level) */
+		void Documentation(const std::string& rText);
 	protected:
 		LuaType(lua_State * pLuaState, const std::string& rTypeName,
 		        const int maxOccurs, const int minOccurs = 1);
@@ -127,6 +130,8 @@ namespace Processors {
 		void Namespace(const std::string& rNamespace);
 		/* attach the qualified flag; no-op when unqualified (the default) */
 		void Qualified(bool qualified);
+		/* attach the xs:documentation text; no-op when empty */
+		void Documentation(const std::string& rText);
 	protected:
 		LuaAttribute(	lua_State * pLuaState,
 						const std::string& rAttribName,

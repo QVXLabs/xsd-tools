@@ -35,6 +35,8 @@ It processes XSD schema documents and invokes a template file which outputs code
     are rejected.
   * Facet-bounded integer fields narrow to the smallest fitting type
     (e.g. `0..255` → `uint8_t` in C, `Short` in Java).
+  * `xs:documentation` annotations are carried into the generated code as
+    comments at the matching location (type, field, or attribute).
   * Simple Lua based templates for customizing code generation.
   * Usable as a C++ library (`XsdTools::Generate()`) as well as a CLI.
   * Open Source!

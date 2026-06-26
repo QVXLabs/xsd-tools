@@ -22,6 +22,7 @@
 ][@lua include 'shared/trnsfrm_old'; schema = trnsfrm_oldFmt(schema)
 ][@lua return include 'shared/schemaEx'
 ][@lua include 'shared/facets'
+][@lua include 'shared/doc'
 ][@lua return include 'cpp-xml-expat-sax/cpp_type_info'
 ][@lua schema = schema.c_safeNames()
 	depOrder = schema.sortDependencies()
@@ -171,10 +172,14 @@ public:
 [@lua -- per-element classes (RAII members, default-initialised)
 	local outbuf = stringBuffer:new()
 	table.map(depOrderSansRoot, function(_, node)
+		-- emit the element/type annotation (#4) above its class
+		outbuf:append(docComment(node.documentation, 'c', ''))
 		outbuf:append('class '..node.name..' : public Element {\npublic:\n')
 		-- members
 		table.map(node.attributes, function(name, a)
 			local ct = cpp_narrowCType(a.type, a.facets)
+			-- emit the attribute annotation (#4) above its field
+			outbuf:append(docComment(a.documentation, 'c', '\t'))
 			outbuf:append('\t'..ct.cppType()..' '..name..'_ = {};\n')
 		end)
 		if next(node.content) then

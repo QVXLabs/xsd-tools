@@ -33,11 +33,15 @@ All notable changes to xsd-tools are documented here. The format is based on
   correct `xmlns`/prefix declarations, and `xs:import` resolves types across
   namespaces (contrast `xs:include`'s same-namespace merge). Cyclic schemas are
   rejected instead of overflowing the stack. Closes #10.
+- `xs:documentation` (annotation) text is emitted as a comment at the matching
+  location in generated code — above the type/struct/class/interface for an
+  element or complex type, and above the field for a scalar element or an
+  attribute — across all targets (C-style `/* */`, Python `#`). Closes #4.
 - Release packaging: publishing a GitHub release builds and attaches Linux
   packages — a Debian `.deb` and an RPM `.rpm` (via CPack, reusing the install
   rules) plus a single-file Flatpak bundle (`com.qvxlabs.xsd_tools`). Build them
   locally with `pkg/build-packages.sh` and `pkg/flatpak/build-flatpak.sh`.
-- (planned) Homebrew formula, Docker image.
+- (planned) Prebuilt binary releases (Linux/macOS), Homebrew formula, Docker image.
 
 ### Changed
 - Build migrated from SCons to CMake with multi-platform CI
@@ -46,13 +50,45 @@ All notable changes to xsd-tools are documented here. The format is based on
   (boost, expat, googletest).
 - Parser tree traversal (`ParseChildren`) refactored to functional sibling
   recursion via `Node::_eachChild`; behavior-preserving.
+- Test scripts migrated to Python 3 (the round-trip harness and its driver/
+  scaffold scripts now run under `python3`; generated python-sax/python-json
+  emit Python 3). Closes #33.
 
 ### Fixed
-- (planned) Duplicate generated structs for same-named child elements of
-  different types. Closes #11.
+- Same-named child elements of different types no longer collapse into a
+  single generated struct/class. Structurally-distinct types that share a
+  local name are disambiguated (`id`, `id1`, …) while identically-structured
+  types still share one definition. The disambiguated type's element/key
+  serializes under the suffixed name (e.g. `<id1>`), since the generated
+  unmarshallers dispatch on element name without parent context — consistent
+  with how non-identifier-safe names are already remapped. Closes #11.
 
-### Removed
-- (planned) Legacy Python 2-era test scripts, superseded by the gtest +
-  Python 3 round-trip harness. Closes #33.
+## [0.1.2] - 2023-10-16
 
-[Unreleased]: https://github.com/QVXLabs/xsd-tools/commits/master
+### Fixed
+- Security vulnerabilities in test-case dependencies.
+- A gcc compile error.
+
+## [0.1.1] - 2021-11-22
+
+### Added
+- Conan support in the build system.
+- Overriding the C/C++ compiler and compile flags via environment variables.
+
+### Changed
+- The embedded Lua script engine is inlined into the executable via the
+  external `incbin` library.
+- Cleaned up the `c-xml-expat` template — tests pass again and the gcc/clang
+  compile warnings are fixed.
+
+## [0.1.0] - 2021-09-11
+
+### Added
+- First public release: generates marshalling/unmarshalling code from XSD
+  schemas via on-disk Lua templates (C, Python and Java output targets).
+- `XSDTOOLS_DATA` environment variable to locate the template/data directory.
+
+[Unreleased]: https://github.com/QVXLabs/xsd-tools/compare/0.1.2...HEAD
+[0.1.2]: https://github.com/QVXLabs/xsd-tools/compare/v0.1.1...0.1.2
+[0.1.1]: https://github.com/QVXLabs/xsd-tools/compare/v0.1.0...v0.1.1
+[0.1.0]: https://github.com/QVXLabs/xsd-tools/releases/tag/v0.1.0

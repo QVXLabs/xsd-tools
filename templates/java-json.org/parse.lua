@@ -3,6 +3,7 @@
    include 'java-json.org/listitemstrategy.lua'
    include 'java-json.org/types.lua'
    include 'java-json.org/adapters.lua'
+   include 'shared/doc'
 
    -- TODO: 1) use optJSONArray/opt... for optional fields
    --       2) make unmarshalling/marshalling handle fields which can be lists
@@ -184,13 +185,17 @@
 	  str:append(('import %s.JSONObjectAdapter;\n'):format(javaPKGName))
 	  str:append(('import %s.JSONArrayAdapter;\n\n'):format(javaPKGName))
 	  str:append(('import org.apache.commons.codec.DecoderException;\n\n'))
-	  -- generate class definition	  
+	  -- generate class definition
+	  -- #4: emit the element/type annotation above its class
+	  str:append(docComment(typedef.documentation, 'c', ''))
 	  str:append(
 		 ('public class %s implements Marshalable {\n'):format(typename)
-	  )	  
+	  )
 	  -- generate private members
 	  for JSONFieldName, fieldTypename, fieldTypedef in fieldIterator(typedef.fields) do
 		 local memberName  = makeJavaSafeName(JSONFieldName)
+		 -- #4: emit the field annotation above its declaration
+		 str:append(docComment(fieldTypedef.documentation, 'c', '\t'))
 		 if isListType(fieldTypename) then
 			local lstTypename = getListType(fieldTypename)
 			str:append(
