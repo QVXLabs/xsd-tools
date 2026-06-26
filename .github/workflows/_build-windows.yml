@@ -1,0 +1,55 @@
+name: _build-windows
+
+# Reusable build+test body for Windows (MSVC). The per-platform workflows
+# (ci-windows-*) call this. Exercises the incbin generator-tool embedding path.
+on:
+  workflow_call:
+    inputs:
+      os:
+        required: true
+        type: string
+
+jobs:
+  build:
+    runs-on: ${{ inputs.os }}
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          submodules: recursive
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      # Node for the ts-xml round-trips (tsc + fast-xml-parser via npm).
+      # lts/* tracks the current LTS so the version never ages into EOL.
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 'lts/*'
+
+      - uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository
+          key: m2-${{ runner.os }}-${{ hashFiles('test/**/pom.xml') }}
+          restore-keys: m2-${{ runner.os }}-
+
+      - uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Configure + build + test
+        run: |
+          # GNU patch (for the lua LNUM patch) ships with Git. Append it to
+          # PATH so it doesn't shadow MSVC's link.exe with Git's coreutils.
+          $env:PATH += ";$env:ProgramFiles\Git\usr\bin"
+          patch --version
+          cmake -S . -B build -G "Ninja Multi-Config" -DCMAKE_DISABLE_FIND_PACKAGE_Lua=ON
+          cmake --build build --config Release
+          # Run the gtest binary directly (project convention: no ctest).
+          python3 test/run_parallel.py --binary build/test/Release/xsdb-test
