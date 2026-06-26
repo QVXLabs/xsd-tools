@@ -42,9 +42,10 @@ structurally in `Node::Type_`/`FindXSDElm_`, scoped to the current doc +
 
 **Processors** (`src/Processors/`): `LuaProcessorBase` (BaseProcessor impl, most
 callbacks no-op, holds a `LuaAdapter`); `LuaProcessor` (the real one — builds
-`schema` via the `LuaSchema`/`LuaContent`/`LuaType`/`LuaAttribute` stack; facet
-callbacks are no-ops and `ProcessRestriction` collapses to the base without
-walking facets, hence no validation today); plus `ElementExtracter`,
+`schema` via the `LuaSchema`/`LuaContent`/`LuaType`/`LuaAttribute` stack; the
+facet callbacks record onto `facets_` and `ProcessRestriction` calls
+`walkFacets_`, so facets propagate to the leaf type and are enforced in the
+generated unmarshallers); plus `ElementExtracter`,
 `SimpleTypeExtracter`, `RestrictionVerify` passes.
 
 **Template engine** (`src/TemplateEngine/*.lua`): literal text with embedded

@@ -21,6 +21,7 @@
  *  along with xsd-tools.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <iostream>
 #include <memory>
 #include <string.h>
 #include <boost/algorithm/string/predicate.hpp>
@@ -252,7 +253,7 @@ Node::ConstructNode_(const TiXmlElement* pElm, const Parser& rParser) const {
 	   Scoped whitelist — genuinely-unknown tags still throw below. */
 	static const char* const kIgnoredTags[] = {
 		"key", "keyref", "unique", "selector", "field",
-		"anyAttribute", "redefine", "notation",
+		"anyAttribute", "notation",
 	};
 	const std::string elementName = stripPrefix_(pElm->ValueStr());
 	for (const auto& rEntry : kTable) {
@@ -262,6 +263,17 @@ Node::ConstructNode_(const TiXmlElement* pElm, const Parser& rParser) const {
 	for (const char* pTag : kIgnoredTags) {
 		if (boost::iequals(std::string(pTag), elementName))
 			return new IgnoredNode(*pElm, rParser);
+	}
+	/* redefine is accepted (no throw) but its redefinitions are dropped, so
+	   generated code may be silently incomplete — warn once per process. */
+	if (boost::iequals(std::string("redefine"), elementName)) {
+		static bool bWarned = false;
+		if (!bWarned) {
+			bWarned = true;
+			std::cerr << "warning: <redefine> is ignored; its redefinitions "
+			             "are dropped, generated code may be incomplete\n";
+		}
+		return new IgnoredNode(*pElm, rParser);
 	}
 	throw XMLException(*pElm, XMLException::InvallidChildXMLElement);
 	return NULL;
