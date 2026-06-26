@@ -59,20 +59,28 @@ Group::ParseChildren(BaseProcessor& rProcessor) const noexcept(false) {
 	});
 }
 
+/* A group definition is top-level when it is a child of the <schema> root
+   element, i.e. its grandparent is the document. (Its *parent* is the schema
+   element, not the document — an earlier parent==DOCUMENT check wrongly
+   rejected every top-level group.) */
+static bool isTopLevel_(const TiXmlElement& rElm) {
+	const TiXmlNode* pParent = rElm.Parent();
+	return NULL != pParent && NULL != pParent->Parent() &&
+	       TiXmlNode::TINYXML_DOCUMENT == pParent->Parent()->Type();
+}
+
 void
 Group::ParseElement(BaseProcessor& rProcessor) const noexcept(false) {
 	/* a ref and a name are not allowed */
 	if (HasName() && HasRef())
 		throw XMLException(Node::GetXMLElm(), XMLException::InvalidAttribute);
-	/* a name is only allowed when it's parent element is a schema */
-	if (HasName()) {
-		if (Node::GetXMLElm().Parent()->Type() != TiXmlNode::TINYXML_DOCUMENT)
-			throw XMLException(Node::GetXMLElm(), XMLException::InvalidAttribute);
-	}
+	/* a named group definition must be top-level */
+	if (HasName() && !isTopLevel_(Node::GetXMLElm()))
+		throw XMLException(Node::GetXMLElm(), XMLException::InvalidAttribute);
 	if (HasRef()) {
 		std::unique_ptr<Group> pRefGroup(RefGroup());
-		/* a name is only allowed when it's parent element is a schema */
-		if (pRefGroup->GetXMLElm().Parent()->Type() != TiXmlNode::TINYXML_DOCUMENT)
+		/* the referenced group must likewise be a top-level definition */
+		if (!isTopLevel_(pRefGroup->GetXMLElm()))
 			throw XMLException(pRefGroup->GetXMLElm(), XMLException::InvalidAttribute);
 	}
 	/* verify that 'maxOccurs' is not negative unless its -1 (unbounded) */

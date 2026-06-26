@@ -1,0 +1,9 @@
+<?xml version="1.0"?>
+<!-- robustness #stress: an unfetchable http schemaLocation must throw cleanly
+     (ProtocolNotSupported), not segfault on a null imported schema. -->
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+           xmlns:ex="http://example.com/ns">
+  <xs:import namespace="http://example.com/ns"
+             schemaLocation="http://example.com/remote.xsd"/>
+  <xs:element name="root" type="ex:RemoteType"/>
+</xs:schema>

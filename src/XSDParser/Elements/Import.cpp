@@ -59,6 +59,10 @@ Import::QuerySchema() const noexcept(false) {
 	if (NULL == pSchema_ && HasSchema()) {
 		std::string uri = resolveSchemaURI_("schemaLocation");
 		pSchema_ = Node::GetParser().Parse(uri);
+		/* Parse returns NULL for an unsupported/unfetchable location (e.g. an
+		   http:// schemaLocation); throw cleanly instead of dereferencing it. */
+		if (NULL == pSchema_)
+			throw XMLException(GetXMLElm(), XMLException::ProtocolNotSupported);
 		/* index the imported namespace so cross-doc refs resolve by URI */
 		Node::GetParser().RegisterNamespace(pSchema_->TargetNamespace(), uri);
 	}

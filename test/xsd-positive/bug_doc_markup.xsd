@@ -1,0 +1,10 @@
+<?xml version="1.0"?>
+<!-- robustness #stress: xs:documentation content is opaque mixed content and
+     may embed markup; it must not be parsed as XSD. -->
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+  <xs:element name="note" type="xs:string">
+    <xs:annotation>
+      <xs:documentation>A note. <p>With <em>HTML</em> markup.</p></xs:documentation>
+    </xs:annotation>
+  </xs:element>
+</xs:schema>

@@ -339,6 +339,7 @@ set(LIBXSDB_SOURCES
   src/XSDParser/Elements/Documentation.cpp
   src/XSDParser/Elements/All.cpp
   src/XSDParser/Elements/AppInfo.cpp
+  src/XSDParser/Elements/IgnoredNode.cpp
   src/Processors/ArrayType.cpp
   src/Processors/LuaProcessorBase.cpp
   src/Processors/LuaAdapter.cpp

@@ -26,6 +26,7 @@
 #endif
 #include <cerrno>
 #include <fstream>
+#include <regex>
 #include <iostream>
 #include <ostream>
 #include <sstream>
@@ -166,6 +167,14 @@ namespace XsdTools {
 				size_t start = pos + marker.size();
 				size_t end = line.find(' ', start);
 				name = line.substr(start, end - start);
+				/* a FILE: marker must name a plain file under outDir: a leading
+				   alnum/underscore then alnum/._- only. This rejects empty,
+				   path separators, "..", and dotfiles, so a template can't
+				   write outside the output directory. */
+				static const std::regex kSafeName("[A-Za-z0-9_][A-Za-z0-9._-]*");
+				if (!std::regex_match(name, kSafeName))
+					throw Core::ResourceException(
+						"Invalid '/* FILE: */' marker name: '" + name + "'");
 				pending.clear();
 				sawContent = false;
 			} else {

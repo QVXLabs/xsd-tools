@@ -128,9 +128,13 @@ LuaScriptAdapterExecute_error:
 	case LUA_ERRERR:
 		throw LuaException("Error running lua error handler", err);
 		break;
-	default:
-		throw LuaException(lua_tostring(pLuaState_, -1), err);
+	default: {
+		/* lua_tostring returns NULL when the error object isn't a string (e.g.
+		   `error({})`); don't pass NULL to the LuaException(std::string) ctor. */
+		const char* pMsg = lua_tostring(pLuaState_, -1);
+		throw LuaException(pMsg ? pMsg : "non-string Lua error", err);
 		break;
+	}
 	}
 }
 

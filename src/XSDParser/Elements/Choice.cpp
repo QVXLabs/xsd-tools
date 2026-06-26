@@ -29,6 +29,7 @@
 #include "./src/XSDParser/Elements/Choice.hpp"
 #include "./src/XSDParser/Elements/Element.hpp"
 #include "./src/XSDParser/Elements/Sequence.hpp"
+#include "./src/XSDParser/Elements/Group.hpp"
 #include "./src/XSDParser/Elements/Annotation.hpp"
 #include "./src/XSDParser/Elements/Any.hpp"
 #include "./src/XSDParser/ProcessorBase.hpp"
@@ -52,6 +53,7 @@ Choice::ParseChildren(BaseProcessor& rProcessor) const noexcept(false) {
 			XSD_ISELEMENT(&rNode, Choice) ||
 			XSD_ISELEMENT(&rNode, Annotation) ||
 			XSD_ISELEMENT(&rNode, Sequence) ||
+			XSD_ISELEMENT(&rNode, Group) ||
 			XSD_ISELEMENT(&rNode, Any)) {
 			rNode.ParseElement(rProcessor);
 		} else

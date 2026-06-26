@@ -1,0 +1,14 @@
+<?xml version="1.0"?>
+<!-- robustness #stress: xs:anyAttribute is codegen-irrelevant and must not
+     crash the parser (it is parsed as a no-op and ignored). -->
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+  <xs:element name="widget">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element name="label" type="xs:string"/>
+      </xs:sequence>
+      <xs:attribute name="id" type="xs:string"/>
+      <xs:anyAttribute namespace="##other" processContents="lax"/>
+    </xs:complexType>
+  </xs:element>
+</xs:schema>

@@ -59,7 +59,7 @@ SimpleTypeExtracter::ProcessUnion(const XSD::Elements::Union* pNode) {
 
 /* virtual */ void
 SimpleTypeExtracter::ProcessRestriction(const XSD::Elements::Restriction* pNode ) {
-	if (pNode->isParentSimpleContent() || pNode->isParentSimpleContent())
+	if (pNode->isParentSimpleContent() || pNode->isParentComplexContent())
 		pNode->ParseChildren(*this);
 	else {
 		unique_ptr<XSD::Types::BaseType> pType(pNode->Base());

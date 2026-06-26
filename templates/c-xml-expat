@@ -41,7 +41,6 @@
 	-- map xsd types to unique c-types
 	uniqueCTypes = {}
 	table.map(uniqueXSDTypes, function(_, v)
-		dbgPrint(v)
 		local ctype = c_type_info[v]
 		uniqueCTypes[ctype] = ctype
 		if 'c_list' == ctype.type then

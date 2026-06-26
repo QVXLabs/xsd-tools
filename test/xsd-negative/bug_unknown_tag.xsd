@@ -1,0 +1,10 @@
+<?xml version="1.0"?>
+<!-- robustness #stress: a genuinely-unknown construct must still throw
+     (the ignored-construct whitelist is scoped, not blanket tolerance). -->
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+  <xs:element name="root">
+    <xs:complexType>
+      <xs:bogusConstruct/>
+    </xs:complexType>
+  </xs:element>
+</xs:schema>
