@@ -52,6 +52,10 @@ Namespaces are supported: schemas with a `targetNamespace` resolve and the XML
 targets emit the right `xmlns`/prefixes, and `xs:import` brings in types from
 another namespace (`xs:include` continues to merge same-namespace documents).
 
+For exactly what's supported, parsed-but-ignored, or unsupported (and how the
+tool fails when it can't proceed), see the
+[capability map](docs/limitations.md).
+
 ### Sample Output ###
 [`examples/`](examples/) has a guided, end-to-end walkthrough — a small library
 catalog schema and the real generated output across several targets (showing

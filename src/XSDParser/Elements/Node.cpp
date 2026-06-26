@@ -60,6 +60,7 @@
 #include "./src/XSDParser/Elements/Documentation.hpp"
 #include "./src/XSDParser/Elements/All.hpp"
 #include "./src/XSDParser/Elements/AppInfo.hpp"
+#include "./src/XSDParser/Elements/IgnoredNode.hpp"
 
 #define DEBUG_CONSTRUCTION (0)
 
@@ -246,10 +247,21 @@ Node::ConstructNode_(const TiXmlElement* pElm, const Parser& rParser) const {
 			[](const TiXmlElement& e, const Parser& p) -> Node*
 				{ return new AppInfo(e, p); } },
 	};
+	/* Valid XSD constructs that don't affect marshalling codegen: parse them as
+	   a no-op IgnoredNode so schemas that merely contain them don't throw.
+	   Scoped whitelist — genuinely-unknown tags still throw below. */
+	static const char* const kIgnoredTags[] = {
+		"key", "keyref", "unique", "selector", "field",
+		"anyAttribute", "redefine", "notation",
+	};
 	const std::string elementName = stripPrefix_(pElm->ValueStr());
 	for (const auto& rEntry : kTable) {
 		if (boost::iequals(std::string(rEntry.pTag), elementName))
 			return rEntry.pMake(*pElm, rParser);
+	}
+	for (const char* pTag : kIgnoredTags) {
+		if (boost::iequals(std::string(pTag), elementName))
+			return new IgnoredNode(*pElm, rParser);
 	}
 	throw XMLException(*pElm, XMLException::InvallidChildXMLElement);
 	return NULL;
@@ -422,7 +434,10 @@ findSibling_(std::unique_ptr<Node> pNode,
 		const std::function<bool(const Node&)>& rFn) noexcept(false) {
 	if (NULL == pNode.get())
 		return false;
-	if (rFn(*pNode))
+	/* IgnoredNode (anyAttribute, identity constraints, redefine, notation) is
+	   transparent to traversal: skip rFn so context-checking ParseChildren
+	   overrides don't reject it, then continue down the sibling chain. */
+	if (!(XSD_ISELEMENT(pNode.get(), IgnoredNode)) && rFn(*pNode))
 		return true;
 	return findSibling_(std::unique_ptr<Node>(pNode->NextSibling()), rFn);
 }
@@ -448,9 +463,12 @@ Node::ContentElement(const char* pElemName) const noexcept(false) {
 	return pElm;
 }
 
-const TiXmlElement& 
+const TiXmlElement&
 Node::QueryRootElement() const {
 	const TiXmlDocument * pNode = GetXmlDocument().ToDocument();
+	/* a malformed/rootless document would otherwise deref null here */
+	if (NULL == pNode || NULL == pNode->RootElement())
+		throw XMLException(rXmlElm_, XMLException::NodeNotFound);
 	return *(pNode->RootElement());
 }
 

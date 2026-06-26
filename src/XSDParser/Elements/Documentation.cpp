@@ -43,11 +43,11 @@ Documentation::Documentation(const Documentation& cpy)
 
 void
 Documentation::ParseChildren(BaseProcessor& rProcessor) const noexcept(false) {
-	/* no children allowed */
-	std::unique_ptr<Node> pNode(Node::FirstChild());
-	if (NULL != pNode.get()) {
-		throw XMLException(pNode->GetXMLElm(), XMLException::InvallidChildXMLElement);
-	}
+	/* xs:documentation content is opaque mixed content (it routinely embeds
+	   HTML — <div>, <p>, ... — as in xml.xsd / XMLSchema.xsd), so do NOT parse
+	   it as XSD. The text is read separately via DocumentationStr(); calling
+	   FirstChild() here would feed that markup to the strict node factory and
+	   throw. No-op. */
 }
 
 void
@@ -55,19 +55,22 @@ Documentation::ParseElement(BaseProcessor& rProcessor) const noexcept(false) {
 	rProcessor.ProcessDocumentation(this);
 }
 
+/* Collect all descendant text, descending into any embedded markup.
+   xs:documentation is opaque mixed content and commonly wraps text in HTML
+   (<p>, <em>, ...); gather the text rather than throwing on element children. */
+static std::string collectText_(const TiXmlNode& rNode) {
+	std::string txt;
+	for (const TiXmlNode* p = rNode.FirstChild(); NULL != p;
+	     p = p->NextSibling()) {
+		if (TiXmlNode::TINYXML_TEXT == p->Type())
+			txt += p->Value();
+		else if (TiXmlNode::TINYXML_ELEMENT == p->Type())
+			txt += collectText_(*p);
+	}
+	return txt;
+}
+
 std::string
 Documentation::DocumentationStr() const noexcept(false) {
-	if (Node::HasContent()) {
-		std::string retTxt;
-		const TiXmlNode* pXmlNode = Node::GetXMLElm().FirstChild();
-		for ( ; NULL != pXmlNode; pXmlNode = pXmlNode->NextSibling()) {
-			if (TiXmlNode::TINYXML_TEXT == pXmlNode->Type())
-				retTxt += pXmlNode->Value();
-			else
-				throw XMLException(GetXMLElm(), XMLException::InvallidChildXMLElement);
-		}
-		return retTxt;
-	} else {
-		return std::string("");
-	}
+	return collectText_(Node::GetXMLElm());
 }

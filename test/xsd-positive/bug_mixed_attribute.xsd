@@ -1,0 +1,13 @@
+<?xml version="1.0"?>
+<!-- robustness #stress: a mixed-content complexType that also has an attribute
+     must not crash (the attribute is not modelled on mixed content). -->
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+  <xs:element name="para">
+    <xs:complexType mixed="true">
+      <xs:sequence>
+        <xs:element name="emphasis" type="xs:string" minOccurs="0"/>
+      </xs:sequence>
+      <xs:attribute name="class" type="xs:string"/>
+    </xs:complexType>
+  </xs:element>
+</xs:schema>

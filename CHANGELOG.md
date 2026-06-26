@@ -62,6 +62,17 @@ All notable changes to xsd-tools are documented here. The format is based on
   serializes under the suffixed name (e.g. `<id1>`), since the generated
   unmarshallers dispatch on element name without parent context — consistent
   with how non-identifier-safe names are already remapped. Closes #11.
+- Parser robustness: a malformed document with no usable root element, and an
+  `xs:import`/`xs:include` whose `schemaLocation` can't be loaded (e.g. an
+  `http://` URL), now report a clean error instead of crashing. Constructs that
+  don't affect the generated code but previously aborted parsing are tolerated
+  (parsed and ignored): identity constraints (`key`/`keyref`/`unique`/
+  `selector`/`field`), `anyAttribute`, `redefine`, `notation`, and markup
+  embedded in `xs:documentation`. Group references inside `sequence`/`choice`,
+  and top-level `group`/`attributeGroup` definitions and references, now resolve
+  (a parent-element check had rejected every top-level group/attributeGroup);
+  and a mixed-content complex type with an attribute no longer crashes. See
+  [docs/limitations.md](docs/limitations.md) for the capability map.
 
 ## [0.1.2] - 2023-10-16
 

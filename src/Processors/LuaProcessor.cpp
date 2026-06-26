@@ -236,6 +236,12 @@ LuaProcessor::ProcessAttribute(const XSD::Elements::Attribute* pNode) {
 		SimpleTypeExtracter typeXtr;
 		unique_ptr<XSD::Types::BaseType> pType(pNode->Type());
 		LuaType * pLuaType = dynamic_cast<LuaType*>(luaAdapter_());
+		/* attributes attach to a type table; in a content-only context (e.g. a
+		   mixed complexType, which re-enters with a LuaContent adapter) there is
+		   no type to attach to. Skip rather than dereference null — mixed-
+		   content attributes aren't modelled (documented limitation). */
+		if (NULL == pLuaType)
+			return;
 		unique_ptr<string> pDefault(nullptr);
 		unique_ptr<string> pFixed(nullptr);
 		unique_ptr<string> pUse(new string("optional"));

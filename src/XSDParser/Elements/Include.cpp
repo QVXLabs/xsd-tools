@@ -58,6 +58,10 @@ const Schema*
 Include::QuerySchema() const noexcept(false) {
 	if (NULL == pSchema_) {
 		pSchema_ = Node::GetParser().Parse(resolveSchemaURI_("schemaLocation"));
+		/* Parse returns NULL for an unsupported/unfetchable location; throw
+		   cleanly instead of returning a NULL schema callers dereference. */
+		if (NULL == pSchema_)
+			throw XMLException(GetXMLElm(), XMLException::ProtocolNotSupported);
 	}
 	return pSchema_;
 }

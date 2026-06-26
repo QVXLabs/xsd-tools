@@ -46,6 +46,7 @@ Sequence::ParseChildren(BaseProcessor& rProcessor) const noexcept(false) {
 			XSD_ISELEMENT(&rNode, Choice) ||
 			XSD_ISELEMENT(&rNode, Annotation) ||
 			XSD_ISELEMENT(&rNode, Sequence) ||
+			XSD_ISELEMENT(&rNode, Group) ||
 			XSD_ISELEMENT(&rNode, Any)) {
 			rNode.ParseElement(rProcessor);
 		} else

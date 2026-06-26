@@ -1,0 +1,3 @@
+<?xml version="1.0"?>
+<!-- robustness #stress: a document with no root element must throw cleanly,
+     not segfault on a null RootElement(). -->

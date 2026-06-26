@@ -1,0 +1,6 @@
+<?xml version="1.0"?>
+<!-- robustness #stress: a top-level xs:notation is ignored, not a crash. -->
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+  <xs:notation name="png" public="image/png"/>
+  <xs:element name="image" type="xs:string"/>
+</xs:schema>

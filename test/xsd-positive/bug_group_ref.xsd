@@ -1,0 +1,19 @@
+<?xml version="1.0"?>
+<!-- robustness #stress: a top-level named group definition referenced from a
+     sequence (group refs in sequence/choice, and the top-level-group check). -->
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+  <xs:group name="nameGroup">
+    <xs:sequence>
+      <xs:element name="first" type="xs:string"/>
+      <xs:element name="last" type="xs:string"/>
+    </xs:sequence>
+  </xs:group>
+  <xs:element name="person">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:group ref="nameGroup"/>
+        <xs:element name="age" type="xs:int"/>
+      </xs:sequence>
+    </xs:complexType>
+  </xs:element>
+</xs:schema>

@@ -16,3 +16,6 @@ environment*.env
 
 # Claude planning docs — local only, not part of the repo
 /revitalize*.md
+
+# Stress-test corpus: downloaded public schemas (test/stress/fetch_schemas.sh)
+/test/stress/corpus/

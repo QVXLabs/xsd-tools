@@ -67,22 +67,29 @@ Elements::Schema*
 Parser::Parse(const std::string& rUri) const noexcept(false) {
 	/* search if the document has already been parsed */
 	if (DocumentRecord* pRec = findByUri_(rUri)) {
+		if (NULL == pRec->pDocument_->RootElement())
+			throw XMLException(*pRec->pDocument_);
 		return new Elements::Schema(*(pRec->pDocument_->RootElement()),
 			*this, rUri);
 	} else {
 		docLst_.push_back(new DocumentRecord(new TiXmlDocument(), rUri));
 		TiXmlDocument * pDoc = docLst_.back()->pDocument_;
 		pDoc->SetTabSize(4);
-		/* parse protocol portion */
+		/* parse protocol portion. LoadFile can return true yet leave no root
+		   element (TinyXML silently mis-parses some DOCTYPE/encoding cases);
+		   guard RootElement() so a malformed document throws instead of binding
+		   a null reference into Schema and segfaulting later. */
 		if (0 == rUri.find(PROTO_FILE)) {
 			std::string path = rUri.substr(sizeof(PROTO_FILE) - 1);
-			if( !pDoc->LoadFile(path, TIXML_ENCODING_UTF8) ) {
+			if( !pDoc->LoadFile(path, TIXML_ENCODING_UTF8)
+			    || NULL == pDoc->RootElement() ) {
 				throw XMLException(*pDoc);
 			}
 			return new Elements::Schema(*pDoc->RootElement(), *this, rUri);
 		} else if (std::string::npos == rUri.find("://")) {
 			/* if no protocol specified then assume it is a local file */
-			if( !pDoc->LoadFile(rUri, TIXML_ENCODING_UTF8) ) {
+			if( !pDoc->LoadFile(rUri, TIXML_ENCODING_UTF8)
+			    || NULL == pDoc->RootElement() ) {
 				throw XMLException(*pDoc);
 			}
 			return new Elements::Schema(*pDoc->RootElement(), *this, rUri);
