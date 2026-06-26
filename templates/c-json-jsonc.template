@@ -5,6 +5,7 @@
 	return include 'shared/schemaEx'
 ][@lua --include facet helpers + xsd to c type mapping
 	include 'shared/facets'
+	include 'shared/doc'
 	return include 'c-json-jsonc/c_type_info'
 ][@lua --rename non-c-safe names & sort dependencies
 	schema = schema.c_safeNames()
@@ -64,12 +65,16 @@ typedef struct {
 	-- parentId, so emit it for nodes with dependents; also keep it as a filler
 	-- for otherwise-empty leaves (no members) to avoid an empty struct.
 	table.map(depOrderSansRoot, function(k, node)
+		-- emit the element/type annotation (#4) above its struct
+		outbuf:append(docComment(node.documentation, 'c', ''))
 		outbuf:append('typedef struct {\n')
 		local hasMembers = next(node.attributes) or next(node.content)
 		if next(node.dependents) or not hasMembers then
 			outbuf:append('\tuint32_t\teid_;\n')
 		end
 		table.map(node.attributes, function(name, xsdType)
+			-- emit the attribute annotation (#4) above its field
+			outbuf:append(docComment(xsdType.documentation, 'c', '\t'))
 			outbuf:append(table.concat({
 				'\t', c_narrowCType(xsdType.type, xsdType.facets).c_type.statement(name),
 			}))

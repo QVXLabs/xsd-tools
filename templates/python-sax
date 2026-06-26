@@ -55,6 +55,7 @@
 ][@lua --include any shared 'helper' templates
 	return include 'shared/schemaEx'
 ][@lua -- include python type info
+	include 'shared/doc'
 	include 'shared/facets'
 	include 'python-xml/python_type_info'
 ][@lua --rename any non-c-safe names to c-safe names & sort dependencies so that they are matched correctly
@@ -165,8 +166,10 @@ class _xmlelement:
 		return out:str()
 	end
 	table.map(depOrderSansRoot, function(_, node)
+		outbuf:append('\n')
+		-- emit the element/type annotation (#4) above its class
+		outbuf:append(docComment(node.documentation, 'hash', ''))
 		outbuf:append(table.concat({
-			'\n',
 			'class xml_', node.name, '(_xmlelement):\n',
 			'    def __init__(self):\n',
 			'        _xmlelement.__init__(self)\n'
@@ -174,6 +177,8 @@ class _xmlelement:
 		-- output default attribute values
 		if next(node.attributes) then
 			table.map(node.attributes, function(attributeName, attribute)
+				-- emit the attribute annotation (#4) above its field
+				outbuf:append(docComment(attribute.documentation, 'hash', '        '))
 				if attribute.default then
 					local pyType = py_type_info[attribute.type]
 					outbuf:append(pyType.default(attributeName, attribute.default))

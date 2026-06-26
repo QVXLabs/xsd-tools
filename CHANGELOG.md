@@ -33,6 +33,10 @@ All notable changes to xsd-tools are documented here. The format is based on
   correct `xmlns`/prefix declarations, and `xs:import` resolves types across
   namespaces (contrast `xs:include`'s same-namespace merge). Cyclic schemas are
   rejected instead of overflowing the stack. Closes #10.
+- `xs:documentation` (annotation) text is emitted as a comment at the matching
+  location in generated code — above the type/struct/class/interface for an
+  element or complex type, and above the field for a scalar element or an
+  attribute — across all targets (C-style `/* */`, Python `#`). Closes #4.
 - (planned) Prebuilt binary releases (Linux/macOS), Homebrew formula, Docker image.
 
 ### Changed

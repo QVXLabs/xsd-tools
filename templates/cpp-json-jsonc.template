@@ -5,6 +5,7 @@
 	return include 'shared/schemaEx'
 ][@lua --include facet helpers + xsd to c++ type mapping
 	include 'shared/facets'
+	include 'shared/doc'
 	return include 'cpp-json-jsonc/cpp_type_info'
 ][@lua --rename non-c-safe names & sort dependencies
 	schema = schema.c_safeNames()
@@ -95,6 +96,8 @@ typedef std::string json_buffer;
 [@lua -- element classes: typed members default-initialized + member validate()
 	local outbuf = stringBuffer:new()
 	table.map(depOrderSansRoot, function(k, node)
+		-- emit the element/type annotation (#4) above its class
+		outbuf:append(docComment(node.documentation, 'c', ''))
 		outbuf:append('class json_'..node.name..' {\npublic:\n')
 		-- eid_ seeds children's parentId; kept for nodes with dependents and as
 		-- a filler for otherwise-empty leaves to avoid degenerate cases.
@@ -103,6 +106,8 @@ typedef std::string json_buffer;
 			outbuf:append('\tuint32_t\teid_ = 0;\n')
 		end
 		table.map(node.attributes, function(name, xsdType)
+			-- emit the attribute annotation (#4) above its field
+			outbuf:append(docComment(xsdType.documentation, 'c', '\t'))
 			outbuf:append('\t'..cpp_narrowType(xsdType.type, xsdType.facets).cpp_type.statement(name))
 		end)
 		if next(node.content) then

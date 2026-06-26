@@ -20,6 +20,8 @@ end
 
 function complexType:typeDef()
    out = stringBuffer:new()
+   -- emit the element/type annotation (#4) above its struct
+   out:append(docComment(self._typedef.documentation, 'c', ''))
    out:append(("typedef struct %s {\n"):format(self:typeName()))
    out:append(("  xml_typelist * pContent_;\n"))
    table.map(self._typedef.attributes,
@@ -32,6 +34,8 @@ function complexType:typeDef()
                 if atrType:inlineScalar() and not attrAlwaysPresent(atrTypedef) then
                    fieldType = fieldType .. " *"
                 end
+                -- emit the attribute annotation (#4) above its field
+                out:append(docComment(atrTypedef.documentation, 'c', '  '))
                 out:append(("  %s %s;\n"):format(fieldType, atrName))
              end)
    out:append(("} * %s;\n"):format(self:typeName()))

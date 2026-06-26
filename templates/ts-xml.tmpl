@@ -28,6 +28,7 @@
 	schema = trnsfrm_oldFmt(schema)
 ][@lua return include 'shared/schemaEx'
 ][@lua include 'shared/facets'
+	include 'shared/doc'
 	include 'ts-xml/ts_type_info'
 ][@lua --ts-safe names & dependency order (mirror java-xml-stax)
 	if __CMD_ARGS__["-h"] then
@@ -357,10 +358,12 @@ export * from "./Document";
 			outbuf:append(statics:str())
 			outbuf:append("\n")
 		end
+		outbuf:append(docComment(node.documentation, 'c', ''))
 		outbuf:append(table.concat({
 			"export class ", tn, " extends Element {\n",
 		}))
 		table.map(node.attributes, function(an, attr)
+			outbuf:append(docComment(attr.documentation, 'c', '\t'))
 			outbuf:append(ts_type_info[attr.type].field(an))
 		end)
 		if hasContent then

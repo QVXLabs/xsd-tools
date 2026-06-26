@@ -1,0 +1,44 @@
+[@lua -- Documentation helper (#4): format an xs:documentation string as a
+	-- comment in a target-appropriate style. Pure: returns the text, emits
+	-- nothing itself. nil/blank docs return ''. XML indentation is noise, so
+	-- each line is trimmed and leading/trailing blank lines are dropped.
+	--   style 'c'     -> /* ... */ block  (C/C++/Java/TS; valid in any C std)
+	--   style 'slash' -> // line comments
+	--   style 'hash'  -> #  line comments (Python)
+	local function docLines(text)
+		local lines = {}
+		for line in (text..'\n'):gmatch('(.-)\n') do
+			lines[#lines + 1] = line:gsub('^%s+', ''):gsub('%s+$', '')
+		end
+		while #lines > 0 and lines[1] == '' do table.remove(lines, 1) end
+		while #lines > 0 and lines[#lines] == '' do table.remove(lines) end
+		return lines
+	end
+	function docComment(text, style, indent)
+		if not text or text == '' then return '' end
+		indent = indent or ''
+		local lines = docLines(text)
+		if #lines == 0 then return '' end
+		local out = {}
+		if style == 'hash' or style == 'slash' then
+			local prefix = (style == 'hash') and '# ' or '// '
+			for _, l in ipairs(lines) do
+				out[#out + 1] = indent..prefix..l
+			end
+		else
+			-- 'c' block; neutralize any embedded */ so it can't close early
+			for i, l in ipairs(lines) do
+				lines[i] = l:gsub('%*/', '* /')
+			end
+			if #lines == 1 then
+				return indent..'/* '..lines[1]..' */\n'
+			end
+			out[#out + 1] = indent..'/*'
+			for _, l in ipairs(lines) do
+				out[#out + 1] = indent..' * '..l
+			end
+			out[#out + 1] = indent..' */'
+		end
+		return table.concat(out, '\n')..'\n'
+	end
+]
