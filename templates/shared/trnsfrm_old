@@ -21,6 +21,47 @@ function trnsfrm_oldFmt(tbl)
 		root = __SCHEMA_NAME__,
 		types = {}
 	}
+	-- structural signature of a normalized type: content type + sorted
+	-- attribute name=type pairs + sorted dependent name:sig. Order-independent
+	-- and memoized per node so structurally-equal types hash identically.
+	local sigOf_ = {}
+	local function typeSig_(node)
+		if sigOf_[node] then return sigOf_[node] end
+		local attrs = {}
+		for an, av in pairs(node.attributes or {}) do
+			attrs[#attrs + 1] = an..'='..(av.type or '')
+		end
+		table.sort(attrs)
+		local deps = {}
+		for dn, dv in pairs(node.dependents or {}) do
+			deps[#deps + 1] = dn..':'..typeSig_(dv)
+		end
+		table.sort(deps)
+		local sig = '{c='..((node.content and node.content.type) or '')
+			..';a='..table.concat(attrs, ',')
+			..';d='..table.concat(deps, ',')..'}'
+		sigOf_[node] = sig
+		return sig
+	end
+	-- pick a flat-table key for a type: reuse the base name (or a prior
+	-- suffix) when the structure matches a type already under that key, else
+	-- allocate the next numeric suffix so distinct same-named types don't
+	-- collapse into one struct (#11).
+	local typeSigByName_ = {}
+	local function uniqueTypeName_(base, node)
+		local sig = typeSig_(node)
+		local candidate, n = base, 0
+		while true do
+			if outTblRoot.types[candidate] == nil then
+				typeSigByName_[candidate] = sig
+				return candidate
+			elseif typeSigByName_[candidate] == sig then
+				return candidate
+			end
+			n = n + 1
+			candidate = base..n
+		end
+	end
 	local function trnsfrm_r(tbl, state, outTbl)
 		--dbgPrint(StateName[state])
 		if state == State.Initialize then
@@ -69,9 +110,13 @@ function trnsfrm_oldFmt(tbl)
 					}
 					substate = Substate.ContentFound
 				elseif not isBaseType(v) then
-					outTbl.dependents[k]={}
-					outTbl.dependents[k].name = k
-					outTblRoot.types[k] = trnsfrm_r(v, State.Element, outTbl.dependents[k])
+					-- normalize the child first, then give it a name that
+					-- doesn't collide with a structurally-different type (#11).
+					local child = trnsfrm_r(v, State.Element, { name = k })
+					local key = uniqueTypeName_(k, child)
+					child.name = key
+					outTbl.dependents[key] = child
+					outTblRoot.types[key] = child
 				end
 			end
 			return outTbl
