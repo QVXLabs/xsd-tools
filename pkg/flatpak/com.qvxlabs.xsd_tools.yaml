@@ -1,0 +1,33 @@
+# Flatpak manifest for xsd-tools (CLI). Built into a single-file .flatpak
+# bundle by pkg/flatpak/build-flatpak.sh. @XSD_VERSION@ is substituted with the
+# release version by that script (the in-tree build can't run `git describe`
+# inside the build sandbox).
+#
+# Note: this builds the in-tree dependencies (boost/expat/lua/tinyxml), which
+# needs network during the build (`--share=network`). That is fine for
+# producing release bundles; a Flathub submission would instead need pinned,
+# offline sources.
+app-id: com.qvxlabs.xsd_tools
+runtime: org.freedesktop.Platform
+runtime-version: '24.08'
+sdk: org.freedesktop.Sdk
+command: xsdb
+finish-args:
+  # A CLI codegen tool: it must read schema files and write generated code
+  # wherever the user invokes it, so it needs host filesystem access.
+  - --filesystem=host
+modules:
+  - name: xsd-tools
+    buildsystem: cmake-ninja
+    builddir: true
+    config-opts:
+      - -DCMAKE_BUILD_TYPE=Release
+      - -DBUILD_TESTING=OFF
+      - -DCMAKE_DISABLE_FIND_PACKAGE_Lua=ON
+      - -DXSD_VERSION=@XSD_VERSION@
+    build-options:
+      build-args:
+        - --share=network
+    sources:
+      - type: dir
+        path: ../..

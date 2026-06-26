@@ -4,6 +4,9 @@
 xsdb
 # CMake / Conan build tree
 /build/
+# Packaging build tree + output artifacts (pkg/build-packages.sh)
+/build-pkg/
+/dist/
 conanbuildinfo.*
 conaninfo.txt
 graph_info.json

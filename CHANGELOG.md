@@ -33,7 +33,11 @@ All notable changes to xsd-tools are documented here. The format is based on
   correct `xmlns`/prefix declarations, and `xs:import` resolves types across
   namespaces (contrast `xs:include`'s same-namespace merge). Cyclic schemas are
   rejected instead of overflowing the stack. Closes #10.
-- (planned) Prebuilt binary releases (Linux/macOS), Homebrew formula, Docker image.
+- Release packaging: publishing a GitHub release builds and attaches Linux
+  packages — a Debian `.deb` and an RPM `.rpm` (via CPack, reusing the install
+  rules) plus a single-file Flatpak bundle (`com.qvxlabs.xsd_tools`). Build them
+  locally with `pkg/build-packages.sh` and `pkg/flatpak/build-flatpak.sh`.
+- (planned) Homebrew formula, Docker image.
 
 ### Changed
 - Build migrated from SCons to CMake with multi-platform CI

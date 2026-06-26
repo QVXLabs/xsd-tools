@@ -1,0 +1,95 @@
+name: release
+
+# Build the distributable packages and attach them to the GitHub release.
+# Fires when a release is published from the GitHub UI; also runnable manually
+# (workflow_dispatch) for testing, in which case the packages are uploaded as
+# workflow artifacts instead of attached to a release.
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to stamp (e.g. 0.2.0) — test runs only"
+        required: false
+        default: "0.0.0-test"
+
+permissions:
+  contents: write
+
+jobs:
+  # Resolve the version + whether this is a real release once, for both jobs.
+  setup:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+      is_release: ${{ steps.v.outputs.is_release }}
+    steps:
+      - id: v
+        run: |
+          if [ "${{ github.event_name }}" = "release" ]; then
+            tag="${{ github.event.release.tag_name }}"
+            echo "is_release=true" >> "$GITHUB_OUTPUT"
+          else
+            tag="${{ inputs.version }}"
+            echo "is_release=false" >> "$GITHUB_OUTPUT"
+          fi
+          ver="${tag#v}"
+          [ -z "$ver" ] && ver="0.0.0"
+          echo "version=$ver" >> "$GITHUB_OUTPUT"
+
+  # .deb + .rpm via CPack.
+  deb-rpm:
+    needs: setup
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          submodules: recursive
+      - name: Install packaging tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build rpm dpkg-dev patch
+      - name: Build .deb and .rpm
+        run: pkg/build-packages.sh "${{ needs.setup.outputs.version }}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-packages
+          path: |
+            dist/*.deb
+            dist/*.rpm
+          if-no-files-found: error
+      - name: Attach to release
+        if: needs.setup.outputs.is_release == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release upload "${{ github.event.release.tag_name }}" \
+            dist/*.deb dist/*.rpm --clobber
+
+  # Single-file .flatpak bundle.
+  flatpak:
+    needs: setup
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          submodules: recursive
+      - name: Install flatpak + flatpak-builder
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y flatpak flatpak-builder
+      - name: Build .flatpak
+        run: pkg/flatpak/build-flatpak.sh "${{ needs.setup.outputs.version }}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: flatpak-bundle
+          path: dist/*.flatpak
+          if-no-files-found: error
+      - name: Attach to release
+        if: needs.setup.outputs.is_release == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release upload "${{ github.event.release.tag_name }}" \
+            dist/*.flatpak --clobber
