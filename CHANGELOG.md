@@ -59,4 +59,32 @@ All notable changes to xsd-tools are documented here. The format is based on
   unmarshallers dispatch on element name without parent context — consistent
   with how non-identifier-safe names are already remapped. Closes #11.
 
-[Unreleased]: https://github.com/QVXLabs/xsd-tools/commits/master
+## [0.1.2] - 2023-10-16
+
+### Fixed
+- Security vulnerabilities in test-case dependencies.
+- A gcc compile error.
+
+## [0.1.1] - 2021-11-22
+
+### Added
+- Conan support in the build system.
+- Overriding the C/C++ compiler and compile flags via environment variables.
+
+### Changed
+- The embedded Lua script engine is inlined into the executable via the
+  external `incbin` library.
+- Cleaned up the `c-xml-expat` template — tests pass again and the gcc/clang
+  compile warnings are fixed.
+
+## [0.1.0] - 2021-09-11
+
+### Added
+- First public release: generates marshalling/unmarshalling code from XSD
+  schemas via on-disk Lua templates (C, Python and Java output targets).
+- `XSDTOOLS_DATA` environment variable to locate the template/data directory.
+
+[Unreleased]: https://github.com/QVXLabs/xsd-tools/compare/0.1.2...HEAD
+[0.1.2]: https://github.com/QVXLabs/xsd-tools/compare/v0.1.1...0.1.2
+[0.1.1]: https://github.com/QVXLabs/xsd-tools/compare/v0.1.0...v0.1.1
+[0.1.0]: https://github.com/QVXLabs/xsd-tools/releases/tag/v0.1.0
