@@ -166,6 +166,12 @@ Run the gtest binary directly (project convention — not ctest):
 The round-trip tests shell out to each target's toolchain (cc, python3, mvn/java,
 node/tsc) and **skip** cleanly when a toolchain is absent.
 
+`test/stress/` is a separate **discovery** tool, not a CI gate. It runs
+`python3 test/stress/run_stress.py` over a corpus of real-world schemas
+(xhtml, wsdl, soap, kml, …) and reports only whether each parses across the
+targets — it does **not** compile or run the generated code, and a failure
+there does not fail the build.
+
 #### Installing / Uninstalling ####
 ```
    sudo cmake --install build --config Release            # uses CMAKE_INSTALL_PREFIX
