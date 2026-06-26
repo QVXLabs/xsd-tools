@@ -76,6 +76,24 @@ Options:
 
 ### Install Instructions ###
 
+#### Packages ####
+
+Each published GitHub release attaches prebuilt Linux packages — a Debian
+`.deb`, an RPM `.rpm`, and a single-file Flatpak `.flatpak` bundle:
+
+```
+   sudo apt install ./xsd-tools_<ver>_amd64.deb        # Debian/Ubuntu
+   sudo dnf install ./xsd-tools-<ver>.x86_64.rpm       # Fedora/RHEL
+   flatpak install ./xsd-tools-<ver>.flatpak           # then: flatpak run com.qvxlabs.xsd_tools
+```
+
+Build the packages yourself (Linux): `pkg/build-packages.sh` produces the
+`.deb` + `.rpm` (via CPack) into `dist/`, and `pkg/flatpak/build-flatpak.sh`
+produces the `.flatpak`. boost/expat/lua/tinyxml are statically linked, so the
+packages depend only on the C/C++ runtime.
+
+#### From source ####
+
 The build uses **CMake**. For each dependency CMake tries `find_package`
 first (satisfied by **Conan** — which also supplies the Lua 5.1 `luac` the
 embedded template engine needs — or by system packages); whatever is not found

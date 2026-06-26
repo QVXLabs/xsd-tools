@@ -435,3 +435,9 @@ install(EXPORT xsdtools-targets
 if(BUILD_TESTING)
   add_subdirectory(test)
 endif()
+
+# ---------------------------------------------------------------------------
+# Packaging (.deb / .rpm via CPack). Kept last so it sees every install()
+# rule. Harmless for ordinary builds; only `cpack`/the `package` target use it.
+# ---------------------------------------------------------------------------
+include(${CMAKE_CURRENT_LIST_DIR}/cmake/Packaging.cmake)

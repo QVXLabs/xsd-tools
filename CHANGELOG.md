@@ -37,6 +37,10 @@ All notable changes to xsd-tools are documented here. The format is based on
   location in generated code — above the type/struct/class/interface for an
   element or complex type, and above the field for a scalar element or an
   attribute — across all targets (C-style `/* */`, Python `#`). Closes #4.
+- Release packaging: publishing a GitHub release builds and attaches Linux
+  packages — a Debian `.deb` and an RPM `.rpm` (via CPack, reusing the install
+  rules) plus a single-file Flatpak bundle (`com.qvxlabs.xsd_tools`). Build them
+  locally with `pkg/build-packages.sh` and `pkg/flatpak/build-flatpak.sh`.
 - (planned) Prebuilt binary releases (Linux/macOS), Homebrew formula, Docker image.
 
 ### Changed
