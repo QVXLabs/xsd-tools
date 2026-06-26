@@ -23,6 +23,9 @@ namespace {
 	}
 	const std::string CORPUS(XSD_CORPUS_DIR "/");
 	const std::string NEGATIVE(XSD_NEGATIVE_DIR "/");
+	/* recursive fixtures live beside the negative corpus but must not be
+	   globbed by it (they are accepted, not rejected) */
+	const std::string RECURSIVE(XSD_NEGATIVE_DIR "/../xsd-recursive/");
 }
 
 /* D2b: a 0..255 integer narrows to the smallest fixed-width C type (uint8_t);
@@ -78,20 +81,26 @@ TEST(DeBloat, JavaJsonOmitsUnusedAccessors) {
 	EXPECT_FALSE(has(out, "getHex"));
 }
 
-/* J: cyclic schemas are rejected with a clean exception instead of recursing
- * until the stack overflows. The model inline-expands types, so mutual and
- * self references alike are cycles. */
+/* J: a genuine type-DERIVATION cycle (A extends B extends A) cannot be
+ * inline-expanded and is still rejected with a clean exception rather than
+ * overflowing the stack. */
 TEST(Cycle, MutualExtensionRejected) {
 	EXPECT_THROW(gen("python-sax", NEGATIVE + "cyclic_extension.xsd"),
 	             XSD::XMLException);
 }
-TEST(Cycle, MutualTypeReferenceRejected) {
-	EXPECT_THROW(gen("python-sax", NEGATIVE + "cyclic_type.xsd"),
-	             XSD::XMLException);
+
+/* Recursive element STRUCTURE (self- and mutual-recursive element types) is
+ * now represented by-reference and generates instead of being rejected; a deep
+ * recursive document round-trips through the generated code (verified out of
+ * band). Here we assert generation succeeds and the recursive element is
+ * present in the dispatch. */
+TEST(Cycle, SelfReferenceGenerates) {
+	std::string out;
+	EXPECT_NO_THROW(out = gen("python-sax", RECURSIVE + "cyclic_self.xsd"));
+	EXPECT_TRUE(has(out, "'child'"));
 }
-TEST(Cycle, SelfReferenceRejected) {
-	EXPECT_THROW(gen("c-xml-expat", NEGATIVE + "cyclic_self.xsd"),
-	             XSD::XMLException);
+TEST(Cycle, MutualReferenceGenerates) {
+	EXPECT_NO_THROW(gen("python-sax", RECURSIVE + "cyclic_type.xsd"));
 }
 
 /* Bug: <simpleType><union> used to fall through to throw (dead duplicate

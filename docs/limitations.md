@@ -9,6 +9,8 @@ Elements, attributes (incl. `default`/`fixed`/`use`), `complexType` /
 **attributeGroup** definitions and references (including refs inside model
 groups), `extension` / `restriction` over simple and complex content,
 `simpleType` `union` / `list`, **substitutionGroup**, **abstract** types,
+**recursive element types** (self- and mutually-recursive, e.g. a `tree` whose
+element contains itself — represented by-reference, not inline-expanded),
 restriction **facets** (enforced in generated code), `xs:include` and
 `xs:import` (same- and cross-namespace), namespaces / `targetNamespace` /
 `elementFormDefault`, and `xs:documentation` (emitted as comments).
@@ -36,9 +38,10 @@ influence the generated marshalling code:
   loaded (e.g. an `http://` URL, or a missing local file) →
   `ProtocolNotSupported` / a file-open error. Imports are resolved from the
   local filesystem only.
-- Genuinely cyclic type derivation/reference → `CyclicTypeDefinition` (a
-  self-referential *definition* like a recursive `tree` is also rejected,
-  because the model inline-expands types)
+- Genuinely cyclic type **derivation** → `CyclicTypeDefinition` (e.g.
+  `A extends B extends A`; such a definition has no finite expansion).
+  Recursive element *structure* (a `tree` element containing itself) is
+  supported — see "Fully supported" above.
 - Documents the bundled **TinyXML 2.6.2** can't parse (notably a `<!DOCTYPE>`
   with an internal subset, and some encodings) → a parse error rather than
   generated code. TinyXML is the EOL XML layer; replacing it is out of scope.

@@ -35,6 +35,7 @@
 #define NAMESPACE_TAG  "namespace"
 #define QUALIFIED_TAG  "qualified"
 #define DOCUMENTATION_TAG "documentation"
+#define TYPEREF_TAG    "typeref"
 #define DEBUG_LUASTACK (0)
 
 using namespace std;
@@ -231,6 +232,16 @@ LuaType::Documentation(const std::string& rText) {
 		return;
 	lua_pushstring(pLuaState, rText.c_str());
 	lua_setfield(pLuaState, -2, DOCUMENTATION_TAG);
+}
+
+void
+LuaType::TypeRef(const std::string& rElemName) {
+	/* mark this node as a by-name reference to an enclosing element's type
+	   instead of expanding it inline, which would not terminate. trnsfrm_old
+	   resolves the name against the flat type registry. */
+	lua_State * pLuaState = getLuaState_();
+	lua_pushstring(pLuaState, rElemName.c_str());
+	lua_setfield(pLuaState, -2, TYPEREF_TAG);
 }
 
 /* Class LuaAttribute */

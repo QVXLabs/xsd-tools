@@ -86,6 +86,30 @@ static string documentationOf_(const XSD::Elements::Node* pNode) {
 	return doc;
 }
 
+/* The backing XML element of a user-defined complex/simple type, or NULL for
+   builtins/arrays (used as a cycle key for type-derivation chains). */
+static const void* typeKey_(const XSD::Types::BaseType& rType) {
+	if (XSD_ISTYPE(&rType, XSD::Types::ComplexType))
+		return &dynamic_cast<const XSD::Types::ComplexType&>(rType)
+		            .pValue_->GetXMLElm();
+	if (XSD_ISTYPE(&rType, XSD::Types::SimpleType))
+		return &dynamic_cast<const XSD::Types::SimpleType&>(rType)
+		            .pValue_->GetXMLElm();
+	return NULL;
+}
+
+/* RAII insert/erase of a key on the shared active-path set (exception-safe
+   marking for the recursion/derivation guards). */
+namespace {
+	struct PathMark {
+		std::set<const void*>&	path_;
+		const void*				key_;
+		PathMark(std::set<const void*>& rPath, const void* pKey)
+			: path_(rPath), key_(pKey) { if (key_) path_.insert(key_); }
+		~PathMark() { if (key_) path_.erase(key_); }
+	};
+}
+
 LuaProcessor::LuaProcessor(lua_State * pLuaState)
 	: LuaProcessorBase(new LuaAdapter(pLuaState))
 	, activePath_(new set<const void*>())
@@ -150,7 +174,19 @@ LuaProcessor::ProcessElement(const XSD::Elements::Element* pNode) {
 			pLuaType->Namespace(pNode->Namespace());
 			pLuaType->Qualified(pNode->Qualified());
 			pLuaType->Documentation(documentationOf_(pNode));
-			luaPrcssr.parseType_(*pElmType);
+			/* Recursion: if this very element is already being expanded higher
+			   on the path, emit a by-name reference instead of expanding it
+			   again (which would not terminate). Otherwise mark it and expand;
+			   trnsfrm_old resolves the reference against the flat registry. */
+			const void* pElmKey = &pNode->GetXMLElm();
+			if (0 != activePath_->count(pElmKey)) {
+				/* reference the enclosing element's type by name; trnsfrm_old
+				   links it to that element's flat-registry entry. */
+				pLuaType->TypeRef(pNode->Name());
+			} else {
+				PathMark mark(*activePath_, pElmKey);
+				luaPrcssr.parseType_(*pElmType);
+			}
 		}
 	} else {
 		unique_ptr<XSD::Elements::Element> pRefElm(pNode->RefElement());
@@ -365,6 +401,14 @@ LuaProcessor::ProcessAny(const XSD::Elements::Any* pNode) {
 /* virtual */ void
 LuaProcessor::ProcessExtension(const XSD::Elements::Extension* pNode) {
 	unique_ptr<XSD::Types::BaseType> pBase(pNode->Base());
+	/* Derivation cycle guard: a base already being resolved on this path
+	   (A extends B extends A) is a genuine cycle the inline-expanding model
+	   cannot represent — reject cleanly rather than overflow the stack. */
+	const void* pBaseKey = typeKey_(*pBase);
+	if (pBaseKey && 0 != activePath_->count(pBaseKey))
+		throw XSD::XMLException(pNode->GetXMLElm(),
+			XSD::XMLException::CyclicTypeDefinition);
+	PathMark mark(*activePath_, pBaseKey);
 	parseType_(*pBase);
 	pNode->ParseChildren(*this);
 }
@@ -502,11 +546,10 @@ LuaProcessor::parseType_(const XSD::Types::BaseType& rXSDType) {
 	} else if(XSD_ISTYPE(&rXSDType, XSD::Types::ComplexType)) {
 		const XSD::Types::ComplexType* pComplexType =
 			dynamic_cast<const XSD::Types::ComplexType*>(&rXSDType);
-		const void* pKey = &pComplexType->pValue_->GetXMLElm();
-		if (0 != activePath_->count(pKey))
-			throw XSD::XMLException(pComplexType->pValue_->GetXMLElm(),
-				XSD::XMLException::CyclicTypeDefinition);
-		ActiveMark mark(*activePath_, pKey);
+		/* No type-level cycle guard here: structural recursion is bounded by
+		   the per-element reference in ProcessElement, and derivation cycles
+		   (extension/restriction base loops) by the guard in ProcessExtension.
+		   A named type may legitimately recur through nested elements. */
 		pComplexType->pValue_->ParseElement(*this);
 	} else {
 		/* inserts basic type. Handles array types the same as basic types */

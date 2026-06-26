@@ -98,7 +98,12 @@ function trnsfrm_oldFmt(tbl)
 			}
 			local substate = Substate.ContentNotFound
 			for k, v in pairs(tbl) do
-				if isBaseType(v) and substate == Substate.ContentNotFound then
+				if v.typeref then
+					-- recursive reference: leave a placeholder keyed by the
+					-- element name, resolved in a second pass once every type
+					-- has a flat-registry key (avoids unbounded expansion).
+					outTbl.dependents[k] = { name = k, __typeref = v.typeref }
+				elseif isBaseType(v) and substate == Substate.ContentNotFound then
 					-- carry the leaf type's facets (D1) onto the normalized
 					-- content so targets can emit validation/narrowing.
 					-- namespace/qualified (E) ride along, nil when absent.
@@ -146,6 +151,16 @@ function trnsfrm_oldFmt(tbl)
 			return outTbl
 		end
 	end
-	return trnsfrm_r(tbl, State.Initialize, outTblRoot)
+	local result = trnsfrm_r(tbl, State.Initialize, outTblRoot)
+	-- second pass: resolve recursive-reference placeholders to the actual
+	-- (already-emitted) type node, producing a finite by-reference graph.
+	for _, t in pairs(result.types) do
+		for dn, dv in pairs(t.dependents) do
+			if dv.__typeref and result.types[dv.__typeref] then
+				t.dependents[dn] = result.types[dv.__typeref]
+			end
+		end
+	end
+	return result
 end
 ]

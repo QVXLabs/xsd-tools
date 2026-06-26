@@ -7,6 +7,12 @@ All notable changes to xsd-tools are documented here. The format is based on
 ## [Unreleased]
 
 ### Added
+- **Recursive element types** are now supported (self- and mutually-recursive,
+  e.g. a `tree` element that contains itself). The processing pass represents a
+  recursive reference by-name into the flat type registry instead of
+  inline-expanding it, so such schemas generate and round-trip instead of being
+  rejected as cycles. Genuine type-*derivation* cycles (`A extends B extends A`)
+  are still reported as `CyclicTypeDefinition`.
 - Output targets completing the C/Python/Java × XML/JSON grid: **Python→JSON**
   (stdlib `json`), **C→JSON** (json-c), **Java→XML** (StAX). Each constructs
   types through overridable factory methods so consumers can inject subtypes.

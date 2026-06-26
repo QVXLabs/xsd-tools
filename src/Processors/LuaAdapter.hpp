@@ -115,6 +115,8 @@ namespace Processors {
 		/* attach the xs:documentation text; no-op when empty, and does not
 		   overwrite a doc already set (element-level wins over type-level) */
 		void Documentation(const std::string& rText);
+		/* mark this node as a by-name reference to a recursive element type */
+		void TypeRef(const std::string& rElemName);
 	protected:
 		LuaType(lua_State * pLuaState, const std::string& rTypeName,
 		        const int maxOccurs, const int minOccurs = 1);
