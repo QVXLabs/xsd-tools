@@ -9,10 +9,10 @@ loop over `XMLStreamReader`.
 
 ```sh
 # print all files to stdout (separated by /* FILE: name */ markers)
-xsdb java-xml-stax.tmpl schema.xsd
+xsdb java-xml-stax schema.xsd
 
 # split the marked output into real files under build/
-xsdb --out-dir build java-xml-stax.tmpl schema.xsd
+xsdb --out-dir build java-xml-stax schema.xsd
 ```
 
 The output package defaults to `com.mobitv.app`; override with
@@ -23,7 +23,8 @@ The output package defaults to `com.mobitv.app`; override with
 - **JDK only.** StAX (`XMLStreamWriter` / `XMLStreamReader` /
   `XMLInputFactory` / `XMLOutputFactory`) is part of the standard library, so
   the generated code compiles and runs against a bare JDK — no XML library on
-  the classpath. The test harness builds at `source`/`target` 1.8.
+  the classpath. The generated code targets **JDK 8** (the test harness builds
+  it at `source`/`target` 1.8), so it stays usable on older JVMs.
 - **`java.util.Base64`** — used (fully qualified) only when the schema has a
   `base64Binary` content/attribute.
 - A `Hex.java` helper class is emitted only when the schema uses `hexBinary`.
@@ -120,7 +121,7 @@ schema emits byte-identical output to the pre-namespace template (no
 ```
 
 ```sh
-xsdb --out-dir build java-xml-stax.tmpl record.xsd
+xsdb --out-dir build java-xml-stax record.xsd
 ```
 
 The root type (`record`, sanitized to `record_` since it collides with no Java
@@ -172,6 +173,6 @@ Element back = doc.unmarshal(xml);  // matched by local name "record"
 - **Facet violations throw `IllegalArgumentException`** from `validate()` on the
   unmarshal path; marshalling does not validate.
 - Adding a new output target is template-only — no C++ change. This target lives
-  in `templates/java-xml-stax.tmpl` plus the per-type subtemplates under
-  `templates/java-xml-stax/`.
+  in `templates/java-xml-stax` plus the per-type subtemplates under
+  `templates/includes/java-xml-stax/`.
 ```

@@ -9,10 +9,10 @@ Apache Commons Codec.
 
 ```sh
 # print all files to stdout (separated by /* FILE: name */ markers)
-xsdb java-json.org.tmpl schema.xsd
+xsdb java-json.org schema.xsd
 
 # split the marked output into real files under build/
-xsdb --out-dir build java-json.org.tmpl schema.xsd
+xsdb --out-dir build java-json.org schema.xsd
 ```
 
 The output package defaults to `com.mobitv.generated.json`; override with
@@ -119,7 +119,7 @@ can throw `DecoderException`, so unmarshal constructors are declared
 ```
 
 ```sh
-xsdb --out-dir build java-json.org.tmpl order.xsd
+xsdb --out-dir build java-json.org order.xsd
 ```
 
 `qty` narrows to `Byte` (range 1..100) and gets a range check; `item` becomes a
@@ -183,6 +183,6 @@ Order back = new Order(json);          // re-validates qty range
   are constructed directly. (The `java-xml-stax` target is the one with an
   overridable `Factory`.)
 - Adding a new output target is template-only — no C++ change. This target lives
-  in `templates/java-json.org.tmpl` plus the subtemplates under
-  `templates/java-json.org/`.
+  in `templates/java-json.org` plus the subtemplates under
+  `templates/includes/java-json.org/`.
 ```

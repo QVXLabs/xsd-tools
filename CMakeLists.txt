@@ -24,6 +24,7 @@ endif()
 # Options
 # ---------------------------------------------------------------------------
 option(XSD_WERROR "Treat warnings as errors (GCC/Clang only)" ON)
+option(QUICKSTART "Build the quickstart interop example (examples/quickstart)" OFF)
 include(CTest)  # defines BUILD_TESTING (default ON)
 
 # ---------------------------------------------------------------------------
@@ -435,6 +436,11 @@ install(EXPORT xsdtools-targets
 # ---------------------------------------------------------------------------
 if(BUILD_TESTING)
   add_subdirectory(test)
+endif()
+
+# Quickstart interop example (opt-in: -DQUICKSTART=ON)
+if(QUICKSTART)
+  add_subdirectory(examples/quickstart)
 endif()
 
 # ---------------------------------------------------------------------------

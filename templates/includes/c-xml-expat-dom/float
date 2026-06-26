@@ -1,0 +1,51 @@
+[@lua
+include 'includes/c-xml-expat-dom/baseType'
+
+float = {}
+float.__index = float
+setmetatable(float, {__index = baseType})
+
+function float:new(typeFactory, typedef)
+   local retObj = baseType:new(typeFactory, typedef)
+   setmetatable(retObj, float)
+   return retObj
+end
+
+function float:typeName()
+   return ("xml_float")
+end
+
+function float:inlineScalar()
+   return true
+end
+
+function float:cType()
+   return "float"
+end
+
+function float:typeDef()
+   return self:scalarTypeDef()
+end
+
+function float:typeFactoryMethods()
+   return ""
+end
+
+function float:defMarshal(elementName)
+   return self:defScalarMarshal(function(v)
+      return ("  char num[64];\n  snprintf(num, 64, \"%%f\", %s);\n  cstr_append_(ppOut, num, pFactory);\n"):format(v)
+   end)
+end
+
+function float:defUnmarshal(elementName)
+   return self:defScalarUnmarshal("(float)atof(pVal)")
+end
+
+function float:defDestroy()
+   return self:defScalarDestroy()
+end
+
+function float:test()
+   return "493.234"
+end
+]

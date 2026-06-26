@@ -204,8 +204,8 @@ namespace xsdtest {
 	}
 
 	::testing::AssertionResult pythonJsonRoundtrip(const std::string& xsdPath) {
-		return pythonRoundtripImpl(xsdPath, "python-json.tmpl",
-		                           "python-json.tmpl-test");
+		return pythonRoundtripImpl(xsdPath, "python-json",
+		                           "python-json-test");
 	}
 
 	::testing::AssertionResult cExpatRoundtrip(const std::string& xsdPath) {
@@ -214,14 +214,14 @@ namespace xsdtest {
 	}
 
 	::testing::AssertionResult cExpatDomRoundtrip(const std::string& xsdPath) {
-		return cRoundtripImpl(xsdPath, "c-xml-expat-dom.template",
-		                      "c-xml-expat-dom.template-test",
+		return cRoundtripImpl(xsdPath, "c-xml-expat-dom",
+		                      "c-xml-expat-dom-test",
 		                      "xml_", EXPAT_INCLUDE_DIR, EXPAT_LINK);
 	}
 
 	::testing::AssertionResult cJsonRoundtrip(const std::string& xsdPath) {
-		return cRoundtripImpl(xsdPath, "c-json-jsonc.template",
-		                      "c-json-jsonc.template-test",
+		return cRoundtripImpl(xsdPath, "c-json-jsonc",
+		                      "c-json-jsonc-test",
 		                      "json_", JSONC_INCLUDE_DIR, JSONC_LINK);
 	}
 
@@ -232,8 +232,8 @@ namespace xsdtest {
 	}
 
 	::testing::AssertionResult cppJsonRoundtrip(const std::string& xsdPath) {
-		return ccRoundtripImpl(xsdPath, "cpp-json-jsonc.template",
-		                       "cpp-json-jsonc.template-test",
+		return ccRoundtripImpl(xsdPath, "cpp-json-jsonc",
+		                       "cpp-json-jsonc-test",
 		                       CXX_COMPILER, "-std=c++11", ".cpp",
 		                       "json_", JSONC_INCLUDE_DIR, JSONC_LINK);
 	}
@@ -260,9 +260,9 @@ namespace xsdtest {
 				<< "npm install failed:\n" << deps.output;
 		try {
 			XsdTools::SplitMarkedFiles(
-				generate(TEMPLATES_DIR "/ts-xml.tmpl", xsdPath), root);
+				generate(TEMPLATES_DIR "/ts-xml", xsdPath), root);
 			writeFile(root + "/RunTest.ts",
-			          generate(TEMPLATES_DIR "/ts-xml.tmpl-test", xsdPath));
+			          generate(TEMPLATES_DIR "/ts-xml-test", xsdPath));
 		} catch (std::exception& e) {
 			return ::testing::AssertionFailure()
 				<< "generation failed: " << e.what();
@@ -325,13 +325,13 @@ namespace xsdtest {
 	}
 
 	::testing::AssertionResult javaRoundtrip(const std::string& xsdPath) {
-		return javaRoundtripImpl(xsdPath, "java-json.org.tmpl",
-		                         "java-json.org.tmpl-test", JAVA_POM);
+		return javaRoundtripImpl(xsdPath, "java-json.org",
+		                         "java-json.org-test", JAVA_POM);
 	}
 
 	::testing::AssertionResult javaXmlRoundtrip(const std::string& xsdPath) {
-		return javaRoundtripImpl(xsdPath, "java-xml-stax.tmpl",
-		                         "java-xml-stax.tmpl-test", JAVA_XML_POM);
+		return javaRoundtripImpl(xsdPath, "java-xml-stax",
+		                         "java-xml-stax-test", JAVA_XML_POM);
 	}
 }
 
@@ -453,7 +453,7 @@ namespace {
 			return ::testing::AssertionFailure() << "could not create tempdir";
 		try {
 			XsdTools::SplitMarkedFiles(xsdtest::generate(
-				TEMPLATES_DIR "/c-xml-expat-dom.template", xsd), dir);
+				TEMPLATES_DIR "/c-xml-expat-dom", xsd), dir);
 		} catch (std::exception& e) {
 			return ::testing::AssertionFailure() << "generation: " << e.what();
 		}
@@ -486,7 +486,7 @@ namespace {
 			return ::testing::AssertionFailure() << "could not create tempdir";
 		try {
 			writeFile(dir + "/m.py",
-				xsdtest::generate(TEMPLATES_DIR "/python-json.tmpl", xsd));
+				xsdtest::generate(TEMPLATES_DIR "/python-json", xsd));
 		} catch (std::exception& e) {
 			return ::testing::AssertionFailure() << "generation: " << e.what();
 		}
@@ -541,7 +541,7 @@ namespace {
 			return ::testing::AssertionFailure() << "could not copy pom.xml";
 		try {
 			XsdTools::SplitMarkedFiles(xsdtest::generate(
-				TEMPLATES_DIR "/java-xml-stax.tmpl", xsd), pkg);
+				TEMPLATES_DIR "/java-xml-stax", xsd), pkg);
 		} catch (std::exception& e) {
 			return ::testing::AssertionFailure() << "generation: " << e.what();
 		}
@@ -590,7 +590,7 @@ namespace {
 			return ::testing::AssertionFailure() << "could not create tempdir";
 		try {
 			XsdTools::SplitMarkedFiles(xsdtest::generate(
-				TEMPLATES_DIR "/c-json-jsonc.template", xsd), dir);
+				TEMPLATES_DIR "/c-json-jsonc", xsd), dir);
 		} catch (std::exception& e) {
 			return ::testing::AssertionFailure() << "generation: " << e.what();
 		}
@@ -645,7 +645,7 @@ namespace {
 			return ::testing::AssertionFailure() << "could not copy pom.xml";
 		try {
 			XsdTools::SplitMarkedFiles(xsdtest::generate(
-				TEMPLATES_DIR "/java-json.org.tmpl", xsd), pkg);
+				TEMPLATES_DIR "/java-json.org", xsd), pkg);
 		} catch (std::exception& e) {
 			return ::testing::AssertionFailure() << "generation: " << e.what();
 		}

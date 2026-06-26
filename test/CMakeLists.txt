@@ -198,8 +198,8 @@ target_compile_definitions(xsdb-test PRIVATE
   EXPAT_LINK="${EXPAT_LINK_VAL}"
   JSONC_INCLUDE_DIR="${JSONC_INCLUDE_DIR_VAL}"
   JSONC_LINK="${JSONC_LINK_VAL}"
-  JAVA_POM="${CMAKE_CURRENT_SOURCE_DIR}/java-json.org.tmpl/pom.xml"
-  JAVA_XML_POM="${CMAKE_CURRENT_SOURCE_DIR}/java-xml-stax.tmpl/pom.xml"
+  JAVA_POM="${CMAKE_CURRENT_SOURCE_DIR}/java-json.org/pom.xml"
+  JAVA_XML_POM="${CMAKE_CURRENT_SOURCE_DIR}/java-xml-stax/pom.xml"
   TS_PACKAGE_JSON="${CMAKE_CURRENT_SOURCE_DIR}/ts-xml/package.json"
   TS_TSCONFIG="${CMAKE_CURRENT_SOURCE_DIR}/ts-xml/tsconfig.json")
 

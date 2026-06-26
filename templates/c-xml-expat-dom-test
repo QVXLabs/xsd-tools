@@ -1,0 +1,119 @@
+[@lua
+include 'shared/facets'
+include 'includes/c-xml-expat-dom/shared'
+include 'includes/c-xml-expat-dom/namespace'
+include 'includes/c-xml-expat-dom/types'
+include 'includes/c-xml-expat-dom/cstring'
+include 'includes/c-xml-expat-dom/base64'
+include 'includes/c-xml-expat-dom/integer'
+include 'includes/c-xml-expat-dom/hex'
+include 'includes/c-xml-expat-dom/boolean'
+include 'includes/c-xml-expat-dom/int'
+include 'includes/c-xml-expat-dom/short'
+include 'includes/c-xml-expat-dom/byte'
+include 'includes/c-xml-expat-dom/unsignedByte'
+include 'includes/c-xml-expat-dom/unsignedShort'
+include 'includes/c-xml-expat-dom/unsignedInt'
+include 'includes/c-xml-expat-dom/unsignedInteger'
+include 'includes/c-xml-expat-dom/float'
+include 'includes/c-xml-expat-dom/double'
+include 'includes/c-xml-expat-dom/typename_pass'
+
+ctypes = types:new({
+    ['anySimpleType']     = cstring,
+    ['anyAtomicType']     = cstring,
+    ['anyURI']            = cstring,
+    ['boolean']           = boolean,
+    ['date']              = cstring,
+    ['dateTime']          = cstring,
+    ['dateTimeStamp']     = cstring,
+    ['duration']          = cstring,
+    ['dayTimeDuration']   = cstring,
+    ['yearMonthDuration'] = cstring,
+    ['gDay']              = cstring,
+    ['gMonth']            = cstring,
+    ['gMonthDay']         = cstring,
+    ['gYear']             = cstring,
+    ['gMonthYear']        = cstring,
+    ['NOTATION']          = cstring,
+    ['QName']             = cstring,
+    ['string']            = cstring,
+    ['normalizedString']  = cstring,
+    ['token']             = cstring,
+    ['language']          = cstring,
+    ['name']              = cstring,
+    ['NCName']            = cstring,
+    ['ENTITY']            = cstring,
+    ['ID']                = cstring,
+    ['IDREF']             = cstring,
+    ['NMTOKEN']           = cstring,
+    ['time']              = cstring,
+    ['ENTITIES']          = cstring,
+    ['IDREFS']            = cstring,
+    ['NMTOKENS']          = cstring,
+    ['string']            = cstring,
+    ['integer']           = integer,
+    ['long']              = integer,
+    ['int']               = int,
+    ['short']             = short,
+    ['byte']              = byte,
+    ['positiveInteger']   = unsignedInteger,
+    ['unsignedLong']      = unsignedInteger,
+    ['unsignedInt']       = unsignedInt,
+    ['unsignedShort']     = unsignedShort,
+    ['unsignedByte']      = unsignedByte,
+    ['negativeInteger']   = integer,
+    ['double']            = double,
+    ['float']             = float,
+    ['percisionDecimal']  = double,
+    ['nonPositiveInteger']= integer,
+    ['nonNegativeInteger']= unsignedInteger,
+    ['base64Binary']      = base64,
+    ['hexBinary']         = hex,
+})
+
+function outputTestXml(XSDDoc)
+   local out = stringBuffer:new()
+   local typename, typedef = next(XSDDoc)
+   if typename then
+      local ctype = ctypes:getType(typedef)
+      out:append(ctype:test(typename, true))
+   end
+   return out:str()
+end
+
+-- transform schema
+schema = structNamePass(schema)
+]
+/* From [@lua return __SCHEMA_NAME__] */
+#include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
+#include <assert.h>
+#include <expat.h>
+#include "xml_[@lua return schemaNameStripped()].h"
+/* ------------ */
+static const char kInputXml_[] =
+	"<?xml version=\"1.0\" encoding=\"UTF-8\" ?>\n"
+[@lua
+local out = {}
+local str = outputTestXml(schema)
+for i = 0,string.len(str), 64 do
+   out[#out + 1] = "\t\""..string.sub(str, i, i+63).."\""
+end
+return table.concat(out,"\n")..";"
+]
+
+int main(void) {
+  char *pMarshalledDoc;
+  xml_typelist *pItr;  
+  xml_typelist * pDoc = xml_unmarshal(kInputXml_, strlen(kInputXml_), NULL);
+  /* verify marshalling */
+  pMarshalledDoc = xml_marshal(pDoc, NULL);
+  assert(!strcmp(kInputXml_, pMarshalledDoc));
+  /* clean up */
+  xml_destroy(&pDoc, NULL);  
+  free(pMarshalledDoc);
+  return 0;
+}
+

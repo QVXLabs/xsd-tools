@@ -1,0 +1,7 @@
+# Generated bindings + compiled endpoints (when built by hand outside CMake).
+gen/
+*.class
+*.o
+ep2
+ep5
+message.py

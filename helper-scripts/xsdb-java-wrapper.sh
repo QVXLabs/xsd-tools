@@ -21,6 +21,6 @@ if [ -z $xsd ]; then
     echo "           com.unknown.generated"
 else
     XSDB_OUT=$(mktemp -t "xsdb.XXXX")
-    xsdb java-json.org.tmpl $xsd -package $package > $XSDB_OUT
+    xsdb java-json.org $xsd -package $package > $XSDB_OUT
     awk -f java-split-file.awk -v outputdir=$outputdir $XSDB_OUT | sh
 fi

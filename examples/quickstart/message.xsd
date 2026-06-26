@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Quickstart interop message: a small request envelope that is relayed,
+     unchanged in its header but accumulating one <hop> per endpoint, across
+     five programs written in three languages. Exercises nesting, attributes,
+     restriction facets (range + enumeration), and a repeated complex element. -->
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+  <xs:element name="message">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element name="header">
+          <xs:complexType>
+            <xs:sequence>
+              <xs:element name="subject" type="xs:string"/>
+              <xs:element name="priority">
+                <xs:simpleType>
+                  <xs:restriction base="xs:int">
+                    <xs:minInclusive value="1"/>
+                    <xs:maxInclusive value="5"/>
+                  </xs:restriction>
+                </xs:simpleType>
+              </xs:element>
+            </xs:sequence>
+            <xs:attribute name="id" type="xs:string"/>
+            <xs:attribute name="kind">
+              <xs:simpleType>
+                <xs:restriction base="xs:string">
+                  <xs:enumeration value="request"/>
+                  <xs:enumeration value="response"/>
+                  <xs:enumeration value="event"/>
+                </xs:restriction>
+              </xs:simpleType>
+            </xs:attribute>
+          </xs:complexType>
+        </xs:element>
+        <xs:element name="hop" maxOccurs="unbounded">
+          <xs:complexType>
+            <xs:sequence>
+              <xs:element name="endpoint" type="xs:string"/>
+              <xs:element name="lang" type="xs:string"/>
+            </xs:sequence>
+            <xs:attribute name="seq" type="xs:int"/>
+          </xs:complexType>
+        </xs:element>
+      </xs:sequence>
+    </xs:complexType>
+  </xs:element>
+</xs:schema>

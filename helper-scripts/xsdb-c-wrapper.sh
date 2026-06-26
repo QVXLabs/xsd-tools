@@ -15,7 +15,7 @@ if [ -z $xsd ]; then
     echo "        -d option is optional and defaults to ./"
 else
     XSDB_OUT=$(mktemp -t "xsdb.XXXX")
-    xsdb c-xml-expat-dom.template $xsd > $XSDB_OUT
+    xsdb c-xml-expat-dom $xsd > $XSDB_OUT
     awk -f c-split-file.awk -v outputdir=$outputdir $XSDB_OUT | sh
     rm $XSDB_OUT
 fi

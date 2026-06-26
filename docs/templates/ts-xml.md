@@ -7,7 +7,7 @@ overridable factory.
 ## Generate
 
 ```sh
-xsdb --out-dir <dir> ts-xml.tmpl <schema.xsd>
+xsdb --out-dir <dir> ts-xml <schema.xsd>
 ```
 
 Output is multi-file: the template emits `/* FILE: ... */` markers and
@@ -77,7 +77,7 @@ Feature mapping:
 ```
 
 ```sh
-xsdb --out-dir ./out ts-xml.tmpl nsTargetPrefixed.xsd
+xsdb --out-dir ./out ts-xml nsTargetPrefixed.xsd
 ```
 
 Generated `record.ts` (root, qualified in the target namespace):

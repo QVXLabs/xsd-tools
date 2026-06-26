@@ -16,9 +16,9 @@ from collections import Counter, defaultdict
 # The 10 emit targets + the "test" parser-model dump (the purest "does it parse"
 # check — if `test` fails the schema didn't parse at all).
 TARGETS = [
-    "test", "c-xml-expat", "c-xml-expat-dom.template", "c-json-jsonc.template",
-    "cpp-xml-expat", "cpp-json-jsonc.template", "python-sax", "python-json.tmpl",
-    "java-json.org.tmpl", "java-xml-stax.tmpl", "ts-xml.tmpl",
+    "test", "c-xml-expat", "c-xml-expat-dom", "c-json-jsonc",
+    "cpp-xml-expat", "cpp-json-jsonc", "python-sax", "python-json",
+    "java-json.org", "java-xml-stax", "ts-xml",
 ]
 
 # xsdb exit codes (src/main.cpp)

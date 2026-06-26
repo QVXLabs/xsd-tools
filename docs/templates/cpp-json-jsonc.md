@@ -6,15 +6,15 @@ Modern C++11 marshalling/unmarshalling to and from JSON, built on the
 ## Generate
 
 ```sh
-xsdb cpp-json-jsonc.template path/to/schema.xsd            # to stdout
-xsdb --out-dir gen/ cpp-json-jsonc.template path/to/schema.xsd
+xsdb cpp-json-jsonc path/to/schema.xsd            # to stdout
+xsdb --out-dir gen/ cpp-json-jsonc path/to/schema.xsd
 ```
 
 Output is a single stream with `/* FILE: name */` markers. The header banner
 gives the csplit command to break it into files:
 
 ```sh
-xsdb cpp-json-jsonc.template schema.xsd | csplit - '/\/\* FILE: /' '{*}'
+xsdb cpp-json-jsonc schema.xsd | csplit - '/\/\* FILE: /' '{*}'
 ```
 
 For a schema named `foo.xsd` you get three files: `json_common.h` (shared
@@ -93,7 +93,7 @@ generated `_marshal_list_*` / `_unmarshal_list_*` helpers.
 ```
 
 ```sh
-xsdb cpp-json-jsonc.template foo.xsd | csplit - '/\/\* FILE: /' '{*}'
+xsdb cpp-json-jsonc foo.xsd | csplit - '/\/\* FILE: /' '{*}'
 ```
 
 Generated class + Factory (excerpt):

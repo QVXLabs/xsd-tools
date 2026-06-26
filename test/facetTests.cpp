@@ -32,15 +32,15 @@ namespace {
  * the DOM target picks the narrowed singleton (xml_unsignedByte). */
 TEST(Narrowing, CTargetsUint8) {
 	const std::string xsd = CORPUS + "facet_uint8.xsd";
-	EXPECT_TRUE(has(gen("c-json-jsonc.template", xsd), "uint8_t"));
+	EXPECT_TRUE(has(gen("c-json-jsonc", xsd), "uint8_t"));
 	EXPECT_TRUE(has(gen("c-xml-expat", xsd), "uint8_t"));
-	EXPECT_TRUE(has(gen("c-xml-expat-dom.template", xsd), "unsignedByte"));
+	EXPECT_TRUE(has(gen("c-xml-expat-dom", xsd), "unsignedByte"));
 }
 
 /* D2b: a -32768..32767 integer narrows to int16_t. */
 TEST(Narrowing, CTargetsInt16) {
 	const std::string xsd = CORPUS + "facet_int16.xsd";
-	EXPECT_TRUE(has(gen("c-json-jsonc.template", xsd), "int16_t"));
+	EXPECT_TRUE(has(gen("c-json-jsonc", xsd), "int16_t"));
 	EXPECT_TRUE(has(gen("c-xml-expat", xsd), "int16_t"));
 }
 
@@ -48,13 +48,13 @@ TEST(Narrowing, CTargetsInt16) {
  * boxed type that holds it (Short, not Byte). */
 TEST(Narrowing, JavaTargetsShort) {
 	const std::string xsd = CORPUS + "facet_uint8.xsd";
-	EXPECT_TRUE(has(gen("java-json.org.tmpl", xsd), "Short"));
-	EXPECT_TRUE(has(gen("java-xml-stax.tmpl", xsd), "Short"));
+	EXPECT_TRUE(has(gen("java-json.org", xsd), "Short"));
+	EXPECT_TRUE(has(gen("java-xml-stax", xsd), "Short"));
 }
 
 /* D2b boundary: 0..256 just exceeds uint8_t (255), so it narrows to uint16_t. */
 TEST(Narrowing, CUint16Boundary) {
-	EXPECT_TRUE(has(gen("c-json-jsonc.template", CORPUS + "facet_uint16.xsd"),
+	EXPECT_TRUE(has(gen("c-json-jsonc", CORPUS + "facet_uint16.xsd"),
 	                "uint16_t"));
 }
 
@@ -69,14 +69,14 @@ TEST(Facets, AttributeValidationEmitted) {
 /* Regression (bug C): a defaulted attribute (default="0") emits the default
  * initializer rather than silently dropping it. */
 TEST(Bug, JavaJsonAttributeDefaultApplied) {
-	const std::string out = gen("java-json.org.tmpl", CORPUS + "testA015.xsd");
+	const std::string out = gen("java-json.org", CORPUS + "testA015.xsd");
 	EXPECT_TRUE(has(out, "= 0;"));
 }
 
 /* D2 leanness: the java-json adapters emit only the accessors the schema uses.
  * A string/integer-only schema must not ship the binary accessors. */
 TEST(DeBloat, JavaJsonOmitsUnusedAccessors) {
-	const std::string out = gen("java-json.org.tmpl", CORPUS + "testA001.xsd");
+	const std::string out = gen("java-json.org", CORPUS + "testA001.xsd");
 	EXPECT_FALSE(has(out, "getBase64"));
 	EXPECT_FALSE(has(out, "getHex"));
 }
@@ -107,7 +107,7 @@ TEST(Cycle, MutualReferenceGenerates) {
  * branch in SimpleType::GetParentType); it now resolves and generates. */
 TEST(Bug, SimpleTypeUnionResolves) {
 	EXPECT_NO_THROW(gen("python-sax", CORPUS + "bug_union.xsd"));
-	EXPECT_NO_THROW(gen("java-json.org.tmpl", CORPUS + "bug_union.xsd"));
+	EXPECT_NO_THROW(gen("java-json.org", CORPUS + "bug_union.xsd"));
 }
 
 /* Bug: an <annotation> inside a string restriction (and inside an
@@ -124,8 +124,8 @@ TEST(Bug, AnnotationInStringRestriction) {
  * bare. */
 TEST(Namespace, EmittedAcrossXmlTargets) {
 	const std::string xsd = CORPUS + "nsTargetPrefixed.xsd";
-	const char* tmpls[] = { "c-xml-expat", "c-xml-expat-dom.template",
-	                        "python-sax", "java-xml-stax.tmpl" };
+	const char* tmpls[] = { "c-xml-expat", "c-xml-expat-dom",
+	                        "python-sax", "java-xml-stax" };
 	for (size_t i = 0; i < sizeof(tmpls) / sizeof(*tmpls); ++i)
 		EXPECT_TRUE(has(gen(tmpls[i], xsd), "urn:example:phase0")) << tmpls[i];
 	/* a non-namespaced schema emits no xmlns */

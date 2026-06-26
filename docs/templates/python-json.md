@@ -7,7 +7,7 @@ dependencies.
 ## Generate
 
 ```sh
-xsdb python-json.tmpl <schema.xsd>
+xsdb python-json <schema.xsd>
 ```
 
 The output is a single Python source file written to stdout.
@@ -71,7 +71,7 @@ For each element the generator emits a `json_<name>` class deriving from
 ```
 
 ```sh
-xsdb python-json.tmpl rating.xsd > rating.py
+xsdb python-json rating.xsd > rating.py
 ```
 
 Generated (abridged):

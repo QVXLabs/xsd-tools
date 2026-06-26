@@ -1,0 +1,51 @@
+[@lua
+include 'includes/c-xml-expat-dom/baseType'
+
+int = {}
+int.__index = int
+setmetatable(int, {__index = baseType})
+
+function int:new(typeFactory, typedef)
+   local retObj = baseType:new(typeFactory, typedef)
+   setmetatable(retObj, int)
+   return retObj
+end
+
+function int:typeName()
+   return ("xml_int")
+end
+
+function int:inlineScalar()
+   return true
+end
+
+function int:cType()
+   return "int32_t"
+end
+
+function int:typeDef()
+   return self:scalarTypeDef()
+end
+
+function int:typeFactoryMethods()
+   return ""
+end
+
+function int:defMarshal(elementName)
+   return self:defScalarMarshal(function(v)
+      return ("  char num[32];\n  snprintf(num, 32, \"%%d\", %s);\n  cstr_append_(ppOut, num, pFactory);\n"):format(v)
+   end)
+end
+
+function int:defUnmarshal(elementName)
+   return self:defScalarUnmarshal("(int32_t)atoll(pVal)")
+end
+
+function int:defDestroy()
+   return self:defScalarDestroy()
+end
+
+function int:test(facets)
+   return facets_sampleInt(facets) or "29832"
+end
+]

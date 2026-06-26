@@ -1,0 +1,51 @@
+[@lua
+include 'includes/c-xml-expat-dom/baseType'
+
+byte = {}
+byte.__index = byte
+setmetatable(byte, {__index = baseType})
+
+function byte:new(typeFactory, typedef)
+   local retObj = baseType:new(typeFactory, typedef)
+   setmetatable(retObj, byte)
+   return retObj
+end
+
+function byte:typeName()
+   return ("xml_byte")
+end
+
+function byte:inlineScalar()
+   return true
+end
+
+function byte:cType()
+   return "int8_t"
+end
+
+function byte:typeDef()
+   return self:scalarTypeDef()
+end
+
+function byte:typeFactoryMethods()
+   return ""
+end
+
+function byte:defMarshal(elementName)
+   return self:defScalarMarshal(function(v)
+      return ("  char num[8];\n  snprintf(num, 8, \"%%d\", %s);\n  cstr_append_(ppOut, num, pFactory);\n"):format(v)
+   end)
+end
+
+function byte:defUnmarshal(elementName)
+   return self:defScalarUnmarshal("(int8_t)atoll(pVal)")
+end
+
+function byte:defDestroy()
+   return self:defScalarDestroy()
+end
+
+function byte:test(facets)
+   return facets_sampleInt(facets) or "122"
+end
+]
