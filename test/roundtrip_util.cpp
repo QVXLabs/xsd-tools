@@ -687,3 +687,85 @@ TEST(Reject, JavaJsonEnum) {
 	EXPECT_TRUE(javaJsonRejects(XSD_CORPUS_DIR "/facet_enum.xsd",
 		"Color", "{'$':'purple'}"));
 }
+
+/* --- Quickstart interop relay (examples/quickstart) ----------------------- */
+namespace {
+	/* Generate the three bindings from examples/quickstart/message.xsd, build
+	   the C++ and Java endpoints, run the five-endpoint relay, and assert the
+	   message crossed all five (ep5 exits 0 and the final message has five
+	   hops). Mirrors what `run-quickstart` does, but as a gtest. */
+	::testing::AssertionResult quickstartRelay() {
+		const std::string qs = QUICKSTART_DIR;
+		const std::string schema = qs + "/message.xsd";
+		const std::string dir = makeTempDir("quickstart");
+		if (dir.empty())
+			return ::testing::AssertionFailure() << "could not create tempdir";
+		if (0 != runCommand("mkdir -p cpp java javac", dir).exitCode)
+			return ::testing::AssertionFailure() << "mkdir failed";
+		try {
+			writeFile(dir + "/message.py",
+			          xsdtest::generate(TEMPLATES_DIR "/python-sax", schema));
+			XsdTools::SplitMarkedFiles(
+			    xsdtest::generate(TEMPLATES_DIR "/cpp-xml-expat", schema),
+			    dir + "/cpp");
+			std::ostringstream java;
+			XsdTools::Generate(TEMPLATES_DIR "/java-xml-stax", schema, java,
+			                   { "-package", "interop" });
+			XsdTools::SplitMarkedFiles(java.str(), dir + "/java");
+		} catch (std::exception& e) {
+			return ::testing::AssertionFailure() << "generation failed: "
+			                                     << e.what();
+		}
+		const char* cppEps[][2] = { { "ep2_relay", "ep2" },
+		                            { "ep5_sink",  "ep5" } };
+		for (const auto& ep : cppEps) {
+			std::ostringstream cc;
+			cc << CXX_COMPILER << " -std=c++11"
+			   << includeFlag(dir + "/cpp") << includeFlag(qs)
+			   << includeFlags(EXPAT_INCLUDE_DIR)
+			   << " '" << qs << "/" << ep[0] << ".cpp'"
+			   << " '" << dir << "/cpp/xml_message.cpp'"
+			   << " " << EXPAT_LINK
+			   << " -o '" << dir << "/" << ep[1] << "'";
+			CommandResult b = runCommand(cc.str(), dir);
+			if (0 != b.exitCode)
+				return ::testing::AssertionFailure()
+				    << ep[0] << " compile failed:\n" << b.output;
+		}
+		CommandResult jc = runCommand(
+		    "javac -d javac java/*.java '" + qs + "/Ep3Relay.java'", dir);
+		if (0 != jc.exitCode)
+			return ::testing::AssertionFailure() << "javac failed:\n"
+			                                     << jc.output;
+		CommandResult run = runCommand(
+		    "PYTHONPATH='" + dir + "' python3 '" + qs + "/ep1_producer.py'"
+		    " | ./ep2"
+		    " | java -cp javac interop.Ep3Relay"
+		    " | PYTHONPATH='" + dir + "' python3 '" + qs + "/ep4_relay.py'"
+		    " | ./ep5", dir);
+		if (0 != run.exitCode)
+			return ::testing::AssertionFailure()
+			    << "relay failed (exit " << run.exitCode << "):\n" << run.output;
+		int hops = 0;
+		for (std::string::size_type p = run.output.find("<hop ");
+		     p != std::string::npos; p = run.output.find("<hop ", p + 1))
+			++hops;
+		if (5 != hops)
+			return ::testing::AssertionFailure()
+			    << "expected 5 hops in final message, got " << hops << ":\n"
+			    << run.output;
+		return ::testing::AssertionSuccess();
+	}
+}
+
+/* The quickstart example, exercised end to end through the gtest binary. Skips
+   when python3 or a JDK is absent (the C++ toolchain that built this binary is
+   always present). */
+TEST(Quickstart, Relay) {
+	if (!xsdtest::programAvailable("python3"))
+		GTEST_SKIP() << "python3 not on PATH";
+	if (!xsdtest::programAvailable("javac") ||
+	    !xsdtest::programAvailable("java"))
+		GTEST_SKIP() << "JDK (javac/java) not on PATH";
+	EXPECT_TRUE(quickstartRelay());
+}
