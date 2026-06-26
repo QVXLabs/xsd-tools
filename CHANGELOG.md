@@ -42,13 +42,17 @@ All notable changes to xsd-tools are documented here. The format is based on
   (boost, expat, googletest).
 - Parser tree traversal (`ParseChildren`) refactored to functional sibling
   recursion via `Node::_eachChild`; behavior-preserving.
+- Test scripts migrated to Python 3 (the round-trip harness and its driver/
+  scaffold scripts now run under `python3`; generated python-sax/python-json
+  emit Python 3). Closes #33.
 
 ### Fixed
-- (planned) Duplicate generated structs for same-named child elements of
-  different types. Closes #11.
-
-### Removed
-- (planned) Legacy Python 2-era test scripts, superseded by the gtest +
-  Python 3 round-trip harness. Closes #33.
+- Same-named child elements of different types no longer collapse into a
+  single generated struct/class. Structurally-distinct types that share a
+  local name are disambiguated (`id`, `id1`, …) while identically-structured
+  types still share one definition. The disambiguated type's element/key
+  serializes under the suffixed name (e.g. `<id1>`), since the generated
+  unmarshallers dispatch on element name without parent context — consistent
+  with how non-identifier-safe names are already remapped. Closes #11.
 
 [Unreleased]: https://github.com/QVXLabs/xsd-tools/commits/master
