@@ -93,7 +93,7 @@ schema = structNamePass(schema)
 #include <expat.h>
 #include "xml_[@lua return schemaNameStripped()].h"
 /* ------------ */
-const char kInputXml_[] = 
+static const char kInputXml_[] =
 	"<?xml version=\"1.0\" encoding=\"UTF-8\" ?>\n"
 [@lua
 local out = {}
