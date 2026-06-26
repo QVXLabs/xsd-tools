@@ -53,10 +53,12 @@ targets emit the right `xmlns`/prefixes, and `xs:import` brings in types from
 another namespace (`xs:include` continues to merge same-namespace documents).
 
 ### Sample Output ###
-Each [per-target guide](docs/templates/) shows real generated output and a
-marshal/unmarshal example for that target. For a quick look without reading a
-guide, just run the tool — e.g. `xsdb python-sax test/xsd-positive/testA002.xsd`
-prints the generated Python to stdout.
+[`examples/`](examples/) has a guided, end-to-end walkthrough — a small library
+catalog schema and the real generated output across several targets (showing
+annotations-as-comments, facet validation, and type narrowing). Each
+[per-target guide](docs/templates/) then shows that target's generated API and
+a marshal/unmarshal example. For a quick look, just run the tool — e.g.
+`xsdb python-sax examples/library.xsd` prints the generated Python to stdout.
 
 ### Usage Guide ###
 

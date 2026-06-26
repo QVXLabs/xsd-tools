@@ -1,0 +1,74 @@
+# Examples
+
+A guided, end-to-end example. [`library.xsd`](library.xsd) is a small library
+catalog that exercises the features you'll care about in real schemas:
+
+- **nesting** — `library` → `book` (repeated, `maxOccurs="unbounded"`) →
+  `title` / `author` / `rating` / `genre`
+- an **attribute** — `book/@isbn`
+- **restriction facets** — `rating` is an `int` bounded to `1..5`; `genre` is a
+  string `enumeration` (`fiction` / `nonfiction` / `reference`)
+- **annotations** — `xs:documentation` on the schema and several elements
+
+Everything below is real output from `xsdb` on this schema.
+
+## Generate
+
+Generated code goes to **stdout**; redirect it, or use `--out-dir` for targets
+that emit multiple files. (Run from a build tree, or with an installed `xsdb`.)
+
+```sh
+xsdb python-sax       examples/library.xsd > library.py
+xsdb ts-xml.tmpl      examples/library.xsd            # TypeScript (multi-file)
+xsdb --out-dir out c-xml-expat examples/library.xsd   # C: writes out/*.h, *.c
+xsdb --list                                           # see all targets
+```
+
+See [`docs/templates/`](../docs/templates/) for a per-target guide (toolchain,
+generated API, marshal/unmarshal example).
+
+## What you get
+
+**Annotations become comments** at the matching spot. The `rating` element's
+`xs:documentation` lands above its generated type — here in `python-sax`:
+
+```python
+# Reader rating, 1-5 stars.
+class xml_rating(_xmlelement):
+```
+
+**Facets are enforced** in the generated unmarshaller, so invalid documents are
+rejected at parse time. `rating` (1..5) and `genre` (enumeration) in
+`python-sax`:
+
+```python
+raise ValueError("content: out of range")    # rating outside 1..5
+raise ValueError("content: not permitted")    # genre not in the enumeration
+```
+
+**Facet-bounded integers narrow to the smallest fitting type.** `rating`'s
+`1..5` range fits a byte, so `c-xml-expat` emits a `uint8_t` (not a 32-bit int):
+
+```c
+/* Reader rating, 1-5 stars. */
+typedef struct {
+	uint32_t	eid_;
+	uint8_t	Content_;
+} xml_rating;
+```
+
+The same schema in `ts-xml` keeps the annotation and types the field as a
+`number`:
+
+```ts
+/* Reader rating, 1-5 stars. */
+export class rating extends Element {
+	_text?: number;
+```
+
+## Round-trip
+
+Each target's generated code both **writes** (marshal) and **reads**
+(unmarshal) conforming XML/JSON. The per-target guides under
+[`docs/templates/`](../docs/templates/) show a complete marshal → unmarshal
+snippet for that language.

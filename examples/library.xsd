@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- A small library catalog. A self-contained demo schema for xsd-tools that
+     exercises nesting, attributes, repeated elements, restriction facets
+     (range + enumeration), and xs:documentation annotations. -->
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+  <xs:element name="library">
+    <xs:annotation>
+      <xs:documentation>The catalog root: a collection of books.</xs:documentation>
+    </xs:annotation>
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element name="book" maxOccurs="unbounded">
+          <xs:complexType>
+            <xs:sequence>
+              <xs:element name="title" type="xs:string">
+                <xs:annotation>
+                  <xs:documentation>The book's title.</xs:documentation>
+                </xs:annotation>
+              </xs:element>
+              <xs:element name="author" type="xs:string"/>
+              <xs:element name="rating">
+                <xs:annotation>
+                  <xs:documentation>Reader rating, 1-5 stars.</xs:documentation>
+                </xs:annotation>
+                <xs:simpleType>
+                  <xs:restriction base="xs:int">
+                    <xs:minInclusive value="1"/>
+                    <xs:maxInclusive value="5"/>
+                  </xs:restriction>
+                </xs:simpleType>
+              </xs:element>
+              <xs:element name="genre">
+                <xs:simpleType>
+                  <xs:restriction base="xs:string">
+                    <xs:enumeration value="fiction"/>
+                    <xs:enumeration value="nonfiction"/>
+                    <xs:enumeration value="reference"/>
+                  </xs:restriction>
+                </xs:simpleType>
+              </xs:element>
+            </xs:sequence>
+            <xs:attribute name="isbn" type="xs:string"/>
+          </xs:complexType>
+        </xs:element>
+      </xs:sequence>
+    </xs:complexType>
+  </xs:element>
+</xs:schema>
