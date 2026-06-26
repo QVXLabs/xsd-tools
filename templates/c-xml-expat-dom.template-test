@@ -93,7 +93,7 @@ schema = structNamePass(schema)
 #include <expat.h>
 #include "xml_[@lua return schemaNameStripped()].h"
 /* ------------ */
-const char xml_doc[] = 
+const char kInputXml_[] = 
 	"<?xml version=\"1.0\" encoding=\"UTF-8\" ?>\n"
 [@lua
 local out = {}
@@ -107,10 +107,10 @@ return table.concat(out,"\n")..";"
 int main(void) {
   char *pMarshalledDoc;
   xml_typelist *pItr;  
-  xml_typelist * pDoc = xml_unmarshal(xml_doc, strlen(xml_doc), NULL);
+  xml_typelist * pDoc = xml_unmarshal(kInputXml_, strlen(kInputXml_), NULL);
   /* verify marshalling */
   pMarshalledDoc = xml_marshal(pDoc, NULL);
-  assert(!strcmp(xml_doc, pMarshalledDoc));
+  assert(!strcmp(kInputXml_, pMarshalledDoc));
   /* clean up */
   xml_destroy(&pDoc, NULL);  
   free(pMarshalledDoc);
