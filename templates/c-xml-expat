@@ -28,6 +28,8 @@
 	return include 'shared/schemaEx'
 ][@lua --include facet helpers
 	include 'shared/facets'
+][@lua --include documentation-comment helper (#4)
+	include 'shared/doc'
 ][@lua --include xsd to c type mapping
 	return include 'c-xml-expat-sax/c_type_info'
 ][@lua --rename any non-c-safe names to c-safe names & sort dependencies so that they are matched correctly
@@ -162,11 +164,15 @@ typedef struct {
 	end)
 	-- output element definitions
 	table.map(depOrderSansRoot, function(k, node)
+		-- emit the element/type annotation (#4) above its struct
+		outbuf:append(docComment(node.documentation, 'c', ''))
 		outbuf:append(table.concat({
 			'typedef struct {\n',
 			'\tuint32_t\teid_;\n',
 		}))
 		table.map(node.attributes, function(name, xsdType)
+			-- emit the attribute annotation (#4) above its field
+			outbuf:append(docComment(xsdType.documentation, 'c', '\t'))
 			outbuf:append(table.concat({
 				'\t', c_narrowCType(xsdType.type, xsdType.facets).c_type.statement(name),
 			}))

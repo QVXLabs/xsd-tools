@@ -66,6 +66,26 @@
 using namespace std;
 using namespace Processors;
 
+/* First <annotation><documentation> text directly under pNode, or "" if none.
+   Annotations aren't part of the Lua model the visitor builds, so read them on
+   demand where the owning construct (element/complexType/attribute) is
+   processed (#4). */
+static string documentationOf_(const XSD::Elements::Node* pNode) {
+	string doc;
+	pNode->eachChild_([&doc](const XSD::Elements::Node& rChild) {
+		if (!(XSD_ISELEMENT(&rChild, XSD::Elements::Annotation)))
+			return;
+		rChild.eachChild_([&doc](const XSD::Elements::Node& rGrand) {
+			if (doc.empty() &&
+			    XSD_ISELEMENT(&rGrand, XSD::Elements::Documentation)) {
+				doc = static_cast<const XSD::Elements::Documentation&>(rGrand)
+				          .DocumentationStr();
+			}
+		});
+	});
+	return doc;
+}
+
 LuaProcessor::LuaProcessor(lua_State * pLuaState)
 	: LuaProcessorBase(new LuaAdapter(pLuaState))
 	, activePath_(new set<const void*>())
@@ -123,10 +143,13 @@ LuaProcessor::ProcessElement(const XSD::Elements::Element* pNode) {
 				pLuaContent->Type(pNode->Name(), maxOccurs, minOccurs);
 			LuaProcessor luaPrcssr(pLuaType);
 			luaPrcssr.activePath_ = activePath_;
-			/* element namespace/form land on the element's type table before
-			   parseType_ descends into the content sub-tables */
+			/* element namespace/form/doc land on the element's type table
+			   before parseType_ descends into the content sub-tables. Setting
+			   the element's doc first lets it win over the referenced type's
+			   own annotation (LuaType::Documentation won't overwrite). */
 			pLuaType->Namespace(pNode->Namespace());
 			pLuaType->Qualified(pNode->Qualified());
+			pLuaType->Documentation(documentationOf_(pNode));
 			luaPrcssr.parseType_(*pElmType);
 		}
 	} else {
@@ -253,9 +276,10 @@ LuaProcessor::ProcessAttribute(const XSD::Elements::Attribute* pNode) {
 		walkAttributeFacets_(pType.get());
 		pAttribute->Facets(facets_);
 		facets_.clear();
-		/* attribute namespace/form, gated like facets */
+		/* attribute namespace/form/doc, gated like facets */
 		pAttribute->Namespace(pNode->Namespace());
 		pAttribute->Qualified(pNode->Qualified());
+		pAttribute->Documentation(documentationOf_(pNode));
 	}
 }
 
@@ -298,6 +322,11 @@ LuaProcessor::ProcessComplexType(const XSD::Elements::ComplexType* pNode) {
 			pNode->ParseChildren(*this);
 		}
 	} else {
+		/* a named complexType's own annotation, applied to the element's type
+		   table (no-op if the element already supplied a doc) */
+		LuaType * pLuaType = dynamic_cast<LuaType*>(luaAdapter_());
+		if (NULL != pLuaType)
+			pLuaType->Documentation(documentationOf_(pNode));
 		pNode->ParseChildren(*this);
 	}
 }

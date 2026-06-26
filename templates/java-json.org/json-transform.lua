@@ -176,6 +176,16 @@
                   local className, typedef = next(classNameTbl)
                   if isTypeFoldable(XSDTree, typedef) then
                      local foldedTypeName, foldedTypedef = next(typedef.fields['$'])
+                     -- #4: a folded scalar leaf drops its own type table, so
+                     -- carry the element's xs:documentation onto the folded
+                     -- type. Copy first: scalar type tables are shared across
+                     -- fields, and a direct write would leak one field's doc.
+                     if typedef.documentation then
+                        local copy = {}
+                        for k, v in pairs(foldedTypedef) do copy[k] = v end
+                        copy.documentation = typedef.documentation
+                        foldedTypedef = copy
+                     end
                      outElem.fields[jsonTag] = {}
                      if isListType(className) then
                         outElem.fields[jsonTag]['list('..foldedTypeName..')'] = foldedTypedef

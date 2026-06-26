@@ -34,6 +34,7 @@
 #define FACETS_TAG     "facets"
 #define NAMESPACE_TAG  "namespace"
 #define QUALIFIED_TAG  "qualified"
+#define DOCUMENTATION_TAG "documentation"
 #define DEBUG_LUASTACK (0)
 
 using namespace std;
@@ -215,6 +216,23 @@ LuaType::Qualified(bool qualified) {
 	lua_setfield(pLuaState, -2, QUALIFIED_TAG);
 }
 
+void
+LuaType::Documentation(const std::string& rText) {
+	if (rText.empty())
+		return;
+	lua_State * pLuaState = getLuaState_();
+	/* type table is at stack top. Don't overwrite a doc already attached: an
+	   element's own annotation is set before its type is expanded, so it wins
+	   over the referenced type's annotation. */
+	lua_getfield(pLuaState, -1, DOCUMENTATION_TAG);
+	const bool present = !lua_isnil(pLuaState, -1);
+	lua_pop(pLuaState, 1);
+	if (present)
+		return;
+	lua_pushstring(pLuaState, rText.c_str());
+	lua_setfield(pLuaState, -2, DOCUMENTATION_TAG);
+}
+
 /* Class LuaAttribute */
 LuaAttribute::LuaAttribute(	lua_State * pLuaState, 
 							const std::string& rName, 
@@ -310,6 +328,20 @@ LuaAttribute::Qualified(bool qualified) {
 	lua_getfield(pLuaState, -1, typeName_.c_str());
 	lua_pushboolean(pLuaState, 1);
 	lua_setfield(pLuaState, -2, QUALIFIED_TAG);
+	lua_pop(pLuaState, 2);
+}
+
+void
+LuaAttribute::Documentation(const std::string& rText) {
+	if (rText.empty())
+		return;
+	lua_State * pLuaState = getLuaState_();
+	/* descend attributes[name] -> [typeName] so the field lands on the type
+	   sub-table (same placement as Facets/Namespace) */
+	lua_getfield(pLuaState, -1, name_.c_str());
+	lua_getfield(pLuaState, -1, typeName_.c_str());
+	lua_pushstring(pLuaState, rText.c_str());
+	lua_setfield(pLuaState, -2, DOCUMENTATION_TAG);
 	lua_pop(pLuaState, 2);
 }
 

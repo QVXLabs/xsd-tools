@@ -115,6 +115,8 @@ function trnsfrm_oldFmt(tbl)
 					local child = trnsfrm_r(v, State.Element, { name = k })
 					local key = uniqueTypeName_(k, child)
 					child.name = key
+					-- carry the element/type annotation (#4), nil when absent
+					child.documentation = v.documentation
 					outTbl.dependents[key] = child
 					outTblRoot.types[key] = child
 				end
@@ -132,9 +134,11 @@ function trnsfrm_oldFmt(tbl)
 				outTbl.type = attribName
 				-- carry the attribute's restriction facets up for validation
 				outTbl.facets = attribDef.facets
-				-- namespace/qualified (E) ride along, nil when absent
+				-- namespace/qualified (E) + documentation (#4) ride along, nil
+				-- when absent
 				outTbl.namespace = attribDef.namespace
 				outTbl.qualified = attribDef.qualified
+				outTbl.documentation = attribDef.documentation
 				if nil ~= attribDef.default then
 					outTbl.default = attribDef.default
 				end
