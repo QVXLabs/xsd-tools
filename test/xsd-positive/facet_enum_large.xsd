@@ -1,0 +1,34 @@
+<?xml version="1.0"?>
+<!-- A string enumeration with >8 values on a non-root element, so cpp-xml-expat
+     emits the sdbm hash-switch validation path (small enums keep the == chain). -->
+<schema>
+	<element name="catalog">
+		<complexType>
+			<sequence>
+				<element ref="item"/>
+			</sequence>
+		</complexType>
+	</element>
+	<element name="item">
+		<complexType>
+			<attribute name="state">
+				<simpleType>
+					<restriction base="string">
+						<enumeration value="alpha"/>
+						<enumeration value="bravo"/>
+						<enumeration value="charlie"/>
+						<enumeration value="delta"/>
+						<enumeration value="echo"/>
+						<enumeration value="foxtrot"/>
+						<enumeration value="golf"/>
+						<enumeration value="hotel"/>
+						<enumeration value="india"/>
+						<enumeration value="juliet"/>
+						<enumeration value="kilo"/>
+						<enumeration value="lima"/>
+					</restriction>
+				</simpleType>
+			</attribute>
+		</complexType>
+	</element>
+</schema>

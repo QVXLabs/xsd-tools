@@ -24,11 +24,13 @@ int main() try {
 	std::fputc('\n', stdout);
 
 	// This endpoint's hop makes five; the four it received are seq 1..4.
+	// kind and seq are optional attributes -> unique_ptr (present-check + deref).
 	bool ok = cap.hops_.size() == 4
-	          && cap.header_.kind_ == "request"
+	          && cap.header_ && cap.header_->kind_
+	          && *cap.header_->kind_ == "request"
 	          && cap.priority_.content_ == 3;
 	for (std::size_t i = 0; i < cap.hops_.size() && ok; ++i)
-		if (cap.hops_[i].hop.seq_ != static_cast<int>(i) + 1)
+		if (!cap.hops_[i].hop.seq_ || *cap.hops_[i].hop.seq_ != static_cast<int>(i) + 1)
 			ok = false;
 
 	if (ok) {

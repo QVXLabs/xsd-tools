@@ -20,10 +20,17 @@
 			type = 'cpp_type',
 			cppType = function() return 'std::string' end,
 			numeric = false,
+			-- the value assigns straight from a const char*, so attribute
+			-- dispatch can use the raw expat string without a std::string copy.
+			cstrSrc = true,
 			marshal = function(obj) return obj end,
+			-- value expression (no assignment); parse is the assigning form
+			parseExpr = function(src) return src end,
 			parse = function(src, obj)
 				return obj..' = '..src..';\n'
 			end,
+			-- C++ initializer literal for a default/fixed value (codegen-known)
+			defaultExpr = function(v) return cppStr(v) end,
 			test = {
 				assign = function(facets)
 					local s = facets_sampleString(facets)
@@ -47,8 +54,17 @@
 			cppType = function() return name end,
 			numeric = true,
 			marshal = function(obj) return 'std::to_string('..obj..')' end,
+			parseExpr = function(src)
+				return '('..name..')'..parseFn..'('..src..')'
+			end,
 			parse = function(src, obj)
 				return obj..' = ('..name..')'..parseFn..'('..src..');\n'
+			end,
+			-- emit the value as a literal; strip an integer's leading zeros so
+			-- it isn't read as octal (floats keep their lexical form).
+			defaultExpr = function(v)
+				if isFloat then return v end
+				return (v:gsub('^([+-]?)0+(%d)', '%1%2'))
 			end,
 			test = {
 				assign = function(facets)
@@ -74,8 +90,14 @@
 		cppType = function() return 'bool' end,
 		numeric = false,
 		marshal = function(obj) return '('..obj..' ? "true" : "false")' end,
+		parseExpr = function(src)
+			return '('..src..' == "true" || '..src..' == "1")'
+		end,
 		parse = function(src, obj)
 			return obj..' = ('..src..' == "true" || '..src..' == "1");\n'
+		end,
+		defaultExpr = function(v)
+			return (v == 'true' or v == '1') and 'true' or 'false'
 		end,
 		test = {
 			assign = function() return tostring(math.random(0, 1) == 1) end,
@@ -92,9 +114,11 @@
 		cppType = function() return 'std::vector<uint8_t>' end,
 		numeric = false,
 		marshal = function(obj) return 'xml_b64Encode('..obj..')' end,
+		parseExpr = function(src) return 'xml_b64Decode('..src..')' end,
 		parse = function(src, obj)
 			return obj..' = xml_b64Decode('..src..');\n'
 		end,
+		defaultExpr = function(v) return 'xml_b64Decode('..cppStr(v)..')' end,
 		test = {
 			assign = function()
 				local str = string.format('%X%X', math.random(0, 65535),
@@ -118,9 +142,11 @@
 		cppType = function() return 'std::vector<uint8_t>' end,
 		numeric = false,
 		marshal = function(obj) return 'xml_hexEncode('..obj..')' end,
+		parseExpr = function(src) return 'xml_hexDecode('..src..')' end,
 		parse = function(src, obj)
 			return obj..' = xml_hexDecode('..src..');\n'
 		end,
+		defaultExpr = function(v) return 'xml_hexDecode('..cppStr(v)..')' end,
 		test = cpp_base64.test,
 	}
 
@@ -153,6 +179,14 @@
 					..'_tok = _t.substr(_i, _j - _i); '
 					..base.parse('_tok', '_e')..' '..obj..'.push_back(_e); }\n'
 					..'\t\t_i = _j;\n\t} }\n'
+			end,
+			-- whitespace-separated default -> braced init of base literals
+			defaultExpr = function(v)
+				local parts = {}
+				for tok in v:gmatch('%S+') do
+					parts[#parts + 1] = base.defaultExpr(tok)
+				end
+				return '{'..table.concat(parts, ', ')..'}'
 			end,
 			test = {
 				assign = function()

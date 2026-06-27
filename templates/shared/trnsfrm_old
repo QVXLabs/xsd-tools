@@ -144,8 +144,14 @@ function trnsfrm_oldFmt(tbl)
 				outTbl.namespace = attribDef.namespace
 				outTbl.qualified = attribDef.qualified
 				outTbl.documentation = attribDef.documentation
+				-- use/default/fixed gate optionality: an optional attribute with
+				-- neither default nor fixed has no value when absent.
+				outTbl.use = attribDef.use
 				if nil ~= attribDef.default then
 					outTbl.default = attribDef.default
+				end
+				if nil ~= attribDef.fixed then
+					outTbl.fixed = attribDef.fixed
 				end
 			end
 			return outTbl
