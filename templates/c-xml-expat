@@ -525,32 +525,27 @@ marshal_adjustElmStk_(xml_marshaller* pMarshaller, uint32_t validType) {
 		-- output stack adjustment code to make sure the proper element type is being marshalled
 		local stkfmt = '\tif (!marshal_adjustElmStk_(pMarshaller, %s)) return%s;\n'
 		outbuf:append(stkfmt:format(hashU(parent.name), next(node.dependents) and ' retFuncs' or ''))
-		-- output start tag (coalesced open + '>' when attribute-free). The
-		-- document-root tag carries the xmlns declaration; both are emitted only
-		-- when the schema has a target namespace.
+		-- output start tag. Constant fragments fold into one literal append
+		-- per side of each marshalled value: the open tag merges with the
+		-- first attribute name, each closing quote merges with the next
+		-- attribute name (or the final '>'). The document-root tag carries
+		-- the xmlns declaration, emitted only when the schema has a target
+		-- namespace.
 		local openTag = '<'..nsQualify(node.name)
 			..((node.name == docRootName) and nsRootDecl() or '')
-		if not next(node.attributes) then
+		local pending = openTag
+		table.map(node.attributes, function(k,v)
+			local attribType = c_narrowCType(v.type, v.facets)
+			pending = pending..' '..nsQualify(k)..'="'
 			outbuf:append(table.concat({
-				'\tcstr_appendN_(pMarshaller, pOutStr, ', cLit(openTag..'>'), ');\n'
+				'\tcstr_appendN_(pMarshaller, pOutStr, ', cLit(pending), ');\n',
+				'\t', attribType.binding.marshal.statement('pOutStr', attribType.buildVar('pObj->',k)),
 			}))
-		else
-			outbuf:append(table.concat({
-				'\tcstr_appendN_(pMarshaller, pOutStr, ', cLit(openTag), ');\n'
-			}))
-			-- output attributes: ` name="value"` (leading space separates them,
-			-- closing quote terminates each value)
-			table.map(node.attributes, function(k,v)
-				local attribType = c_narrowCType(v.type, v.facets)
-				outbuf:append(table.concat({
-					'\tcstr_appendN_(pMarshaller, pOutStr, ', cLit(' '..nsQualify(k)..'="'), ');\n',
-					'\t', attribType.binding.marshal.statement('pOutStr', attribType.buildVar('pObj->',k)),
-					'\tcstr_appendN_(pMarshaller, pOutStr, ', cLit('"'), ');\n',
-				}))
-			end)
-			-- output end of start tag
-			outbuf:append('\tcstr_appendN_(pMarshaller, pOutStr, ">", 1);\n')
-		end
+			pending = '"'
+		end)
+		outbuf:append(table.concat({
+			'\tcstr_appendN_(pMarshaller, pOutStr, ', cLit(pending..'>'), ');\n',
+		}))
 		-- output content
 		if next(node.content) then
 			local contentType = c_narrowCType(node.content.type, node.content.facets)
@@ -705,7 +700,7 @@ prsElmRec_init_(xml_prsElmRec* pElmRec, xml_marshaller* pMarshaller, const char*
 		end
 		body:append(table.concat({
 			'\t\tConstructElement(xml_', node.name, ', pElm, pFactory);\n',
-			'\t\tbreak;\n\t\t}\n',
+			'\t\tbreak;\n\t}\n',
 		}))
 		return body:str()
 	end
@@ -721,7 +716,7 @@ prsElmRec_init_(xml_prsElmRec* pElmRec, xml_marshaller* pMarshaller, const char*
 		sdbmCases('pElmName', elmKeys, elmCase,
 			function(k) return elmBody(byName[k]) end, '\t'),
 		'\tdefault: break;\n\t}\n',
-		'\t\tXML_UNUSED_ARG(ppAttrs);\n\t\t(void)pFactory;\n}\n',
+		'\tXML_UNUSED_ARG(ppAttrs);\n\t(void)pFactory;\n}\n',
 	})
 ]
 static void
