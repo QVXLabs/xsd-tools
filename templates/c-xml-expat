@@ -228,8 +228,7 @@ typedef struct {
    c-xml-expat-dom's xml_typeFactory. NULL (struct or any member) falls back
    to default in-place construction / scalar free. Scalars get no factory. */
 typedef struct xml_typeFactory {
-	void* (*xml_realloc)(
-		const struct xml_typeFactory* pThis, void* pMem, size_t size);
+	void* (*xml_realloc)(const struct xml_typeFactory* pThis, void* pMem, size_t size);
 [@lua --output per-element Allocator/Constructor/Destructor triple
 	local outbuf = stringBuffer:new()
 	local fmt = '\txml_%s* (*xml_%sAllocator)(const struct xml_typeFactory*, xml_%s*);\n'
