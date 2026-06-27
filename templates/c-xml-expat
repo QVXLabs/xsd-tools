@@ -359,7 +359,6 @@ typedef struct {
 	uint32_t	type_, id_;
 } xml_mrshllElmRec;
 
-static __thread uint32_t gtlssIdCnt = 1;
 static __thread xml_marshaller* gtlsspMarshler = NULL;
 
 static inline xml_prsElmRec*
@@ -645,9 +644,7 @@ expatFree_(void *ptr) {
 static void
 prsElmRec_init_(xml_prsElmRec* pElmRec, xml_marshaller* pMarshaller, const char* pElmName, const char** ppAttrs) {
 	const xml_typeFactory* pFactory = pMarshaller->pFactory_;
-	char strBuf[16];
 	memset(pElmRec, 0, sizeof(xml_prsElmRec));
-	snprintf(strBuf, sizeof(strBuf) - 1, "%d", gtlssIdCnt++);
 	pElmRec->typeId_ = SDBMHash_(0, pElmName);
 	cstr_init_(pMarshaller, &pElmRec->contentAccum_);
 	switch(pElmRec->typeId_) {
@@ -662,7 +659,7 @@ prsElmRec_init_(xml_prsElmRec* pElmRec, xml_marshaller* pMarshaller, const char*
 		body:append(table.concat({
 			' {\n',
 			'\t\txml_', node.name, '* pElm = AllocateElement(xml_', node.name, ', &', elm, ', pFactory);\n',
-			'\t\tpElm->eid_ = SDBMHash_(pElmRec->typeId_, strBuf);\n',
+			'\t\tpElm->eid_ = pElmRec->typeId_;\n',
 		}))
 		table.map(node.attributes, function(name, attrib)
 			if attrib.default then
