@@ -10,13 +10,16 @@
 
 #include <string>
 #include <vector>
+#include <memory>
 #include "xml_message.hpp"
 
 class MessageCapture : public xml::Marshaller {
 public:
 	xml::subject  subject_;
 	xml::priority priority_;
-	xml::header   header_;
+	// header has attributes -> no default ctor, so hold it by pointer and
+	// copy-construct it in the callback.
+	std::unique_ptr<xml::header> header_;
 	struct HopRec { xml::hop hop; xml::endpoint endpoint; xml::lang lang; };
 	std::vector<HopRec> hops_;
 
@@ -25,7 +28,9 @@ private:
 	xml::lang     pendingLang_;
 	void on_subject (const xml::subject&  o) override { subject_  = o; }
 	void on_priority(const xml::priority& o) override { priority_ = o; }
-	void on_header  (const xml::header&   o) override { header_   = o; }
+	void on_header  (const xml::header&   o) override {
+		header_.reset(new xml::header(o));
+	}
 	void on_endpoint(const xml::endpoint& o) override { pendingEndpoint_ = o; }
 	void on_lang    (const xml::lang&     o) override { pendingLang_ = o; }
 	void on_hop     (const xml::hop&      o) override {
@@ -42,7 +47,7 @@ inline std::string appendHopAndMarshal(const MessageCapture& cap,
 	xml::Marshaller out;
 	out.marshalBegin();
 	out.marshal_message(xml::message{});
-	out.marshal_header(cap.header_);
+	out.marshal_header(*cap.header_);
 	out.marshal_subject(cap.subject_);
 	out.marshal_priority(cap.priority_);
 	for (const auto& h : cap.hops_) {
@@ -50,8 +55,9 @@ inline std::string appendHopAndMarshal(const MessageCapture& cap,
 		out.marshal_endpoint(h.endpoint);
 		out.marshal_lang(h.lang);
 	}
-	xml::hop newHop;
-	newHop.seq_ = static_cast<decltype(newHop.seq_)>(cap.hops_.size() + 1);
+	// seq is an optional attribute -> unique_ptr; construct the hop with it.
+	xml::hop newHop(std::unique_ptr<int32_t>(
+		new int32_t(static_cast<int32_t>(cap.hops_.size() + 1))));
 	xml::endpoint endpoint; endpoint.content_ = endpointName;
 	xml::lang     lang;     lang.content_     = langName;
 	out.marshal_hop(newHop);

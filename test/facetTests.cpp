@@ -66,6 +66,19 @@ TEST(Facets, AttributeValidationEmitted) {
 	EXPECT_TRUE(has(out, "not permitted"));
 }
 
+/* cpp-xml-expat enum validation: a large string enum (>8 values) uses the O(1)
+ * sdbm hash-switch; a small enum keeps the cheap == chain. The validation switch
+ * is distinguished from element/attribute dispatch by hashing a .c_str(). */
+TEST(Facets, CppEnumHashSwitchForLargeEnum) {
+	const std::string out = gen("cpp-xml-expat", CORPUS + "facet_enum_large.xsd");
+	EXPECT_TRUE(has(out, "sdbmHash_(((*state_)).c_str())"));
+}
+TEST(Facets, CppEnumChainForSmallEnum) {
+	const std::string out = gen("cpp-xml-expat", CORPUS + "facet_attr.xsd");
+	EXPECT_TRUE(has(out, "size_ == \"small\""));
+	EXPECT_FALSE(has(out, ".c_str())) {"));  // no enum-validation hash-switch
+}
+
 /* Regression (bug C): a defaulted attribute (default="0") emits the default
  * initializer rather than silently dropping it. */
 TEST(Bug, JavaJsonAttributeDefaultApplied) {
@@ -130,4 +143,47 @@ TEST(Namespace, EmittedAcrossXmlTargets) {
 		EXPECT_TRUE(has(gen(tmpls[i], xsd), "urn:example:phase0")) << tmpls[i];
 	/* a non-namespaced schema emits no xmlns */
 	EXPECT_FALSE(has(gen("c-xml-expat", CORPUS + "testA001.xsd"), "xmlns="));
+}
+
+/* Attribute storage: an optional attribute with no default/fixed becomes a
+ * unique_ptr<T> (C++) so absent != present, and is marshalled only when set;
+ * a required attribute stays a plain value. testA013's myAttr is optional. */
+TEST(Attr, CppOptionalIsUniquePtr) {
+	const std::string out = gen("cpp-xml-expat", CORPUS + "testA013.xsd");
+	EXPECT_TRUE(has(out, "std::unique_ptr<std::string> myAttr_;"));
+	/* marshalled only when present -> absent optional round-trips as absent */
+	EXPECT_TRUE(has(out, "if (obj.myAttr_) {"));
+}
+
+/* A required attribute is a plain (always-present) const member, not a pointer. */
+TEST(Attr, CppRequiredIsPlainValue) {
+	const std::string out = gen("cpp-xml-expat", CORPUS + "facet_attr.xsd");
+	EXPECT_TRUE(has(out, "const std::string size_;"));
+	EXPECT_FALSE(has(out, "unique_ptr<std::string> size_"));
+}
+
+/* Attribute dispatch routes through the sdbm hash, not a per-class
+ * setAttribute string-compare chain. */
+TEST(Attr, CppDispatchUsesHashNotSetAttribute) {
+	const std::string out = gen("cpp-xml-expat", CORPUS + "facet_attr.xsd");
+	EXPECT_TRUE(has(out, "switch (sdbmHash_(local))"));
+	EXPECT_FALSE(has(out, "setAttribute"));
+}
+
+/* A defaulted attribute (default="0") seeds its parse local with the codegen-
+ * known literal, so an absent attribute is constructed with its default. */
+TEST(Attr, CppDefaultValueInitialized) {
+	const std::string out = gen("cpp-xml-expat", CORPUS + "testA015.xsd");
+	EXPECT_TRUE(has(out, "int32_t a_myAttr = 0;"));
+}
+
+/* Java centralizes attribute unmarshalling in Element.unmarshal via a native
+ * switch (compiler-lowered to hashCode dispatch); no per-class readAttributes,
+ * and the field is package-private so the driver can assign it. */
+TEST(Attr, JavaDispatchCentralized) {
+	const std::string out = gen("java-xml-stax", CORPUS + "testA013.xsd");
+	EXPECT_TRUE(has(out, "switch (localName())"));
+	EXPECT_TRUE(has(out, "myAttr\": o._myAttr = av;"));
+	EXPECT_FALSE(has(out, "readAttributes"));
+	EXPECT_TRUE(has(out, "\tString _myAttr;"));
 }
