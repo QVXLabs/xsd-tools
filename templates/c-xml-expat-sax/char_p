@@ -17,7 +17,7 @@
 		delete = {
 			definition = function() 
 				return table.concat({
-					'static void destroy_charp_(xml_marshaller* pMarshaller, char** ppObj) {\n',
+					'static void\ndestroy_charp_(xml_marshaller* pMarshaller, char** ppObj) {\n',
 					'\tif (**ppObj) {\n',
 					'\t\t*ppObj = pMarshaller->realloc(pMarshaller, *ppObj, 0);\n',
 					'\t}\n',
@@ -47,7 +47,7 @@
 			unmarshal = {
 				definition = function() 
 					return table.concat({
-						'void unmarshal_charp_(xml_marshaller* pMarshaller, const char* restrict pContent, char** restrict ppObj) {\n',
+						'void\nunmarshal_charp_(xml_marshaller* pMarshaller, const char* restrict pContent, char** restrict ppObj) {\n',
 						'\tif (*ppObj) {\n',
 						'\t\t*ppObj = pMarshaller->realloc(pMarshaller, *ppObj, 0);\n',
 						'\t}\n',

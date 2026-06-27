@@ -22,7 +22,7 @@
 		delete = {
 			definition = function() 
 				return table.concat({
-					'static void destroy_xmlhex_(xml_marshaller* pMarshaller, xml_hex* pObj) {\n',
+					'static void\ndestroy_xmlhex_(xml_marshaller* pMarshaller, xml_hex* pObj) {\n',
 					'\tif(pObj->pBuffer_) { \n',
 					'\tpObj->pBuffer_ = pMarshaller->realloc(pMarshaller, pObj->pBuffer_, 0);\n',
 					'\t}\n',
@@ -42,7 +42,7 @@
 			marshal = {
 				definition = function() 
 					return table.concat({
-						'static void marshal_xmlhex_(xml_marshaller* pMarshaller, xml_buffer* restrict pOutBuffer, const xml_hex* restrict pObj) {\n',
+						'static void\nmarshal_xmlhex_(xml_marshaller* pMarshaller, xml_buffer* restrict pOutBuffer, const xml_hex* restrict pObj) {\n',
 						'\tunsigned ndx;\n',
 						'\tstatic const char hexTbl[] = { \'0\', \'1\', \'2\', \'3\', \'4\', \'5\', \'6\', \'7\', \'8\', \'9\', \'A\', \'B\', \'C\', \'D\', \'E\', \'F\' };\n',
 						'\tuint8_t* pHexBuf = pMarshaller->realloc(pMarshaller, NULL, (pObj->size_ * 2) + 1);\n',
@@ -65,7 +65,7 @@
 			unmarshal = {
 				definition = function() 
 					return table.concat({
-						'static void unmarshal_xmlhex_(xml_marshaller* pMarshaller, const char* restrict pContent, xml_hex* restrict pObj) {\n',
+						'static void\nunmarshal_xmlhex_(xml_marshaller* pMarshaller, const char* restrict pContent, xml_hex* restrict pObj) {\n',
 						'\tstatic const unsigned char hexTbl[256] = {\n',
 						'\t\t-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,\n',
 						'\t\t-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,\n',

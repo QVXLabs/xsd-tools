@@ -29,7 +29,7 @@
 			marshal = {
 				definition = function() 
 					return table.concat({
-						'void marshal_double_(xml_marshaller* pMarshaller, xml_cstr* pOutStr, const double val) {\n',
+						'void\nmarshal_double_(xml_marshaller* pMarshaller, xml_cstr* pOutStr, const double val) {\n',
 						'\tchar valBuf[256];\n',
 						'\tsnprintf(valBuf, sizeof(valBuf), "%f", val);\n',
 						'\tcstr_append_(pMarshaller, pOutStr, valBuf);\n',

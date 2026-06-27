@@ -353,36 +353,42 @@ typedef struct {
 static __thread uint32_t gtlssIdCnt = 1;
 static __thread xml_marshaller* gtlsspMarshler = NULL;
 
-static inline xml_prsElmRec* prsElmStack_pop_(xml_buffer* pBuf) {
+static inline xml_prsElmRec*
+prsElmStack_pop_(xml_buffer* pBuf) {
 	xml_prsElmRec* pRet = prsElmStack_top_(pBuf);
 	pBuf->used_ -= (prsElmStack_size_(pBuf) ? sizeof(xml_prsElmRec) : 0);
 	return pRet;
 }
 
-static inline xml_mrshllElmRec* mrshllElmStack_pop_(xml_buffer* pBuf) {
+static inline xml_mrshllElmRec*
+mrshllElmStack_pop_(xml_buffer* pBuf) {
 	xml_mrshllElmRec* pRet = mrshllElmStack_top_(pBuf);
 	pBuf->used_ -= (mrshllElmStack_size_(pBuf) ? sizeof(xml_mrshllElmRec) : 0);
 	return pRet;
 }
 
-static uint32_t SDBMHash_(uint32_t hash, const char* pName) {
+static uint32_t
+SDBMHash_(uint32_t hash, const char* pName) {
 	for (; *pName; ++pName)
 		hash = *pName + (hash << 6) + (hash << 16) - hash;
 	return hash;
 }
 
-static void buffer_init_(xml_marshaller* pMarshaller, xml_buffer* pBuf) {
+static void
+buffer_init_(xml_marshaller* pMarshaller, xml_buffer* pBuf) {
 	pBuf->pBuf_ = pMarshaller->realloc(pMarshaller, pBuf->pBuf_, 256);
 	pBuf->size_ = 256;
 	pBuf->used_ = 0;
 }
 
-static void buffer_destroy_(xml_marshaller* pMarshaller, xml_buffer* pBuf) {
+static void
+buffer_destroy_(xml_marshaller* pMarshaller, xml_buffer* pBuf) {
 	pBuf->pBuf_ = pMarshaller->realloc(pMarshaller, pBuf->pBuf_, 0);
 	memset(pBuf, 0, sizeof(xml_buffer));
 }
 
-static inline void buffer_append_(xml_marshaller* pMarshaller, xml_buffer* pBuf, const void* restrict pBlk, uint32_t size) {
+static inline void
+buffer_append_(xml_marshaller* pMarshaller, xml_buffer* pBuf, const void* restrict pBlk, uint32_t size) {
 	const uint32_t totalSz = size + pBuf->used_;
 	if (totalSz > pBuf->size_) {
 		uint32_t newSz = pBuf->size_ ? pBuf->size_ : 256;
@@ -395,34 +401,40 @@ static inline void buffer_append_(xml_marshaller* pMarshaller, xml_buffer* pBuf,
 }
 
 XML_NO_UNUSED_WARNING
-static inline void cstr_init_(xml_marshaller* pMarshaller, xml_cstr* pCStr) {
+static inline void
+cstr_init_(xml_marshaller* pMarshaller, xml_cstr* pCStr) {
 	buffer_init_(pMarshaller, pCStr);
 	buffer_append_(pMarshaller, pCStr, "", 1);
 }
 
-static inline void cstr_destroy_(xml_marshaller* pMarshaller, xml_cstr* pCStr) {
+static inline void
+cstr_destroy_(xml_marshaller* pMarshaller, xml_cstr* pCStr) {
 	buffer_destroy_(pMarshaller, pCStr);
 }
 
-static inline void cstr_append_(xml_marshaller* pMarshaller, xml_cstr* pCStr, const char* restrict pStr) {
+static inline void
+cstr_append_(xml_marshaller* pMarshaller, xml_cstr* pCStr, const char* restrict pStr) {
 	pCStr->used_ -= 1;
 	buffer_append_(pMarshaller, pCStr, pStr, strlen(pStr) + 1);
 }
 
 /* Append a fragment of known length (no runtime strlen); len excludes NUL. */
 XML_NO_UNUSED_WARNING
-static inline void cstr_appendN_(xml_marshaller* pMarshaller, xml_cstr* pCStr, const char* restrict pStr, uint32_t len) {
+static inline void
+cstr_appendN_(xml_marshaller* pMarshaller, xml_cstr* pCStr, const char* restrict pStr, uint32_t len) {
 	pCStr->used_ -= 1;
 	buffer_append_(pMarshaller, pCStr, pStr, len);
 	buffer_append_(pMarshaller, pCStr, "", 1);
 }
 
 XML_NO_UNUSED_WARNING
-static inline char* cstr_cstr_(xml_cstr* pCStr) {
+static inline char*
+cstr_cstr_(xml_cstr* pCStr) {
 	return (char*)pCStr->pBuf_;
 }
 
-static int marshal_adjustElmStk_(xml_marshaller* pMarshaller, uint32_t validType) {
+static int
+marshal_adjustElmStk_(xml_marshaller* pMarshaller, uint32_t validType) {
 	const xml_mrshllElmRec* pElm;
 	xml_cstr* pOutStr = &pMarshaller->mrshllBuf_;
 	xml_buffer* pElmStk = &pMarshaller->mrshllElmStk_;
@@ -469,7 +481,7 @@ static int marshal_adjustElmStk_(xml_marshaller* pMarshaller, uint32_t validType
 	local outbuf = stringBuffer:new()
 	table.map(depOrderSansRoot, function(k, node)
 		-- output function header
-		local fncHdrFmt = 'static %s marshal_%s_(xml_marshaller* pMarshaller, const xml_%s* pObj) {\n'
+		local fncHdrFmt = 'static %s\nmarshal_%s_(xml_marshaller* pMarshaller, const xml_%s* pObj) {\n'
 		outbuf:append(fncHdrFmt:format(
 			(not next(node.dependents)) and 'void' or 'xml_marshal_'..node.name,
 			node.name,
@@ -556,13 +568,13 @@ static int marshal_adjustElmStk_(xml_marshaller* pMarshaller, uint32_t validType
 		end)
 		depFncLst =  table.concat(depFncLst,', ')
 		return table.concat({
-			'xml_marshal_', schema.root,' xml_marshal(xml_marshaller* pMarshaller) {\n',
+			'xml_marshal_', schema.root,'\nxml_marshal(xml_marshaller* pMarshaller) {\n',
 			'\tconst xml_mrshllElmRec elemRec = {', hashU(schema.root), ', 0};\n',
 			'\txml_marshal_', schema.root, '  retFuncs= {', depFncLst, '};\n',
 		})
 	else
 		return table.concat({
-			'void xml_marshal(xml_marshaller* pMarshaller) {\n',
+			'void\nxml_marshal(xml_marshaller* pMarshaller) {\n',
 			'\tconst xml_mrshllElmRec elemRec = {', hashU(schema.root), ', 0};\n',
 		})
 	end
@@ -574,7 +586,8 @@ static int marshal_adjustElmStk_(xml_marshaller* pMarshaller, uint32_t validType
 [@lua if next(schema.types[schema.root].dependents) then return "\treturn retFuncs;" end]
 }
 
-xml_buffer xml_marshal_flush(xml_marshaller* pMarshaller, int isDocEnd) {
+xml_buffer
+xml_marshal_flush(xml_marshaller* pMarshaller, int isDocEnd) {
 	static const xml_buffer newBuf = { NULL, 0, 0 };
 	xml_buffer retBuf = pMarshaller->mrshllBuf_;
 	if (isDocEnd) {
@@ -589,15 +602,18 @@ xml_buffer xml_marshal_flush(xml_marshaller* pMarshaller, int isDocEnd) {
 	return retBuf;
 }
 
-static void* expatMalloc_(size_t size) {
+static void*
+expatMalloc_(size_t size) {
 	return gtlsspMarshler->realloc(gtlsspMarshler, NULL, size);
 }
 
-static void* expatRealloc_(void *ptr, size_t size) {
+static void*
+expatRealloc_(void *ptr, size_t size) {
 	return gtlsspMarshler->realloc(gtlsspMarshler, ptr, size);
 }
 
-static void expatFree_(void *ptr) {
+static void
+expatFree_(void *ptr) {
 	if (ptr) gtlsspMarshler->realloc(gtlsspMarshler, ptr, 0);
 }
 
@@ -622,7 +638,8 @@ static void expatFree_(void *ptr) {
 	end)
 	return outbuf:str()
 ]
-static void prsElmRec_init_(xml_prsElmRec* pElmRec, xml_marshaller* pMarshaller, const char* pElmName, const char** ppAttrs) {
+static void
+prsElmRec_init_(xml_prsElmRec* pElmRec, xml_marshaller* pMarshaller, const char* pElmName, const char** ppAttrs) {
 	const xml_typeFactory* pFactory = pMarshaller->pFactory_;
 	char strBuf[16];
 	memset(pElmRec, 0, sizeof(xml_prsElmRec));
@@ -697,7 +714,8 @@ static void prsElmRec_init_(xml_prsElmRec* pElmRec, xml_marshaller* pMarshaller,
 		'\t\tXML_UNUSED_ARG(ppAttrs);\n\t\t(void)pFactory;\n}\n',
 	})
 ]
-static void prsElmRec_destory_(xml_prsElmRec* pElmRec, xml_marshaller* pMarshaller) {
+static void
+prsElmRec_destory_(xml_prsElmRec* pElmRec, xml_marshaller* pMarshaller) {
 	const xml_typeFactory* pFactory = pMarshaller ? pMarshaller->pFactory_ : NULL;
 	if (pElmRec) {
 		switch(pElmRec->typeId_) {
@@ -801,14 +819,15 @@ static void prsElmRec_destory_(xml_prsElmRec* pElmRec, xml_marshaller* pMarshall
 		if 0 == #body:str() then return end
 		node._hasValidator = true
 		outbuf:append(table.concat({
-			'static int validate_', node.name,
+			'static int\nvalidate_', node.name,
 			'_(const xml_', node.name, '* pObj) {\n',
 			body:str(), '\treturn 0;\n}\n\n',
 		}))
 	end)
 	return outbuf:str()
 ]
-static uint32_t prsElmRec_id_(xml_prsElmRec* pElmRec) {
+static uint32_t
+prsElmRec_id_(xml_prsElmRec* pElmRec) {
 	if (pElmRec) {
 		switch(pElmRec->typeId_) {
 [@lua -- output element id return
@@ -826,7 +845,8 @@ static uint32_t prsElmRec_id_(xml_prsElmRec* pElmRec) {
 	return 0;
 }
 
-static void prsElmRec_invoke_(xml_prsElmRec* pElmRec, xml_marshaller* pMarshaller, const uint32_t parentId) {
+static void
+prsElmRec_invoke_(xml_prsElmRec* pElmRec, xml_marshaller* pMarshaller, const uint32_t parentId) {
 	if (pElmRec) {
 		switch(pElmRec->typeId_) {
 [@lua -- output element content assignment and data notification invocation
@@ -863,7 +883,8 @@ static void prsElmRec_invoke_(xml_prsElmRec* pElmRec, xml_marshaller* pMarshalle
 	XML_UNUSED_ARG(parentId);
 }
 
-static void prsElmRec_appendContent_(xml_marshaller* pMarshaller, xml_prsElmRec* pElmRec, const char* pContent, int sz) {
+static void
+prsElmRec_appendContent_(xml_marshaller* pMarshaller, xml_prsElmRec* pElmRec, const char* pContent, int sz) {
 	if (pElmRec) {
 		pElmRec->contentAccum_.used_ -= 1;
 		buffer_append_(pMarshaller, &pElmRec->contentAccum_, pContent, sz);
@@ -871,7 +892,8 @@ static void prsElmRec_appendContent_(xml_marshaller* pMarshaller, xml_prsElmRec*
 	}
 }
 
-static void expatStartElementHandler_(void* pCtx, 
+static void
+expatStartElementHandler_(void* pCtx, 
 									 const XML_Char* pName, 
 									 const XML_Char** ppattrs) {
 	const char* pElmName = strrchr(pName, ':') ? strrchr(pName, ':') + 1: pName;
@@ -881,7 +903,8 @@ static void expatStartElementHandler_(void* pCtx,
 	prsElmStack_push_(pMarshaller, &pMarshaller->prsElmStk_, elemRec);
 }
 
-static void expatEndElementHandler_(void* pCtx, const XML_Char* pName) {
+static void
+expatEndElementHandler_(void* pCtx, const XML_Char* pName) {
 	xml_marshaller* pMarshal	= (xml_marshaller*)pCtx;
 	xml_prsElmRec*	pBufTop		= prsElmStack_pop_(&pMarshal->prsElmStk_);
 	const uint32_t	parentId	= prsElmRec_id_(prsElmStack_top_(&pMarshal->prsElmStk_));
@@ -890,14 +913,16 @@ static void expatEndElementHandler_(void* pCtx, const XML_Char* pName) {
 	XML_UNUSED_ARG(pName);
 }
 
-static void expatCharacterDataHandler_(void* pCtx, const XML_Char* pStr, int len) {
+static void
+expatCharacterDataHandler_(void* pCtx, const XML_Char* pStr, int len) {
 	xml_marshaller* pMarshal = (xml_marshaller*)pCtx;
 	xml_prsElmRec* pBufTop = prsElmStack_top_(&pMarshal->prsElmStk_);
 	/* append it to current data */
 	prsElmRec_appendContent_(pMarshal, pBufTop, pStr, len);
 }
 
-void xml_unmarshal(xml_marshaller* pMarshaller, const xml_buffer* pBuf, int isDocEnd) {
+void
+xml_unmarshal(xml_marshaller* pMarshaller, const xml_buffer* pBuf, int isDocEnd) {
 	static const XML_Memory_Handling_Suite memSuite = {
 		expatMalloc_,
 		expatRealloc_,

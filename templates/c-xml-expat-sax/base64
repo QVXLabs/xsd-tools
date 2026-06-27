@@ -22,7 +22,7 @@
 		delete = {
 			definition = function() 
 				return table.concat({
-					'static void destroy_xmlbase64_(xml_marshaller* pMarshaller, xml_base64* pObj) {\n',
+					'static void\ndestroy_xmlbase64_(xml_marshaller* pMarshaller, xml_base64* pObj) {\n',
 					'\tif(pObj->pBuffer_) { \n',
 					'\tpObj->pBuffer_ = pMarshaller->realloc(pMarshaller, pObj->pBuffer_, 0);\n',
 					'\t}\n',
@@ -42,7 +42,7 @@
 			marshal = {
 				definition = function() 
 					return table.concat({
-						'static void marshal_xmlbase64_(xml_marshaller* pMarshaller, xml_buffer* pOutBuffer, const xml_base64* pObj) {\n',
+						'static void\nmarshal_xmlbase64_(xml_marshaller* pMarshaller, xml_buffer* pOutBuffer, const xml_base64* pObj) {\n',
 						'\tbase64_encodestate base64Encoder;\n',
 						'\tconst size_t srcSz = pObj->size_;\n',
 						'\t/* size calc from http://www.obviex.com/Articles/CiphertextSize.aspx, +2 for /n and null termination */\n',
@@ -67,7 +67,7 @@
 			unmarshal = {
 				definition = function() 
 					return table.concat({
-						'static void unmarshal_xmlbase64_(xml_marshaller* pMarshaller, const char* pContent, xml_base64* pObj) {\n',
+						'static void\nunmarshal_xmlbase64_(xml_marshaller* pMarshaller, const char* pContent, xml_base64* pObj) {\n',
 						'\tbase64_decodestate base64Decoder;\n',
 						'\tconst size_t srcLen = strlen(pContent);\n',
 						'\tconst size_t dataSz = ((srcLen * 3) / 4) + 1;\n',
