@@ -488,12 +488,14 @@ static int marshal_adjustElmStk_(xml_marshaller* pMarshaller, uint32_t validType
 			outbuf:append(table.concat({
 				'\tcstr_appendN_(pMarshaller, pOutStr, ', cLit(openTag), ');\n'
 			}))
-			-- output attributes
+			-- output attributes: ` name="value"` (leading space separates them,
+			-- closing quote terminates each value)
 			table.map(node.attributes, function(k,v)
 				local attribType = c_narrowCType(v.type, v.facets)
 				outbuf:append(table.concat({
-					'\tcstr_appendN_(pMarshaller, pOutStr, ', cLit(nsQualify(k)..'="'), ');\n',
+					'\tcstr_appendN_(pMarshaller, pOutStr, ', cLit(' '..nsQualify(k)..'="'), ');\n',
 					'\t', attribType.binding.marshal.statement('pOutStr', attribType.buildVar('pObj->',k)),
+					'\tcstr_appendN_(pMarshaller, pOutStr, ', cLit('"'), ');\n',
 				}))
 			end)
 			-- output end of start tag

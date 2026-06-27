@@ -9,7 +9,7 @@
 # Usage: run.sh <gen-dir>
 #   <gen-dir> holds the xsdb-generated, compiled artifacts:
 #     message.py            (python-sax binding; added to PYTHONPATH)
-#     ep2, ep5              (compiled C++ endpoints)
+#     ep2 (C), ep5 (C++)    (compiled native endpoints)
 #     javac/                (compiled Java classes; interop.Ep3Relay)
 # Override the toolchain with PYTHON3=/path and JAVA=/path if needed.
 set -eu
@@ -26,7 +26,7 @@ stage "ep1 (python) — produce the message"
 msg=$("$PYTHON3" "$HERE/ep1_producer.py")
 printf '%s\n' "$msg"
 
-stage "ep2 (c++) — relay"
+stage "ep2 (c) — relay"
 msg=$(printf '%s' "$msg" | "$GEN/ep2")
 printf '%s\n' "$msg"
 

@@ -36,7 +36,7 @@ int main() try {
 	if (ok) {
 		std::fprintf(stderr,
 		             "PASS: message relayed through 5 endpoints "
-		             "(python->c++->java->python->c++); header intact, "
+		             "(python->c->java->python->c++); header intact, "
 		             "5 hops in order.\n");
 		return 0;
 	}
