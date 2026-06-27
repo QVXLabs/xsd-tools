@@ -136,6 +136,15 @@
 	function hashU(name)
 		return ('0x%xU'):format(sdbm_hash(name))
 	end
+	-- Re-indent a (possibly multi-line) statement to depth `ind`: strip each
+	-- line's own leading tabs and re-apply `ind`, so multi-line type-binding
+	-- helpers (e.g. the scalar strtol block) align to the call site instead of
+	-- their baked-in indentation.
+	function reindent(stmt, ind)
+		return (stmt:gsub('([^\n]+)', function(line)
+			return ind..(line:gsub('^\t*', ''))
+		end))
+	end
 	-- sort key for ordering cases by unsigned hash value. The engine integer is
 	-- signed, so %x (zero-padded to 8) renders the unsigned hex and lexical order
 	-- on the fixed-width string equals ascending numeric order.
@@ -663,8 +672,9 @@ prsElmRec_init_(xml_prsElmRec* pElmRec, xml_marshaller* pMarshaller, const char*
 		table.map(node.attributes, function(name, attrib)
 			if attrib.default then
 				local at = c_narrowCType(attrib.type, attrib.facets)
-				body:append('\t\t\t'..at.binding.unmarshal.statement(
-					'"'..attrib.default..'"', at.buildVar(obj, name)))
+				body:append(reindent(at.binding.unmarshal.statement(
+					'"'..attrib.default..'"', at.buildVar(obj, name)),
+					'\t\t\t'))
 			end
 		end)
 		if next(node.attributes) then
@@ -677,8 +687,8 @@ prsElmRec_init_(xml_prsElmRec* pElmRec, xml_marshaller* pMarshaller, const char*
 			local function attrStmt(name)
 				local a = node.attributes[name]
 				local at = c_narrowCType(a.type, a.facets)
-				return '\t\t\t\t'..at.binding.unmarshal.statement('*(ppAttrs + 1)',
-					at.buildVar(obj, name))
+				return reindent(at.binding.unmarshal.statement('*(ppAttrs + 1)',
+					at.buildVar(obj, name)), '\t\t\t\t')
 			end
 			local function attrCase(name)
 				return '\t\t\tcase '..hashU(name)..':\n'
@@ -855,9 +865,10 @@ prsElmRec_invoke_(xml_prsElmRec* pElmRec, xml_marshaller* pMarshaller, const uin
 		outbuf:append(table.concat({'\t\tcase ', hashU(node.name), ':\n'}))
 		if next(node.content) then
 			local contentType = c_narrowCType(node.content.type, node.content.facets)
-			outbuf:append(table.concat({
-				'\t\t\t', contentType.binding.unmarshal.statement('cstr_cstr_(&pElmRec->contentAccum_)',contentType.buildVar('pElmRec->element_.'..node.name..'_.', 'Content')),
-			}))
+			outbuf:append(reindent(contentType.binding.unmarshal.statement(
+				'cstr_cstr_(&pElmRec->contentAccum_)',
+				contentType.buildVar('pElmRec->element_.'..node.name..'_.',
+					'Content')), '\t\t\t'))
 		end
 		-- facet validation (D2): abort on an invalid value
 		if node._hasValidator then
@@ -872,7 +883,7 @@ prsElmRec_invoke_(xml_prsElmRec* pElmRec, xml_marshaller* pMarshaller, const uin
 		outbuf:append(table.concat({
 			'\t\t\tpMarshaller->unmarshal_', node.name, '(pMarshaller, &pElmRec->element_.', node.name, '_, parentId);\n',
 		}))
-		outbuf:append('\t\tbreak;\n')
+		outbuf:append('\t\t\tbreak;\n')
 	end)
 	return outbuf:str()
 ]		default: break;
