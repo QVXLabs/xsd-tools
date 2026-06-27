@@ -73,6 +73,14 @@ ctypes = types:new({
     ['hexBinary']         = hex,
 })
 
+-- A type owns a wire element (its own start/end tag) iff it is a complexType
+-- binding. isSimpleType() alone misfires on an empty complex element (e.g. a
+-- root whose sole child is an unsatisfied abstract ref): empty content makes it
+-- look simple, yet it still needs start/end dispatch to round-trip.
+function isElementType(ctype)
+   return getmetatable(ctype) == complexType
+end
+
 -- verifies if a type's content is a simple type of mixed type
 function getSimpleTypeContent(typedef)
    return table.find(typedef.content, 
@@ -141,7 +149,7 @@ end
 function collidingElementNames(XSDDoc)
    local byHash, colliding = {}, {}
    topologicalSort(XSDDoc, function(name, ctype)
-      if isSimpleType(ctype._typedef) then return end
+      if not isElementType(ctype) then return end
       -- Collisions are over the wire tag (prefixed when qualified), since the
       -- dispatch hashes it; the colliding set stays keyed by the bare local
       -- name (how the dispatch looks it up).
@@ -262,7 +270,7 @@ function outputXmlStartElement(XSDDoc)
       topologicalSort(
      XSDDoc,
      function(name, ctype, parentName, parentCType)
-        if isSimpleType(ctype._typedef) then return end
+        if not isElementType(ctype) then return end
         -- Match the wire tag (prefixed when qualified); bare name otherwise.
         local wire = c_nsTagName(name, ctype._typedef)
         local elemName = sdbm_hash(wire)
@@ -324,7 +332,7 @@ function outputXmlEndElement(XSDDoc)
       topologicalSort(
      XSDDoc,
      function(name, ctype, parentName, parentCType)
-        if isSimpleType(ctype._typedef) then return end
+        if not isElementType(ctype) then return end
         -- Match the wire tag (prefixed when qualified); bare name otherwise.
         local wire = c_nsTagName(name, ctype._typedef)
         local elemName = sdbm_hash(wire)
@@ -389,7 +397,7 @@ function outputXmlElementContent(XSDDoc)
       topologicalSort(
                       XSDDoc,
                       function(name, ctype, parentName, parentCType)
-                         if isSimpleType(ctype._typedef) then return end        
+                         if not isElementType(ctype) then return end
                             local elemName = sdbm_hash(name)
                             str:append(("    case %s:\n"):format(ctype:typeEnum()))
                          end

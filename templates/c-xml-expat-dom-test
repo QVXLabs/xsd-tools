@@ -72,6 +72,48 @@ ctypes = types:new({
     ['hexBinary']         = hex,
 })
 
+-- Synthesize a sample document element. Reimplemented (vs the shared include)
+-- to be recursion-safe: dispatch each child on its resolved type's class (a
+-- complexType binding is emitted as its own wire element, a scalar via the
+-- facet path) rather than isSimpleType(), which misreads a complex child as a
+-- leaf. A self/mutually recursive type is its own ancestor, so also cap
+-- re-entry per active path to keep the synthesized document finite.
+local _testDepth = {}
+function complexType:test(XSDName, isRoot)
+   local key = self._typedef.struct
+   if key and (_testDepth[key] or 0) >= 2 then return "" end
+   if key then _testDepth[key] = (_testDepth[key] or 0) + 1 end
+   local out = stringBuffer:new()
+   local tag = c_nsTagName(XSDName, self._typedef)
+   local nsDecl = isRoot and c_nsRootDecl(self._typedef) or ""
+   local atrLst = {[1] = "<"..tag..nsDecl}
+   for atrName, _, atrTypedef in attrIterator(self._typedef.attributes) do
+      local atrType = ctypes:getType(atrTypedef)
+      atrLst[#atrLst + 1] = c_nsTagName(atrName, atrTypedef)
+         .."=\\\""..atrType:test(atrTypedef.facets).."\\\""
+   end
+   out:append(table.concat(atrLst, " "))
+   out:append(">")
+   table.map(self._typedef.content, function(elementName, typedef)
+      local ctype = self:_getType(typedef)
+      if getmetatable(ctype) == complexType then
+         -- A cyclic reentry is modelled as an empty-content stub (no children,
+         -- no attributes). The marshaller can't round-trip a childless nested
+         -- element, so omit it; the recursion edge is still exercised one level
+         -- up, and the synthesised document stays schema-faithful and finite.
+         if next(ctype._typedef.content)
+               or next(ctype._typedef.attributes) then
+            out:append(ctype:test(elementName))
+         end
+      else
+         out:append(ctype:test(typedef.facets))
+      end
+   end)
+   out:append(("</%s>"):format(tag))
+   if key then _testDepth[key] = _testDepth[key] - 1 end
+   return out:str()
+end
+
 function outputTestXml(XSDDoc)
    local out = stringBuffer:new()
    local typename, typedef = next(XSDDoc)

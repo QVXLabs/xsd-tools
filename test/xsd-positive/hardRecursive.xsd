@@ -1,0 +1,34 @@
+<?xml version="1.0"?>
+<schema>
+	<!-- self-recursive tree + mutual recursion (expr <-> term) -->
+	<complexType name="treeNode">
+		<sequence>
+			<element name="label" type="string"/>
+			<element name="child" type="treeNode" minOccurs="0"
+			         maxOccurs="unbounded"/>
+		</sequence>
+	</complexType>
+
+	<complexType name="expr">
+		<sequence>
+			<element name="head" type="string"/>
+			<element name="term" type="term" minOccurs="0"/>
+		</sequence>
+	</complexType>
+
+	<complexType name="term">
+		<sequence>
+			<element name="value" type="int"/>
+			<element name="sub" type="expr" minOccurs="0"/>
+		</sequence>
+	</complexType>
+
+	<element name="root">
+		<complexType>
+			<sequence>
+				<element name="tree" type="treeNode"/>
+				<element name="formula" type="expr"/>
+			</sequence>
+		</complexType>
+	</element>
+</schema>

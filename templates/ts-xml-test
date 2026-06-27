@@ -48,11 +48,29 @@ import { Element } from "./Element";
 		end
 		return ti.test.assign()
 	end
+	-- An edge (node -> dep) is recursive when dep can reach node again through
+	-- the dependents graph (dep == node, or a mutually-recursive cycle). Such a
+	-- build_ call is depth-capped so the sample tree stays finite; non-recursive
+	-- edges build unconditionally.
+	local function reaches(from, target)
+		local seen = {}
+		local function walk(n)
+			if n == target then return true end
+			if seen[n] then return false end
+			seen[n] = true
+			local hit = false
+			table.map(n.dependents, function(_, c)
+				if not hit and walk(c) then hit = true end
+			end)
+			return hit
+		end
+		return walk(from)
+	end
 	table.map(depOrderSansRoot, function(_, node)
 		local hasContent = next(node.content) ~= nil
 		local tn = tsSafeName(node.name)
 		outbuf:append(table.concat({
-			"function build_", node.name, "(): ", tn, " {\n",
+			"function build_", node.name, "(depth: number): ", tn, " {\n",
 			"\tconst e = new ", tn, "();\n",
 		}))
 		table.map(node.attributes, function(an, attr)
@@ -68,9 +86,16 @@ import { Element } from "./Element";
 			}))
 		end
 		table.map(node.dependents, function(_, dep)
-			outbuf:append(table.concat({
-				"\te.children.push(build_", dep.name, "());\n",
-			}))
+			local call = "build_" .. dep.name .. "(depth + 1)"
+			if reaches(dep, node) then
+				outbuf:append(table.concat({
+					"\tif (depth < 2) e.children.push(", call, ");\n",
+				}))
+			else
+				outbuf:append(table.concat({
+					"\te.children.push(", call, ");\n",
+				}))
+			end
 		end)
 		outbuf:append("\treturn e;\n}\n\n")
 	end)
@@ -83,7 +108,7 @@ function main(): void {
 	table.map(schema.types[schema.root].dependents, function(_, node)
 		outbuf:append(table.concat({
 			"\t{\n",
-			"\t\tconst root: Element = build_", node.name, "();\n",
+			"\t\tconst root: Element = build_", node.name, "(0);\n",
 			"\t\tconst s1 = doc.marshal(root);\n",
 			"\t\tconst back = doc.unmarshal(s1);\n",
 			"\t\tconst s2 = back === undefined ? \"\" : doc.marshal(back);\n",

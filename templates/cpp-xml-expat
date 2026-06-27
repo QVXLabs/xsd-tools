@@ -142,6 +142,7 @@
 #include <memory>
 #include <utility>
 #include <functional>
+#include <initializer_list>
 #include <cctype>
 #include <cstring>
 #include <exception>
@@ -398,7 +399,10 @@ private:
 	   string literal (store the pointer, not a copy) emitted when popped. */
 	struct MarshalRec { unsigned id; const char* closeTag; };
 
-	void closeTo_(unsigned id);
+	/* close open tags down to the nearest one whose id is in `ids` (the current
+	   element's declared parents); a recursive node is its own ancestor, so the
+	   enclosing element is resolved at runtime rather than baked in. */
+	void closeToParents_(std::initializer_list<unsigned> ids);
 
 	const Factory* factory_;
 	std::string out_;
@@ -518,9 +522,15 @@ Marshaller::~Marshaller() {
 }
 
 void
-Marshaller::closeTo_(unsigned id) {
-	/* pop and close every open element down to (not including) the one with `id` */
-	while (!marshalStk_.empty() && marshalStk_.back().id != id) {
+Marshaller::closeToParents_(std::initializer_list<unsigned> ids) {
+	/* pop and close open elements until the top's id is one of `ids`; nothing
+	   matches the root sentinel 0, so {0} closes every open element. */
+	while (!marshalStk_.empty()) {
+		const unsigned top = marshalStk_.back().id;
+		bool isParent = false;
+		for (unsigned id : ids)
+			if (id == top) { isParent = true; break; }
+		if (isParent) break;
 		out_ += marshalStk_.back().closeTag;
 		marshalStk_.pop_back();
 	}
@@ -532,35 +542,40 @@ Marshaller::marshalBegin() {
 }
 
 [@lua -- marshal_<name> bodies
-	-- The element's parent in the dependency tree (mirrors c-xml-expat's
-	-- findParent + marshal_adjustElmStk_): before opening, close every open tag
-	-- down to the parent so the new element nests correctly.
-	local function findParent(node)
-		local function walk(root, key)
-			local _, dep = next(root.dependents, key)
-			if not dep or dep == node then
-				return dep == node and root or dep
-			else
-				return walk(dep) or walk(root, dep.name)
-			end
-		end
-		return walk(schema.types[schema.root])
-	end
-	-- unique nonzero id per element so closeTo_ matches the parent with a plain
-	-- int compare (no strcmp, no hash collisions); 0 is the root sentinel.
+	-- Before opening, close every open tag down to the enclosing element so the
+	-- new one nests correctly (mirrors c-xml-expat's marshal_adjustElmStk_). A
+	-- node reachable from more than one parent -- in particular a recursive
+	-- node, which is its own ancestor -- has several candidate parents; close to
+	-- the nearest still-open one at runtime instead of a single statically
+	-- chosen parent, so self/mutual recursion nests right.
+	-- unique nonzero id per element so closeToParents_ matches a parent with a
+	-- plain int compare (no strcmp, no hash collisions); 0 is the root sentinel.
 	local elemId, nId = {}, 0
 	table.map(depOrderSansRoot, function(_, node)
 		nId = nId + 1; elemId[node.name] = nId
+	end)
+	-- parent-id set per element: every node listing it as a dependent, plus the
+	-- root sentinel. One level of dependents only -- no recursive walk, so a
+	-- cyclic schema doesn't blow the Lua stack.
+	local parentIds = {}
+	table.map(depOrder, function(_, p)
+		local pid = (p.name == schema.root) and 0 or elemId[p.name]
+		table.map(p.dependents, function(childName, _)
+			local set = parentIds[childName]
+			if not set then set = {}; parentIds[childName] = set end
+			local seen = false
+			table.map(set, function(_, v) if v == pid then seen = true end end)
+			if not seen then set[#set + 1] = pid end
+		end)
 	end)
 	local outbuf = stringBuffer:new()
 	table.map(depOrderSansRoot, function(_, node)
 		outbuf:append('void\nMarshaller::marshal_'..node.name..'(const '
 			..node.name..'& obj) {\n')
-		-- close down to the parent; 0 is the never-pushed root sentinel
-		local parent = findParent(node)
-		local parentId = (parent.name == schema.root) and 0
-			or elemId[parent.name]
-		outbuf:append('\tcloseTo_('..parentId..');\n')
+		-- close down to the nearest open valid parent (0 = root sentinel)
+		local ids = parentIds[node.name] or {0}
+		table.sort(ids)
+		outbuf:append('\tcloseToParents_({'..table.concat(ids, ', ')..'});\n')
 		-- start tag (+ xmlns on the document root); with no attributes the ">"
 		-- folds into the literal so it's a single append.
 		local hasAttrs = next(node.attributes) ~= nil
@@ -601,7 +616,7 @@ Marshaller::marshalBegin() {
 ]
 std::string
 Marshaller::flush(bool isDocEnd) {
-	if (isDocEnd) closeTo_(0);
+	if (isDocEnd) closeToParents_({0});
 	std::string ret;
 	ret.swap(out_);
 	return ret;

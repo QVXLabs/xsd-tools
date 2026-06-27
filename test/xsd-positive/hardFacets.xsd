@@ -1,0 +1,45 @@
+<?xml version="1.0"?>
+<schema>
+	<!-- facet enforcement + integer narrowing on elements and attributes -->
+	<simpleType name="byteRange">
+		<restriction base="int">
+			<minInclusive value="0"/>
+			<maxInclusive value="255"/>
+		</restriction>
+	</simpleType>
+
+	<simpleType name="signedSmall">
+		<restriction base="int">
+			<minInclusive value="-1000"/>
+			<maxInclusive value="1000"/>
+		</restriction>
+	</simpleType>
+
+	<simpleType name="colorName">
+		<restriction base="string">
+			<enumeration value="red"/>
+			<enumeration value="green"/>
+			<enumeration value="blue"/>
+		</restriction>
+	</simpleType>
+
+	<simpleType name="shortText">
+		<restriction base="string">
+			<minLength value="2"/>
+			<maxLength value="8"/>
+		</restriction>
+	</simpleType>
+
+	<element name="widget">
+		<complexType>
+			<sequence>
+				<element name="level" type="byteRange"/>
+				<element name="offset" type="signedSmall"/>
+				<element name="color" type="colorName"/>
+				<element name="label" type="shortText"/>
+			</sequence>
+			<attribute name="opacity" type="byteRange" use="required"/>
+			<attribute name="tag" type="colorName"/>
+		</complexType>
+	</element>
+</schema>

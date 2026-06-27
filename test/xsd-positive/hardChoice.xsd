@@ -1,0 +1,24 @@
+<?xml version="1.0"?>
+<schema>
+	<element name="document">
+		<complexType>
+			<sequence>
+				<element name="title" type="string"/>
+				<choice maxOccurs="unbounded">
+					<element name="paragraph" type="string"/>
+					<element name="image">
+						<complexType>
+							<attribute name="src" type="string"/>
+							<attribute name="width" type="int"/>
+						</complexType>
+					</element>
+					<choice>
+						<element name="bullet" type="string"/>
+						<element name="number" type="int"/>
+					</choice>
+				</choice>
+				<element name="footer" type="string" minOccurs="0"/>
+			</sequence>
+		</complexType>
+	</element>
+</schema>

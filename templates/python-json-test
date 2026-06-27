@@ -72,6 +72,7 @@ import [@lua return schemaName]
 
 	-- Emit the Python literal for one element dict.
 	local outbuf = stringBuffer:new()
+	local onPath = {}
 	local function dpOutput(_, node)
 		outbuf:append(table.concat({'{"name": "', node.name, '", "attrs": {'}))
 		local attrParts = {}
@@ -88,9 +89,18 @@ import [@lua return schemaName]
 			outbuf:append(pyLiteral(node.content.type, v))
 		elseif next(node.dependents) then
 			outbuf:append('[')
-			local kids = {}
+			-- A recursive type is its own descendant; cap re-entry at twice
+			-- per active path so the synthesised document stays finite while
+			-- still exercising the self/mutual recursion edge.
 			table.map(node.dependents, function(name, child)
-				dpOutput(name, child)
+				if next(child.dependents) then
+					if (onPath[child.name] or 0) >= 2 then return end
+					onPath[child.name] = (onPath[child.name] or 0) + 1
+					dpOutput(name, child)
+					onPath[child.name] = onPath[child.name] - 1
+				else
+					dpOutput(name, child)
+				end
 			end)
 			outbuf:append(']')
 		else
