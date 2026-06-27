@@ -700,11 +700,14 @@ namespace {
 		const std::string dir = makeTempDir("quickstart");
 		if (dir.empty())
 			return ::testing::AssertionFailure() << "could not create tempdir";
-		if (0 != runCommand("mkdir -p cpp java javac", dir).exitCode)
+		if (0 != runCommand("mkdir -p c cpp java javac", dir).exitCode)
 			return ::testing::AssertionFailure() << "mkdir failed";
 		try {
 			writeFile(dir + "/message.py",
 			          xsdtest::generate(TEMPLATES_DIR "/python-sax", schema));
+			XsdTools::SplitMarkedFiles(
+			    xsdtest::generate(TEMPLATES_DIR "/c-xml-expat", schema),
+			    dir + "/c");
 			XsdTools::SplitMarkedFiles(
 			    xsdtest::generate(TEMPLATES_DIR "/cpp-xml-expat", schema),
 			    dir + "/cpp");
@@ -716,21 +719,34 @@ namespace {
 			return ::testing::AssertionFailure() << "generation failed: "
 			                                     << e.what();
 		}
-		const char* cppEps[][2] = { { "ep2_relay", "ep2" },
-		                            { "ep5_sink",  "ep5" } };
-		for (const auto& ep : cppEps) {
+		/* ep2 is C (c-xml-expat); ep5 is C++ (cpp-xml-expat) */
+		{
+			std::ostringstream cc;
+			cc << C_COMPILER << " -std=c11"
+			   << includeFlag(dir + "/c")
+			   << includeFlags(EXPAT_INCLUDE_DIR)
+			   << " '" << qs << "/ep2_relay.c'"
+			   << " '" << dir << "/c/xml_message.c'"
+			   << " " << EXPAT_LINK
+			   << " -o '" << dir << "/ep2'";
+			CommandResult b = runCommand(cc.str(), dir);
+			if (0 != b.exitCode)
+				return ::testing::AssertionFailure()
+				    << "ep2_relay compile failed:\n" << b.output;
+		}
+		{
 			std::ostringstream cc;
 			cc << CXX_COMPILER << " -std=c++11"
 			   << includeFlag(dir + "/cpp") << includeFlag(qs)
 			   << includeFlags(EXPAT_INCLUDE_DIR)
-			   << " '" << qs << "/" << ep[0] << ".cpp'"
+			   << " '" << qs << "/ep5_sink.cpp'"
 			   << " '" << dir << "/cpp/xml_message.cpp'"
 			   << " " << EXPAT_LINK
-			   << " -o '" << dir << "/" << ep[1] << "'";
+			   << " -o '" << dir << "/ep5'";
 			CommandResult b = runCommand(cc.str(), dir);
 			if (0 != b.exitCode)
 				return ::testing::AssertionFailure()
-				    << ep[0] << " compile failed:\n" << b.output;
+				    << "ep5_sink compile failed:\n" << b.output;
 		}
 		CommandResult jc = runCommand(
 		    "javac -d javac java/*.java '" + qs + "/Ep3Relay.java'", dir);
