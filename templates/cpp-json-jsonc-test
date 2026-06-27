@@ -28,7 +28,7 @@
 #include <cstring>
 #include <cstdlib>
 #include <cassert>
-#include "json_[@lua return schemaName].hpp"
+#include "json_[@lua return schemaName].h"
 
 [@lua -- output test data: one <name>Tst instance per type, fields assigned
 	local outbuf = stringBuffer:new()

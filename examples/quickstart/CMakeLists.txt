@@ -46,7 +46,7 @@ add_custom_command(
   DEPENDS xsdb "${SCHEMA}" VERBATIM)
 
 add_custom_command(
-  OUTPUT "${QS_GEN}/cpp/xml_message.cpp" "${QS_GEN}/cpp/xml_message.hpp"
+  OUTPUT "${QS_GEN}/cpp/xml_message.cpp" "${QS_GEN}/cpp/xml_message.h"
          "${QS_GEN}/cpp/xml_common.h"
   COMMAND ${XSDB} --out-dir "${QS_GEN}/cpp" cpp-xml-expat "${SCHEMA}"
   DEPENDS xsdb "${SCHEMA}" VERBATIM)
