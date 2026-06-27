@@ -1,5 +1,9 @@
 # xsd-tools
 
+**One XSD schema in, idiomatic marshalling code out — for C, C++, Python,
+Java, and TypeScript.** Stop hand-writing parsers; generate them, validation
+and all.
+
 Build status (one badge per CI build, all on push/PR to `master`):
 
 | Platform | x86_64 | arm64 |
@@ -8,10 +12,29 @@ Build status (one badge per CI build, all on push/PR to `master`):
 | macOS   | ![macos-x86_64](https://github.com/QVXLabs/xsd-tools/actions/workflows/ci-macos-x86_64.yml/badge.svg?branch=master) | ![macos-arm64](https://github.com/QVXLabs/xsd-tools/actions/workflows/ci-macos-arm64.yml/badge.svg?branch=master) |
 | Windows | ![windows-x86_64](https://github.com/QVXLabs/xsd-tools/actions/workflows/ci-windows-x86_64.yml/badge.svg?branch=master) | ![windows-arm64](https://github.com/QVXLabs/xsd-tools/actions/workflows/ci-windows-arm64.yml/badge.svg?branch=master) |
 
-### Overview ###
-xsd-tools is a set of tools for generating code from xml xsd schema documents, mainly around generating marshalling & unmarshalling code. It is designed such that it can be easily extended by any user to enable code generation for any language.
+### Why xsd-tools ###
 
-It ships output targets covering the C / C++ / Python / Java / TypeScript languages, all round-trip tested:
+Hand-writing the code to parse and emit XML/JSON against a schema is tedious,
+repetitive, and easy to get subtly wrong. And the existing generators are each
+welded to a single language — JAXB for Java, `xsd.exe` for .NET, generateDS for
+Python — so a team that shares one schema across services ends up maintaining N
+separate, slowly-drifting hand-rolled implementations.
+
+xsd-tools takes that schema and generates the marshalling & unmarshalling code
+for **ten targets across five languages from a single XSD**, every one
+round-trip tested in CI. The generated code isn't a lowest-common-denominator
+blob either — it's idiomatic per target, enforces the schema's own validation
+rules, and carries your `xs:documentation` through as comments.
+
+Need a target it doesn't ship? Adding one is **a Lua template — no C++ to
+write, no rebuild.** Try it in ten seconds against the bundled example:
+
+```
+xsdb python-sax examples/library.xsd     # generated Python, straight to stdout
+```
+
+It ships ten output targets covering C / C++ / Python / Java / TypeScript, all
+round-trip tested:
 
 | Target template      | Language   | Format   | Library          | Guide |
 |----------------------|------------|----------|------------------|-------|
@@ -31,32 +54,32 @@ under [`docs/templates/`](docs/templates/).
 
 Most targets construct schema types through overridable factory methods, so consumers can subclass and inject custom types (the `java-json.org` target constructs nested types directly) — see each target's guide for the exact mechanism.
 
-It processes XSD schema documents and invokes a template file which outputs code. The templates files use Lua for scripting within the template file. Custom user templates can be easily be created to extend the tool to generate different output code.
+### What makes it different ###
 
-### Features ###
-  * XSD schema parsing
-  * Ten built-in output targets across C/C++/Python/Java/TypeScript,
-    easily extendable
-  * Generated unmarshallers enforce XSD restriction facets at parse time
-    (range, length, enumeration on elements and attributes) — invalid documents
-    are rejected.
-  * Facet-bounded integer fields narrow to the smallest fitting type
-    (e.g. `0..255` → `uint8_t` in C, `Short` in Java).
-  * `xs:documentation` annotations are carried into the generated code as
-    comments at the matching location (type, field, or attribute).
-  * Simple Lua based templates for customizing code generation.
-  * Usable as a C++ library (`XsdTools::Generate()`) as well as a CLI.
-  * Open Source!
+  * **Five languages, one schema.** Ten round-trip-tested targets across
+    C / C++ / Python / Java / TypeScript — change the schema once, regenerate
+    every binding, and they stay in sync by construction.
+  * **Extend without touching C++.** Output is driven by simple Lua
+    [templates](templates/); a new target is a template file, not a fork and a
+    rebuild. Copy the closest existing one and adapt the format-specific bits.
+  * **The schema's rules are enforced, not just documented.** Generated
+    unmarshallers validate XSD restriction facets at parse time — range,
+    length, and enumeration on both elements and attributes — so invalid
+    documents are rejected instead of silently accepted.
+  * **Tighter types for free.** A facet-bounded integer narrows to the smallest
+    type that fits (`0..255` → `uint8_t` in C, `Short` in Java), so the
+    generated structs cost what they should.
+  * **Your docs survive the trip.** `xs:documentation` is carried into the
+    generated code as a comment at the matching type, field, or attribute.
+  * **Handles real-world schemas.** Namespaces / `targetNamespace`,
+    `xs:import` / `xs:include`, substitution groups, abstract types, and
+    recursive (self- and mutually-referential) types are all supported — see
+    the [capability map](docs/limitations.md) for the exact boundaries.
+  * **CLI or library.** Use the `xsdb` command, or embed the generator in your
+    own C++ via `XsdTools::Generate()`.
+  * **Open source.**
 
-Namespaces are supported: schemas with a `targetNamespace` resolve and the XML
-targets emit the right `xmlns`/prefixes, and `xs:import` brings in types from
-another namespace (`xs:include` continues to merge same-namespace documents).
-
-For exactly what's supported, parsed-but-ignored, or unsupported (and how the
-tool fails when it can't proceed), see the
-[capability map](docs/limitations.md).
-
-### Sample Output ###
+### See it work ###
 [`examples/`](examples/) has a guided, end-to-end walkthrough — a small library
 catalog schema and the real generated output across several targets (showing
 annotations-as-comments, facet validation, and type narrowing). Each
