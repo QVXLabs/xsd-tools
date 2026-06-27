@@ -29,10 +29,10 @@
 			marshal = {
 				definition = function() 
 					return table.concat({
-						'void marshal_float_(xml_marshaller* pMarshaller, xml_cstr* pOutStr, const float val) {\n',
+						'void\nmarshal_float_(xml_marshaller* pMarshaller, xml_cstr* pOutStr, const float val) {\n',
 						'\tchar valBuf[128];\n',
-						'\tsnprintf(valBuf, sizeof(valBuf), "%f", val);\n',
-						'\tcstr_append_(pMarshaller, pOutStr, valBuf);\n',
+						'\tconst int n = snprintf(valBuf, sizeof(valBuf), "%f", val);\n',
+						'\tcstr_appendN_(pMarshaller, pOutStr, valBuf, n > 0 ? (uint32_t)n : 0);\n',
 						'}\n',
 					})
 				end,

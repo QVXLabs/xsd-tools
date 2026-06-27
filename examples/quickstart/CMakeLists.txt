@@ -33,7 +33,7 @@ set(QS_SRC    "${CMAKE_CURRENT_SOURCE_DIR}")
 set(QS_GEN    "${CMAKE_CURRENT_BINARY_DIR}/gen")
 set(SCHEMA    "${QS_SRC}/message.xsd")
 set(TEMPLATES "${CMAKE_SOURCE_DIR}/templates")
-file(MAKE_DIRECTORY "${QS_GEN}" "${QS_GEN}/cpp" "${QS_GEN}/java" "${QS_GEN}/javac")
+file(MAKE_DIRECTORY "${QS_GEN}" "${QS_GEN}/c" "${QS_GEN}/cpp" "${QS_GEN}/java" "${QS_GEN}/javac")
 
 # Run xsdb with XSDTOOLS_DATA pointed at the in-tree templates.
 set(XSDB "${CMAKE_COMMAND}" -E env "XSDTOOLS_DATA=${TEMPLATES}" "$<TARGET_FILE:xsdb>")
@@ -46,9 +46,15 @@ add_custom_command(
   DEPENDS xsdb "${SCHEMA}" VERBATIM)
 
 add_custom_command(
-  OUTPUT "${QS_GEN}/cpp/xml_message.cpp" "${QS_GEN}/cpp/xml_message.hpp"
+  OUTPUT "${QS_GEN}/cpp/xml_message.cpp" "${QS_GEN}/cpp/xml_message.h"
          "${QS_GEN}/cpp/xml_common.h"
   COMMAND ${XSDB} --out-dir "${QS_GEN}/cpp" cpp-xml-expat "${SCHEMA}"
+  DEPENDS xsdb "${SCHEMA}" VERBATIM)
+
+add_custom_command(
+  OUTPUT "${QS_GEN}/c/xml_message.c" "${QS_GEN}/c/xml_message.h"
+         "${QS_GEN}/c/xml_common.h"
+  COMMAND ${XSDB} --out-dir "${QS_GEN}/c" c-xml-expat "${SCHEMA}"
   DEPENDS xsdb "${SCHEMA}" VERBATIM)
 
 add_custom_command(
@@ -56,16 +62,21 @@ add_custom_command(
   COMMAND ${XSDB} --out-dir "${QS_GEN}/java" java-xml-stax "${SCHEMA}" -package interop
   DEPENDS xsdb "${SCHEMA}" VERBATIM)
 
-# --- C++ endpoints (cpp-xml-expat) --------------------------------------------
-foreach(ep ep2_relay ep5_sink)
-  string(REGEX REPLACE "_.*" "" out "${ep}")   # ep2_relay -> ep2
-  add_executable(qs_${out} "${QS_SRC}/${ep}.cpp" "${QS_GEN}/cpp/xml_message.cpp")
-  target_include_directories(qs_${out} PRIVATE "${QS_GEN}/cpp" "${QS_SRC}")
-  target_link_libraries(qs_${out} PRIVATE EXPAT::EXPAT)
-  set_target_properties(qs_${out} PROPERTIES
-    CXX_STANDARD 11 CXX_STANDARD_REQUIRED ON
-    RUNTIME_OUTPUT_DIRECTORY "${QS_GEN}" OUTPUT_NAME "${out}")
-endforeach()
+# --- ep2 endpoint (C / c-xml-expat) -------------------------------------------
+add_executable(qs_ep2 "${QS_SRC}/ep2_relay.c" "${QS_GEN}/c/xml_message.c")
+target_include_directories(qs_ep2 PRIVATE "${QS_GEN}/c" "${QS_SRC}")
+target_link_libraries(qs_ep2 PRIVATE EXPAT::EXPAT)
+set_target_properties(qs_ep2 PROPERTIES
+  C_STANDARD 11 C_STANDARD_REQUIRED ON
+  RUNTIME_OUTPUT_DIRECTORY "${QS_GEN}" OUTPUT_NAME ep2)
+
+# --- ep5 endpoint (C++ / cpp-xml-expat) ---------------------------------------
+add_executable(qs_ep5 "${QS_SRC}/ep5_sink.cpp" "${QS_GEN}/cpp/xml_message.cpp")
+target_include_directories(qs_ep5 PRIVATE "${QS_GEN}/cpp" "${QS_SRC}")
+target_link_libraries(qs_ep5 PRIVATE EXPAT::EXPAT)
+set_target_properties(qs_ep5 PROPERTIES
+  CXX_STANDARD 11 CXX_STANDARD_REQUIRED ON
+  RUNTIME_OUTPUT_DIRECTORY "${QS_GEN}" OUTPUT_NAME ep5)
 
 # --- Java endpoint (java-xml-stax) --------------------------------------------
 add_custom_command(

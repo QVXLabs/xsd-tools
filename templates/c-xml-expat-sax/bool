@@ -39,7 +39,7 @@
 			unmarshal = {
 				definition = function() 
 					return table.concat({
-						'void unmarshal_bool_(xml_marshaller* pMarshaller, const char* pContent, xml_bool* pObj) {\n',
+						'void\nunmarshal_bool_(xml_marshaller* pMarshaller, const char* pContent, xml_bool* pObj) {\n',
 						'\tif(isDigit(pContent[0]) {\n',
 						'\t\tpVal = (0 != *pContent[0]);\n',
 						'\t} else {',

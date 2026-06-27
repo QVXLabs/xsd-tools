@@ -12,7 +12,7 @@
 #include <vector>
 #include <memory>
 #include <stdexcept>
-#include "xml_message.hpp"
+#include "xml_message.h"
 
 class MessageCapture : public xml::Marshaller {
 public:
