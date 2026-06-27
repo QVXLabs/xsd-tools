@@ -18,7 +18,17 @@
 		['null']=true, ['record']=true, ['var']=true, ['yield']=true,
 		['sealed']=true, ['permits']=true,
 	}
+	-- Class/file names this target emits itself. A schema element whose name
+	-- matches one (even only by case) would write a second file colliding with
+	-- the framework's on a case-insensitive filesystem (macOS/Windows), so
+	-- compare case-insensitively. The XML local name is unaffected.
+	local javaFramework = {
+		['element']=true, ['factory']=true, ['document']=true, ['hex']=true,
+	}
 	function javaSafeName(name)
-		return javaReserved[name] and (name .. "_") or name
+		if javaReserved[name] or javaFramework[string.lower(name)] then
+			return name .. "_"
+		end
+		return name
 	end
 ]
