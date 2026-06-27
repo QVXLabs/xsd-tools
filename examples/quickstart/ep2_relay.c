@@ -106,32 +106,32 @@ int main(void) {
 
 	/* re-marshal in schema order (xml_marshal emits the <?xml?> prologue),
 	   appending this endpoint's hop */
-	xml_marshal_message_xsd root = xml_marshal(&m);
+	const xml_marshal_message_xsd* root = xml_marshal(&m);
 	xml_message msg = {0};
-	xml_marshal_message mm = root.marshal_message(&m, &msg);
+	const xml_marshal_message* mm = root->marshal_message(&m, &msg);
 
 	xml_header hdr = {0}; hdr.pid_ = g_id; hdr.pkind_ = g_kind;
-	xml_marshal_header mh = mm.marshal_header(&m, &hdr);
+	const xml_marshal_header* mh = mm->marshal_header(&m, &hdr);
 	xml_subject subj = {0}; subj.pContent_ = g_subject;
-	mh.marshal_subject(&m, &subj);
+	mh->marshal_subject(&m, &subj);
 	xml_priority pri = {0}; pri.Content_ = g_priority;
-	mh.marshal_priority(&m, &pri);
+	mh->marshal_priority(&m, &pri);
 
 	for (size_t i = 0; i < g_nhops; i++) {
 		xml_hop hop = {0}; hop.seq_ = g_hops[i].seq;
-		xml_marshal_hop mhop = mm.marshal_hop(&m, &hop);
+		const xml_marshal_hop* mhop = mm->marshal_hop(&m, &hop);
 		xml_endpoint ep = {0}; ep.pContent_ = g_hops[i].endpoint;
-		mhop.marshal_endpoint(&m, &ep);
+		mhop->marshal_endpoint(&m, &ep);
 		xml_lang lg = {0}; lg.pContent_ = g_hops[i].lang;
-		mhop.marshal_lang(&m, &lg);
+		mhop->marshal_lang(&m, &lg);
 	}
 
 	xml_hop newHop = {0}; newHop.seq_ = (int32_t)(g_nhops + 1);
-	xml_marshal_hop mnh = mm.marshal_hop(&m, &newHop);
+	const xml_marshal_hop* mnh = mm->marshal_hop(&m, &newHop);
 	xml_endpoint nep = {0}; nep.pContent_ = (char*)"ep2";
-	mnh.marshal_endpoint(&m, &nep);
+	mnh->marshal_endpoint(&m, &nep);
 	xml_lang nlg = {0}; nlg.pContent_ = (char*)"c";
-	mnh.marshal_lang(&m, &nlg);
+	mnh->marshal_lang(&m, &nlg);
 
 	xml_buffer out = xml_marshal_flush(&m, 1);
 	fwrite(out.pBuf_, 1, out.used_, stdout);
