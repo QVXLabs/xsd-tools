@@ -8,8 +8,26 @@ import org.apache.commons.codec.DecoderException;
     include 'includes/java-json.org/parse.lua'
     include 'includes/java-json.org/json-transform.lua'
 
-    schema = JSONTransform(schema)                                                  
-    local visitType = {}                                                    
+    schema = JSONTransform(schema)
+    -- Drop recursion-terminal stubs (empty `typeref` fields). The binding
+    -- keeps them as optional self/mutual references; omitting them here keeps
+    -- the synthesised JSON valid and finite, and an absent optional field
+    -- still round-trips.
+    local function dropTypeRefs(node)
+        if type(node) ~= 'table' or not node.fields then return end
+        local dead = {}
+        for tag, classTbl in pairs(node.fields) do
+            local _, td = next(classTbl)
+            if type(td) == 'table' and td.typeref then
+                dead[#dead + 1] = tag
+            else
+                dropTypeRefs(td)
+            end
+        end
+        for i = 1, #dead do node.fields[dead[i]] = nil end
+    end
+    dropTypeRefs({ fields = schema })
+    local visitType = {}
     local outputStr = stringBuffer:new()                                    
                                                                             
     local function _traverse(JSONType)                                      

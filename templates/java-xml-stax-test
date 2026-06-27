@@ -22,6 +22,15 @@ public class RunTest {
 	local depOrder = schema.sortDependencies()
 	local depOrderSansRoot = table.filter(depOrder, function(k,v)
 		return v.name ~= schema.root and v or nil end)
+	-- A recursive type's builder calls itself (directly or mutually); cap
+	-- re-entry at twice per active path with a per-type static counter so the
+	-- recursion edge is exercised while the synthesised tree stays finite.
+	table.map(depOrderSansRoot, function(_, node)
+		if next(node.dependents) then
+			outbuf:append("\tstatic int _"..node.name.."_d = 0;\n")
+		end
+	end)
+	outbuf:append("\n")
 	-- Facet-aware test value: prefer a facet-satisfying sample so the value
 	-- passes the emitted validation; fall back to the type's random gen.
 	local function sampleFor(ti, facets)
@@ -86,9 +95,20 @@ public class RunTest {
 			}))
 		end
 		table.map(node.dependents, function(depName, dep)
-			outbuf:append(table.concat({
-				"\t\te.children().add(build_", dep.name, "());\n",
-			}))
+			if next(dep.dependents) then
+				-- recursion-capable child: guard with its re-entry counter
+				outbuf:append(table.concat({
+					"\t\tif (_", dep.name, "_d < 2) {\n",
+					"\t\t\t_", dep.name, "_d++;\n",
+					"\t\t\te.children().add(build_", dep.name, "());\n",
+					"\t\t\t_", dep.name, "_d--;\n",
+					"\t\t}\n",
+				}))
+			else
+				outbuf:append(table.concat({
+					"\t\te.children().add(build_", dep.name, "());\n",
+				}))
+			end
 		end)
 		outbuf:append("\t\treturn e;\n\t}\n\n")
 	end)

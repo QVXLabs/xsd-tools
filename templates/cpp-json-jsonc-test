@@ -118,36 +118,42 @@ int main() {
 ]
 
 	/* test marshalling */
-[@lua --output marshalling struct declrs
+[@lua --output marshalling start + statements
 	local outbuf = stringBuffer:new()
-	table.map(typeSansRoot, function(_,node)
-		if next(node.dependents) then
-			outbuf:append('\tjson_marshal_'..node.name..' '..node.name..';\n')
-		end
-	end)
-	return outbuf:str()
-][@lua -- output marshalling start
-	if next(schema.types[schema.root].dependents) then
-		return '\tjson_marshal_'..schema.root..' '..schema.root..' = json_marshal(mrshllr);\n'
+	local rootHasDeps = next(schema.types[schema.root].dependents)
+	-- the entry returns the document's callback struct (by value)
+	if rootHasDeps then
+		outbuf:append('\tjson_marshal_'..schema.root
+			..' ret0 = json_marshal(mrshllr);\n')
 	else
-		return '\tjson_marshal(mrshllr);\n'
+		outbuf:append('\tjson_marshal(mrshllr);\n')
 	end
-][@lua --output marshalling statements
-	local outbuf = stringBuffer:new()
-	local function marshalRec(parent, node)
-		if next(node.dependents) then
-			outbuf:append('\t'..node.name..' = '..parent..'.marshal_'..node.name..'(&mrshllr, &'..node.name..'Tst, '..parent..'.pSelf);\n')
-		else
-			outbuf:append('\t'..parent..'.marshal_'..node.name..'(&mrshllr, &'..node.name..'Tst, '..parent..'.pSelf);\n')
-		end
-		table.map(node.dependents, function(k, v)
-			if next(v.dependents) then
-				outbuf:append('\t'..node.name..'.marshal_'..k..'(&mrshllr, &'..k..'Tst, '..node.name..'.pSelf);\n')
+	-- Drive the fluent marshaller depth-first. A recursive type is its own
+	-- ancestor; cap re-entry at twice per active path so the self/mutual
+	-- recursion edge is exercised while the synthesised document stays finite.
+	local seqId = 0
+	local onPath = {}
+	local function marshalChildren(parentVar, node)
+		table.map(node.dependents, function(_, child)
+			if next(child.dependents) then
+				if (onPath[child.name] or 0) >= 2 then return end
+				onPath[child.name] = (onPath[child.name] or 0) + 1
+				seqId = seqId + 1
+				local v = 'ret'..seqId
+				outbuf:append('\tjson_marshal_'..child.name..' '..v..' = '
+					..parentVar..'.marshal_'..child.name
+					..'(&mrshllr, &'..child.name..'Tst, '..parentVar..'.pSelf);\n')
+				marshalChildren(v, child)
+				onPath[child.name] = onPath[child.name] - 1
+			else
+				outbuf:append('\t'..parentVar..'.marshal_'..child.name
+					..'(&mrshllr, &'..child.name..'Tst, '..parentVar..'.pSelf);\n')
 			end
 		end)
-		table.map(node.dependents, function(_,v) marshalRec(node.name, v) end)
 	end
-	table.map(schema.types[schema.root].dependents, function(_,v) marshalRec(schema.root, v) end)
+	if rootHasDeps then
+		marshalChildren('ret0', schema.types[schema.root])
+	end
 	return outbuf:str()
 ]	json_buffer output = json_marshal_flush(mrshllr, true);
 

@@ -125,10 +125,19 @@ const json_[@lua return schemaName]_factories* json_[@lua return schemaName]_def
 	local outbuf = stringBuffer:new()
 	local isNotLeaf = (function(k,v) return next(v.dependents) and v or nil end)
 	local isLeaf    = (function(k, v) return (not next(v.dependents)) and v or nil end)
+	local nonLeaf   = table.filter(depOrder, isNotLeaf)
+	-- forward-declare every callback struct (tagged) so a member may reference
+	-- any other -- or its own -- struct before it is defined; this is what lets
+	-- a recursive type's struct hold a marshaller returning that same struct.
+	table.map(nonLeaf, function(_, node)
+		outbuf:append('typedef struct json_marshal_'..node.name
+			..' json_marshal_'..node.name..';\n')
+	end)
+	outbuf:append('\n')
 	-- pSelf is this element's json_object; callers pass it as the parent when
 	-- marshalling its children, so the parent is threaded explicitly.
-	table.map(table.filter(depOrder, isNotLeaf), function(k, node)
-		outbuf:append('typedef struct {\n')
+	table.map(nonLeaf, function(k, node)
+		outbuf:append('struct json_marshal_'..node.name..' {\n')
 		outbuf:append('\tstruct json_object* pSelf;\n')
 		table.map(table.filter(node.dependents, isLeaf), function(_, node)
 			outbuf:append(string.format(
@@ -137,6 +146,8 @@ const json_[@lua return schemaName]_factories* json_[@lua return schemaName]_def
 				node.name
 			))
 		end)
+		-- non-leaf children return their own callback struct by value; the
+		-- forward-declared tag above makes a cyclic return type legal.
 		table.map(table.filter(node.dependents, isNotLeaf), function(_, node)
 			outbuf:append(string.format(
 				'\tjson_marshal_%s (*marshal_%s)(json_marshaller* pMarshaller, const json_%s* pObj, struct json_object* pParent);\n',
@@ -145,7 +156,7 @@ const json_[@lua return schemaName]_factories* json_[@lua return schemaName]_def
 				node.name
 			))
 		end)
-		outbuf:append('} json_marshal_'..node.name..';\n\n')
+		outbuf:append('};\n\n')
 	end)
 	return outbuf:str()
 ][@lua
@@ -241,6 +252,11 @@ static inline void buffer_append_(json_marshaller* pMarshaller, json_buffer* pBu
 			'\tstruct json_object* pJson = json_object_new_object();\n',
 			'\tJSON_UNUSED_ARG(pMarshaller);\n',
 		}))
+		-- pure-container elements (only child elements, no scalar fields) never
+		-- read pObj here
+		if not (next(node.attributes) or next(node.content)) then
+			outbuf:append('\tJSON_UNUSED_ARG(pObj);\n')
+		end
 		table.map(node.attributes, function(k, v)
 			local attribType = c_narrowCType(v.type, v.facets)
 			outbuf:append(table.concat({
@@ -259,6 +275,17 @@ static inline void buffer_append_(json_marshaller* pMarshaller, json_buffer* pBu
 ]
 [@lua --output marshal functions (attach element json under its parent)
 	local outbuf = stringBuffer:new()
+	-- forward-declare every marshal function: a node's retFuncs wires its
+	-- children's functions, and a cyclic edge references one defined later.
+	table.map(depOrderSansRoot, function(_, node)
+		outbuf:append(string.format(
+			'static %s marshal_%s_(json_marshaller* pMarshaller, const json_%s* pObj, struct json_object* pParent);\n',
+			(not next(node.dependents)) and 'void' or 'json_marshal_'..node.name,
+			node.name,
+			node.name
+		))
+	end)
+	outbuf:append('\n')
 	table.map(depOrderSansRoot, function(k, node)
 		local fncHdrFmt = 'static %s marshal_%s_(json_marshaller* pMarshaller, const json_%s* pObj, struct json_object* pParent) {\n'
 		outbuf:append(fncHdrFmt:format(

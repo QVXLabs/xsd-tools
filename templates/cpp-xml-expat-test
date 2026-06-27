@@ -90,11 +90,23 @@ public:
 int main() try {
 	Checker m;
 	m.marshalBegin();
-[@lua -- marshal each element following the dependency tree, parent before child
+[@lua -- marshal each element depth-first, parent before child. A recursive type
+	-- is its own ancestor; cap re-entry at twice per active path so the
+	-- self/mutual recursion edge is exercised while the document stays finite.
 	local outbuf = stringBuffer:new()
+	local onPath = {}
 	local function marshalRec(node)
 		outbuf:append('\tm.marshal_'..node.name..'(make_'..node.name..'());\n')
-		table.map(node.dependents, function(_, v) marshalRec(v) end)
+		table.map(node.dependents, function(_, child)
+			if next(child.dependents) then
+				if (onPath[child.name] or 0) >= 2 then return end
+				onPath[child.name] = (onPath[child.name] or 0) + 1
+				marshalRec(child)
+				onPath[child.name] = onPath[child.name] - 1
+			else
+				marshalRec(child)
+			end
+		end)
 	end
 	table.map(schema.types[schema.root].dependents,
 		function(_, v) marshalRec(v) end)

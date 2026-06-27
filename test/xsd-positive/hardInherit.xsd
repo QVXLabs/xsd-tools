@@ -1,0 +1,43 @@
+<?xml version="1.0"?>
+<schema>
+	<!-- 3-level complexContent extension chain + abstract head with a
+	     substitutionGroup of concrete members -->
+	<complexType name="shape" abstract="true">
+		<sequence>
+			<element name="id" type="string"/>
+		</sequence>
+	</complexType>
+
+	<complexType name="positioned">
+		<complexContent>
+			<extension base="shape">
+				<sequence>
+					<element name="x" type="int"/>
+					<element name="y" type="int"/>
+				</sequence>
+			</extension>
+		</complexContent>
+	</complexType>
+
+	<complexType name="circle">
+		<complexContent>
+			<extension base="positioned">
+				<sequence>
+					<element name="radius" type="int"/>
+				</sequence>
+			</extension>
+		</complexContent>
+	</complexType>
+
+	<element name="shapeElem" type="shape" abstract="true"/>
+	<element name="circleElem" type="circle"
+	         substitutionGroup="shapeElem"/>
+
+	<element name="drawing">
+		<complexType>
+			<sequence>
+				<element ref="shapeElem" maxOccurs="unbounded"/>
+			</sequence>
+		</complexType>
+	</element>
+</schema>

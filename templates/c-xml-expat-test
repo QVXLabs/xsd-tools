@@ -112,48 +112,42 @@ int main(void) {
 ]
 	};
 	/* test marshalling */
-[@lua --output marshalling struct declrs
+[@lua --output marshalling statements
 	local outbuf = stringBuffer:new()
-	table.map(typeSansRoot, function(_,node)
-		if next(node.dependents) then
-			outbuf:append(table.concat({
-				"\txml_marshal_", node.name, " ", node.name, ";\n",
-			}))
-		end
-	end)
-	return outbuf:str()
-][@lua -- output marshalling start
-	if next(schema.types[schema.root].dependents) then
-		return table.concat({
-			'\txml_marshal_', schema.root, ' ', schema.root, ' = xml_marshal(&mrshllr);\n'
-		})
+	local rootHasDeps = next(schema.types[schema.root].dependents)
+	-- the entry returns the document's callback struct (now a pointer)
+	if rootHasDeps then
+		outbuf:append('\tconst xml_marshal_'..schema.root
+			..'* ret0 = xml_marshal(&mrshllr);\n')
 	else
-		return table.concat({
-			'\txml_marshal(&mrshllr);\n'
-		})
+		outbuf:append('\txml_marshal(&mrshllr);\n')
 	end
-][@lua --output marshalling statments
-	local outbuf = stringBuffer:new()
-	local function marshalRec(parent, node)
-		if next(node.dependents) then
-			outbuf:append(table.concat({
-				"\t", node.name, " = ", parent, ".marshal_", node.name, "(&mrshllr, &", node.name, "Tst);\n"
-			}))
-		else
-			outbuf:append(table.concat({
-				"\t", parent, ".marshal_", node.name, "(&mrshllr, &", node.name, "Tst);\n"
-			}))
-		end
-		table.map(node.dependents, function(k, v)
-			if next(v.dependents) then
-				outbuf:append(table.concat({
-					"\t", node.name, ".marshal_",k,"(&mrshllr, &", k, "Tst);\n"
-				}))
+	-- Drive the fluent marshaller depth-first. A recursive type is its own
+	-- ancestor; cap re-entry at twice per active path so the self/mutual
+	-- recursion edge is exercised while the synthesised document stays finite.
+	local seqId = 0
+	local onPath = {}
+	local function marshalChildren(parentVar, node)
+		table.map(node.dependents, function(_, child)
+			if next(child.dependents) then
+				if (onPath[child.name] or 0) >= 2 then return end
+				onPath[child.name] = (onPath[child.name] or 0) + 1
+				seqId = seqId + 1
+				local v = 'ret'..seqId
+				outbuf:append('\tconst xml_marshal_'..child.name..'* '..v..' = '
+					..parentVar..'->marshal_'..child.name
+					..'(&mrshllr, &'..child.name..'Tst);\n')
+				marshalChildren(v, child)
+				onPath[child.name] = onPath[child.name] - 1
+			else
+				outbuf:append('\t'..parentVar..'->marshal_'..child.name
+					..'(&mrshllr, &'..child.name..'Tst);\n')
 			end
 		end)
-	table.map(node.dependents, function(_,v) marshalRec(node.name,v) end)
 	end
-	table.map(schema.types[schema.root].dependents, function(_,v) marshalRec(schema.root, v) end)
+	if rootHasDeps then
+		marshalChildren('ret0', schema.types[schema.root])
+	end
 	return outbuf:str()
 ]	output = xml_marshal_flush(&mrshllr, 1);
 	/* test unmarshalling */

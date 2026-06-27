@@ -259,33 +259,42 @@ typedef struct xml_marshaller {
 	-- function for finding leaf nodes
 	local isNotLeaf = (function(k,v) return next(v.dependents) and v or nil end)
 	local isLeaf    = (function(k, v) return (not next(v.dependents)) and v or nil end)
-	-- output code for all non-leaf functions
-	table.map(table.filter(depOrder, isNotLeaf), function(k, node)
-		outbuf:append('typedef struct {\n')
-		-- find all child leaf nodes and output them
-		table.map(table.filter(node.dependents, isLeaf), function(_, node)
+	local nonLeaf   = table.filter(depOrder, isNotLeaf)
+	-- forward-declare every callback struct so a member may reference any other
+	-- (or its own) struct by pointer before it is defined; this is what lets a
+	-- recursive type's struct hold a marshaller returning that same struct.
+	table.map(nonLeaf, function(_, node)
+		outbuf:append('typedef struct xml_marshal_'..node.name
+			..' xml_marshal_'..node.name..';\n')
+	end)
+	outbuf:append('\n')
+	table.map(nonLeaf, function(k, node)
+		outbuf:append('struct xml_marshal_'..node.name..' {\n')
+		-- leaf children marshal in one void call
+		table.map(table.filter(node.dependents, isLeaf), function(_, child)
 			outbuf:append(string.format(
 				'\tvoid (*marshal_%s)(xml_marshaller* pMarshaller, const xml_%s* pObj);\n',
-				node.name,
-				node.name
+				child.name,
+				child.name
 			))
 		end)
-		-- find all child  non leaf nodes and output them
-		table.map(table.filter(node.dependents, isNotLeaf), function(_, node)
+		-- non-leaf children return a pointer to their own (static) callback
+		-- struct, so the return type need only be forward-declared -> cycles ok
+		table.map(table.filter(node.dependents, isNotLeaf), function(_, child)
 			outbuf:append(string.format(
-				'\txml_marshal_%s (*marshal_%s)(xml_marshaller* pMarshaller, const xml_%s* pObj);\n',
-				node.name,
-				node.name,
-				node.name
+				'\tconst xml_marshal_%s* (*marshal_%s)(xml_marshaller* pMarshaller, const xml_%s* pObj);\n',
+				child.name,
+				child.name,
+				child.name
 			))
 		end)
-		outbuf:append('} xml_marshal_'..node.name..';\n\n')
+		outbuf:append('};\n\n')
 	end)
 	return outbuf:str()
 ][@lua
 	if next(schema.types[schema.root].dependents) then
 		return table.concat({
-			'xml_marshal_', schema.root,' xml_marshal(xml_marshaller* pMarshaller);\n',
+			'const xml_marshal_', schema.root,'* xml_marshal(xml_marshaller* pMarshaller);\n',
 		})
 	else
 		return 'void xml_marshal(xml_marshaller* pMarshaller);\n'
@@ -497,94 +506,108 @@ marshal_adjustElmStk_(xml_marshaller* pMarshaller, uint32_t validType) {
 ]
 
 [@lua --output marshalling functions
+	-- One marshal function is specialised per (parent -> child) edge of the
+	-- dependents graph, not per node. A node reachable from more than one
+	-- parent -- in particular a recursive node, which is its own ancestor --
+	-- must close the open-tag stack down to whichever element actually
+	-- encloses it at this call site; baking the parent's hash into a
+	-- per-edge function is what carries that context (a single per-node
+	-- function could only know one parent and would mis-nest the others).
 	local outbuf = stringBuffer:new()
-	table.map(depOrderSansRoot, function(k, node)
-		-- output function header
-		local fncHdrFmt = 'static %s\nmarshal_%s_(xml_marshaller* pMarshaller, const xml_%s* pObj) {\n'
-		outbuf:append(fncHdrFmt:format(
-			(not next(node.dependents)) and 'void' or 'xml_marshal_'..node.name,
-			node.name,
-			node.name
-		))
-		-- output some variable declerations
-		outbuf:append(table.concat({
-			'\txml_cstr* pOutStr = &pMarshaller->mrshllBuf_;\n',
-			'\tconst xml_mrshllElmRec elemRec = {',hashU(node.name),'};\n',
-		}))
-		-- output return struct if element had dependents
-		if next(node.dependents) then
-			local depFncLst = table.filter(node.dependents, function(k,v) 
-				return table.concat({
-					'.marshal_', k, ' = ', 'marshal_', k, '_'
-				})
-			end)
-			outbuf:append(table.concat({
-				'\tstatic const xml_marshal_',node.name,' retFuncs = {',table.concat(depFncLst,', '),'};\n',
-			}))
-		end
-		-- find parent node of this node
-		local function findParent(root, key)
-			local _, dep = next(root.dependents, key)
-			if not dep or dep == node then
-				return dep == node and root or dep
-			else
-				return findParent(dep) or findParent(root, dep.name)
-			end
-		end
-		local parent = findParent(schema.types[schema.root])
-		-- output stack adjustment code to make sure the proper element type is being marshalled
-		local stkfmt = '\tif (!marshal_adjustElmStk_(pMarshaller, %s)) return%s;\n'
-		outbuf:append(stkfmt:format(hashU(parent.name), next(node.dependents) and ' retFuncs' or ''))
-		-- output start tag. Constant fragments fold into one literal append
-		-- per side of each marshalled value: the open tag merges with the
-		-- first attribute name, each closing quote merges with the next
-		-- attribute name (or the final '>'). The document-root tag carries
-		-- the xmlns declaration, emitted only when the schema has a target
-		-- namespace.
+	local function isLeaf(node) return not next(node.dependents) end
+	local function retType(node)
+		return isLeaf(node) and 'void' or ('const xml_marshal_'..node.name..'*')
+	end
+	local function edgeFn(parent, child)
+		return 'marshal_'..child.name..'__'..parent.name..'_'
+	end
+	-- open tag + attributes + content + stack push for `node`; identical for
+	-- every edge that targets `node`, so emitted once per edge body
+	local function emitBody(node)
+		local buf = stringBuffer:new()
+		-- Constant fragments fold into one literal append per side of each
+		-- marshalled value: the open tag merges with the first attribute name,
+		-- each closing quote merges with the next attribute name (or the final
+		-- '>'). The document-root tag carries the xmlns declaration, emitted
+		-- only when the schema has a target namespace.
 		local openTag = '<'..nsQualify(node.name)
 			..((node.name == docRootName) and nsRootDecl() or '')
 		local pending = openTag
 		table.map(node.attributes, function(k,v)
 			local attribType = c_narrowCType(v.type, v.facets)
 			pending = pending..' '..nsQualify(k)..'="'
-			outbuf:append(table.concat({
+			buf:append(table.concat({
 				'\tcstr_appendN_(pMarshaller, pOutStr, ', cLit(pending), ');\n',
 				'\t', attribType.binding.marshal.statement('pOutStr', attribType.buildVar('pObj->',k)),
 			}))
 			pending = '"'
 		end)
-		outbuf:append(table.concat({
+		buf:append(table.concat({
 			'\tcstr_appendN_(pMarshaller, pOutStr, ', cLit(pending..'>'), ');\n',
 		}))
-		-- output content
 		if next(node.content) then
 			local contentType = c_narrowCType(node.content.type, node.content.facets)
-			outbuf:append(table.concat({
+			buf:append(table.concat({
 				'\t', contentType.binding.marshal.statement('pOutStr', contentType.buildVar('pObj->','Content'))
 			}))
 		end
-		-- output function end code
-		outbuf:append('\tmrshllElmStack_push_(pMarshaller, &pMarshaller->mrshllElmStk_, elemRec);\n')
-		-- output extra function end code if element has dependents
-		if next(node.dependents) then
-			outbuf:append('\treturn retFuncs;\n')
+		buf:append('\tmrshllElmStack_push_(pMarshaller, &pMarshaller->mrshllElmStk_, elemRec);\n')
+		return buf:str()
+	end
+	-- collect every (parent, child) edge; depOrder includes the schema root,
+	-- whose sole child is the document element
+	local nonLeaf = table.filter(depOrder, function(k,v) return next(v.dependents) and v or nil end)
+	local edges = {}
+	table.map(nonLeaf, function(_, parent)
+		table.map(parent.dependents, function(_, child)
+			edges[#edges+1] = { parent = parent, child = child }
+		end)
+	end)
+	-- forward-declare every edge function (the callback structs below take
+	-- their addresses)
+	table.map(edges, function(_, e)
+		outbuf:append(table.concat({
+			'static ', retType(e.child), '\n', edgeFn(e.parent, e.child),
+			'(xml_marshaller* pMarshaller, const xml_', e.child.name, '* pObj);\n',
+		}))
+	end)
+	outbuf:append('\n')
+	-- one static callback struct per non-leaf node, wiring each child to the
+	-- edge function for (this node -> child)
+	table.map(nonLeaf, function(_, node)
+		local wiring = table.filter(node.dependents, function(childName, child)
+			return '.marshal_'..childName..' = '..edgeFn(node, child)
+		end)
+		outbuf:append(table.concat({
+			'static const xml_marshal_', node.name, ' xml_retFuncs_', node.name,
+			' = {', table.concat(wiring, ', '), '};\n',
+		}))
+	end)
+	outbuf:append('\n')
+	-- edge function definitions
+	table.map(edges, function(_, e)
+		local child, parent = e.child, e.parent
+		local retVal = isLeaf(child) and '' or (' &xml_retFuncs_'..child.name)
+		outbuf:append(table.concat({
+			'static ', retType(child), '\n', edgeFn(parent, child),
+			'(xml_marshaller* pMarshaller, const xml_', child.name, '* pObj) {\n',
+			'\txml_cstr* pOutStr = &pMarshaller->mrshllBuf_;\n',
+			'\tconst xml_mrshllElmRec elemRec = {', hashU(child.name), '};\n',
+			'\tif (!marshal_adjustElmStk_(pMarshaller, ', hashU(parent.name), ')) return', retVal, ';\n',
+			emitBody(child),
+		}))
+		if not isLeaf(child) then
+			outbuf:append('\treturn &xml_retFuncs_'..child.name..';\n')
 		end
 		outbuf:append('}\n')
 	end)
 	return outbuf:str()
 ]
-[@lua -- output fist part of marshal function
+[@lua -- output the marshal entry function
 	if next(schema.types[schema.root].dependents) then
-		local depFncLst = table.filter(schema.types[schema.root].dependents, function(k,v) 
-			return table.concat({
-				'.marshal_', k, ' = ', 'marshal_', k, '_'
-			})
-		end)
-		depFncLst =  table.concat(depFncLst,', ')
 		return table.concat({
-			'xml_marshal_', schema.root,'\nxml_marshal(xml_marshaller* pMarshaller) {\n',
+			'const xml_marshal_', schema.root,'*\nxml_marshal(xml_marshaller* pMarshaller) {\n',
 			'\tconst xml_mrshllElmRec elemRec = {', hashU(schema.root), '};\n',
-			'\txml_marshal_', schema.root, '  retFuncs= {', depFncLst, '};\n',
 		})
 	else
 		return table.concat({
@@ -597,7 +620,7 @@ marshal_adjustElmStk_(xml_marshaller* pMarshaller, uint32_t validType) {
 	cstr_init_(pMarshaller, &pMarshaller->mrshllBuf_);
 	mrshllElmStack_push_(pMarshaller, &pMarshaller->mrshllElmStk_, elemRec);
 	cstr_appendN_(pMarshaller, pOutStr, "<?xml version=\"1.0\" encoding=\"UTF-8\"?>", 38);
-[@lua if next(schema.types[schema.root].dependents) then return "\treturn retFuncs;" end]
+[@lua if next(schema.types[schema.root].dependents) then return "\treturn &xml_retFuncs_"..schema.root..";" end]
 }
 
 xml_buffer

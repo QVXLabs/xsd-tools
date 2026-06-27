@@ -58,6 +58,7 @@ import [@lua return schemaName]
 test = [
 [@lua --output each test xml file
 	local outbuf = stringBuffer:new()
+	local onPath = {}
 	local function dpOutput(_, node)
 		-- E3c: match the binding's wire form (prefix when qualified, xmlns on
 		-- the document root).
@@ -71,8 +72,20 @@ test = [
 		if next(node.content) then
 			outbuf:append(py_type_info[node.content.type].test.assign(node.content.facets))
 		end
+		-- A recursive type is its own descendant; cap re-entry at twice per
+		-- active path so the synthesised document stays finite while still
+		-- exercising the self/mutual recursion edge.
 		if next(node.dependents) then
-			table.map(node.dependents, dpOutput)
+			table.map(node.dependents, function(name, child)
+				if next(child.dependents) then
+					if (onPath[child.name] or 0) >= 2 then return end
+					onPath[child.name] = (onPath[child.name] or 0) + 1
+					dpOutput(name, child)
+					onPath[child.name] = onPath[child.name] - 1
+				else
+					dpOutput(name, child)
+				end
+			end)
 		end
 		outbuf:append(table.concat({'</', py_nsTag(node.name), '>'}))
 	end

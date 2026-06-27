@@ -15,7 +15,28 @@
 		['private']=true, ['protected']=true, ['public']=true, ['static']=true,
 		['yield']=true,
 	}
+	-- Predefined type names: legal identifiers, but a class named after one
+	-- shadows the primitive it would otherwise denote (a field `x: number` in
+	-- `class number` resolves to the class, not the builtin) and TS rejects the
+	-- declaration outright (TS2414).
+	local tsPredefinedType = {
+		['any']=true, ['unknown']=true, ['never']=true, ['object']=true,
+		['boolean']=true, ['number']=true, ['bigint']=true, ['string']=true,
+		['symbol']=true, ['undefined']=true,
+	}
+	-- Module/class names this target emits itself. A schema element whose name
+	-- matches one (even only by case) would write a second file colliding with
+	-- the framework's under forceConsistentCasingInFileNames, so compare
+	-- case-insensitively.
+	local tsFramework = {
+		['element']=true, ['factory']=true, ['document']=true,
+		['fxpnode']=true, ['index']=true,
+	}
 	function tsSafeName(name)
-		return tsReserved[name] and (name .. "_") or name
+		if tsReserved[name] or tsPredefinedType[name]
+			or tsFramework[string.lower(name)] then
+			return name .. "_"
+		end
+		return name
 	end
 ]

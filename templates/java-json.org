@@ -11,6 +11,31 @@
   include 'includes/java-json.org/json-transform.lua'
   include 'includes/java-json.org/parse.lua'
   schema = JSONTransform(schema)
+  -- The C++ model terminates a recursive element with an empty-content stub
+  -- carrying `typeref` (the element it loops back to). JSONTransform mints a
+  -- phantom, never-emitted class for it; redirect the field onto the
+  -- already-emitted ancestor class so the binding is self/mutually
+  -- referential (Java reference types make the cycle legal) and compiles.
+  local function redirectTypeRefs(node)
+     if type(node) ~= 'table' or not node.fields then return end
+     local moves = {}
+     for tag, classTbl in pairs(node.fields) do
+        local _, td = next(classTbl)
+        if type(td) == 'table' and td.typeref then
+           local base = td.typeref:gsub('[^%w]', '_'):gsub('^%l', string.upper)
+           local cls = (td.maxOccurs ~= 1) and ('list('..base..')') or base
+           moves[#moves + 1] = { old = tag, tag = td.typeref, cls = cls, td = td }
+        else
+           redirectTypeRefs(td)
+        end
+     end
+     for i = 1, #moves do
+        local m = moves[i]
+        node.fields[m.old] = nil
+        node.fields[m.tag] = { [m.cls] = m.td }
+     end
+  end
+  redirectTypeRefs({ fields = schema })
   _objAdapterUse, _arrAdapterUse = collectAdapterUsage(schema, _effectiveType)
 ]
 /* command to split output: csplit - '/\/\* FILE: /' {*} */
