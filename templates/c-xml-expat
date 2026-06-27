@@ -706,21 +706,22 @@ static void prsElmRec_destory_(xml_prsElmRec* pElmRec, xml_marshaller* pMarshall
 	table.map(depOrderByHash, function(_, node)
 		-- output case statement for element
 		outbuf:append(table.concat({'\t\tcase ', hashU(node.name), ':\n',}))
-		-- output destructor for each attribute
+		-- output destructor for each attribute (3-tab indent under the case;
+		-- scalar delete.statement is empty, so skip its indentation entirely)
 		local elm = 'pElmRec->element_.'..node.name..'_'
 		local objName = elm..'.'
 		table.map(node.attributes, function(name, attrib)
 			local attribType = c_narrowCType(attrib.type, attrib.facets)
-			outbuf:append(table.concat({
-				'\t', attribType.delete.statement(attribType.buildVar(objName, name))
-			}))
+			local stmt = attribType.delete.statement(
+				attribType.buildVar(objName, name))
+			if stmt ~= '' then outbuf:append('\t\t\t'..stmt) end
 		end)
 		-- output destructor for content
 		if next(node.content) then
 			local contentType = c_narrowCType(node.content.type, node.content.facets)
-			outbuf:append(table.concat({
-				'\t\t\t', contentType.delete.statement(contentType.buildVar(objName, "Content"))
-			}))
+			local stmt = contentType.delete.statement(
+				contentType.buildVar(objName, "Content"))
+			if stmt ~= '' then outbuf:append('\t\t\t'..stmt) end
 		end
 		-- route element-level teardown through the factory (no-op by default)
 		outbuf:append(table.concat({
