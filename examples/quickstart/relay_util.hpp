@@ -11,6 +11,7 @@
 #include <string>
 #include <vector>
 #include <memory>
+#include <stdexcept>
 #include "xml_message.hpp"
 
 class MessageCapture : public xml::Marshaller {
@@ -44,6 +45,10 @@ private:
 inline std::string appendHopAndMarshal(const MessageCapture& cap,
                                        const std::string& endpointName,
                                        const std::string& langName) {
+	// header is optional in the capture (unique_ptr); a well-formed message
+	// always has one, so a missing header is malformed input -> throw, not deref.
+	if (!cap.header_)
+		throw std::runtime_error("message has no <header>");
 	xml::Marshaller out;
 	out.marshalBegin();
 	out.marshal_message(xml::message{});

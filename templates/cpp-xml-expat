@@ -69,15 +69,23 @@
 		return (a.use == nil or a.use == 'optional')
 			and not a.default and not a.fixed
 	end
-	-- ordered attribute descriptors for a node: {name, ctype, nullable, a}.
-	-- pairs() order is stable per run, so every site (class, ctor, factory,
-	-- onStart) builds matching param/arg lists.
+	-- attribute descriptors for a node: {name, ctype, nullable, a}, sorted by
+	-- name. The sort makes the ctor/factory/unmarshal param+arg order
+	-- deterministic across every emission site and across separate generation
+	-- runs (the -test driver builds its value-ctor call by the same name sort),
+	-- rather than relying on pairs() hash order.
 	function nodeAttrs(node)
+		local names = {}
+		table.map(node.attributes, function(name, _)
+			names[#names + 1] = name
+		end)
+		table.sort(names)
 		local out = {}
-		table.map(node.attributes, function(name, a)
+		for i = 1, #names do
+			local name, a = names[i], node.attributes[names[i]]
 			out[#out + 1] = {name = name, ctype = cpp_narrowCType(a.type,
 				a.facets).cppType(), nullable = attrNullable(a), a = a}
-		end)
+		end
 		return out
 	end
 	-- ctor/factory parameter type for an attribute descriptor

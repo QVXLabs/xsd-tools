@@ -24,16 +24,23 @@ using namespace xml;
 [@lua
 	local outbuf = stringBuffer:new()
 	table.map(typeSansRoot, function(_, node)
-		-- attributes are const, so construct via the value ctor (param order =
-		-- attribute order); content is mutable and assigned after.
+		-- attributes are const, so construct via the value ctor; the binding
+		-- template orders ctor params by sorted attribute name, so sort here too
+		-- to keep the positional call in agreement. content is assigned after.
+		local names = {}
+		table.map(node.attributes, function(name, _)
+			names[#names + 1] = name
+		end)
+		table.sort(names)
 		local args = {}
-		table.map(node.attributes, function(name, a)
+		for i = 1, #names do
+			local a = node.attributes[names[i]]
 			local ct = cpp_narrowCType(a.type, a.facets)
 			args[#args + 1] = attrNullable(a)
 				and ('std::unique_ptr<'..ct.cppType()..'>(new '..ct.cppType()
 					..'('..ct.test.assign(a.facets)..'))')
 				or ct.test.assign(a.facets)
-		end)
+		end
 		outbuf:append('static '..node.name..'\nmake_'..node.name..'() {\n')
 		if #args > 0 then
 			outbuf:append('\t'..node.name..' o('..table.concat(args, ', ')
