@@ -90,3 +90,29 @@ Multi-file output uses `/* FILE: name */` markers.
   (lua/tinyxml/json-c via the `fetch_third_party()` helper) or submodule
   (boost/expat/gtest). The bundled Lua is LNUM-patched 5.1.5 and its `luac` must
   match the linked `liblua` (force the bundled path in CI).
+
+## Release process
+
+The base version is **`VERSION.txt`** (single source of truth).
+`cmake/Version.cmake` reads it for `project(VERSION ...)` and stamps
+`src/version.h`; git decorates non-release dev builds with a suffix. The
+`release` workflow (`.github/workflows/release.yml`) fires when a GitHub
+Release is **published**, takes the version from the release **tag** (leading
+`v` stripped), builds the `.deb`/`.rpm` (CPack, via `pkg/build-packages.sh`)
+and `.flatpak` (`pkg/flatpak/build-flatpak.sh`), and attaches them to the
+release.
+
+To cut release `X.Y.Z`:
+1. **Bump the version** — set `VERSION.txt` to `X.Y.Z`.
+2. **Update docs** — rename the CHANGELOG `## [Unreleased]` block to
+   `## [X.Y.Z] - YYYY-MM-DD` (add a fresh empty `[Unreleased]` above it) and fix
+   the compare links at the file's bottom. The README uses `<ver>` placeholders,
+   so it needs no per-version edit. Open a PR and merge to `master`.
+3. **Tag & release** — after merge, publish a GitHub Release on `master` with
+   tag `vX.Y.Z` (must match `VERSION.txt`, so the stamped binary version and the
+   package filenames agree). Publishing triggers the `release` workflow.
+4. **Verify** — confirm the workflow's `deb-rpm` and `flatpak` jobs ran and the
+   artifacts are attached to the release.
+
+`workflow_dispatch` on the release workflow is a dry run: packages upload as
+workflow artifacts instead of attaching to a release.
