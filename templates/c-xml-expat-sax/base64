@@ -42,19 +42,21 @@
 			marshal = {
 				definition = function() 
 					return table.concat({
+						-- Adapter so libb64 2.1 routes its output allocation
+						-- through the marshaller. Emitted once (base64 type is
+						-- defined once); reused by unmarshal.
+						'static void* xmlbase64_realloc_(void* ctx, void* ptr, size_t size, b64_memlife life) {\n',
+						'\txml_marshaller* pMarshaller = (xml_marshaller*)ctx;\n',
+						'\t(void)life;\n',
+						'\treturn pMarshaller->realloc(pMarshaller, ptr, size);\n',
+						'}\n',
 						'static void\nmarshal_xmlbase64_(xml_marshaller* pMarshaller, xml_buffer* pOutBuffer, const xml_base64* pObj) {\n',
-						'\tbase64_encodestate base64Encoder;\n',
-						'\tconst size_t srcSz = pObj->size_;\n',
-						'\t/* size calc from http://www.obviex.com/Articles/CiphertextSize.aspx, +2 for /n and null termination */\n',
-						'\tconst size_t b64Sz = ((srcSz + 2 - ((srcSz + 2) % 3)) / 3 * 4) + 2;\n',
-						'\tsize_t encodedCnt = 0;\n',
-						'\tchar* outStr = pMarshaller->realloc(pMarshaller, NULL, b64Sz);\n',
-						'\tmemset(outStr, 0, b64Sz);\n',
-						'\tbase64_init_encodestate(&base64Encoder);\n',
-						'\tencodedCnt = base64_encode_block((const char*)pObj->pBuffer_, srcSz, outStr, &base64Encoder);\n',
-						'\tbase64_encode_blockend(outStr + encodedCnt, &base64Encoder);\n',
+						'\tb64_allocator b64Alloc = base64_allocator(xmlbase64_realloc_, pMarshaller);\n',
+						'\tchar* outStr = NULL;\n',
+						'\tsize_t outLen = 0;\n',
+						'\tbase64_encode_alloc(&b64Alloc, pObj->pBuffer_, pObj->size_, &outStr, &outLen);\n',
 						'\tcstr_append_(pMarshaller, pOutBuffer, outStr);\n',
-						'\toutStr = pMarshaller->realloc(pMarshaller, outStr, 0);\n',
+						'\tbase64_free(&b64Alloc, outStr);\n',
 						'}\n',
 					})
 				end,
@@ -68,14 +70,12 @@
 				definition = function() 
 					return table.concat({
 						'static void\nunmarshal_xmlbase64_(xml_marshaller* pMarshaller, const char* pContent, xml_base64* pObj) {\n',
-						'\tbase64_decodestate base64Decoder;\n',
-						'\tconst size_t srcLen = strlen(pContent);\n',
-						'\tconst size_t dataSz = ((srcLen * 3) / 4) + 1;\n',
-						'\tpObj->pBuffer_ =  pMarshaller->realloc(pMarshaller, NULL, dataSz);\n',
-						'\tmemset(pObj->pBuffer_, 0, dataSz);\n',
-						'\tbase64_init_decodestate(&base64Decoder);\n',
-						'\tbase64_decode_block(pContent, srcLen, (char*)pObj->pBuffer_, &base64Decoder);\n',
-						'\tpObj->size_ = strlen((const char*)pObj->pBuffer_);\n',
+						'\tb64_allocator b64Alloc = base64_allocator(xmlbase64_realloc_, pMarshaller);\n',
+						'\tvoid* pData = NULL;\n',
+						'\tsize_t outLen = 0;\n',
+						'\tbase64_decode_alloc(&b64Alloc, pContent, strlen(pContent), &pData, &outLen);\n',
+						'\tpObj->pBuffer_ = (uint8_t*)pData;\n',
+						'\tpObj->size_ = (uint32_t)outLen;\n',
 						'}\n',
 					})
 				end,

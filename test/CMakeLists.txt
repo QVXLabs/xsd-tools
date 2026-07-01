@@ -89,11 +89,15 @@ set(XSDPARSE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/xsdparse")
 set(TEMPLATES_DIR "${CMAKE_SOURCE_DIR}/templates")
 
 # -- libb64 (used by the C round-trip's generated code) --
-add_library(b64 STATIC
-  "${CMAKE_CURRENT_SOURCE_DIR}/libb64/src/cdecode.c"
-  "${CMAKE_CURRENT_SOURCE_DIR}/libb64/src/cencode.c")
-target_include_directories(b64 PUBLIC
-  "${CMAKE_CURRENT_SOURCE_DIR}/libb64/include")
+# Build via libb64's own CMake: 2.1.0 split encode/decode across SIMD TUs and
+# needs the generated b64/version.h, so the old two-file build no longer links.
+# EXCLUDE_FROM_ALL keeps libb64's CLI/examples/install rules out of this build.
+# The b64 target's PUBLIC includes cover both the source headers and the
+# generated version.h; join them with '|' for includeFlags() in
+# roundtrip_util.cpp, which compiles the generated C against libb64.
+add_subdirectory(libb64 EXCLUDE_FROM_ALL)
+get_target_property(_libb64_incs b64 INTERFACE_INCLUDE_DIRECTORIES)
+string(REPLACE ";" "|" LIBB64_INCLUDE_DIR_VAL "${_libb64_incs}")
 
 # -- Expat include/link flags for the popen-driven C compile --
 set(EXPAT_EXTRA_DEP "")
@@ -193,7 +197,7 @@ target_compile_definitions(xsdb-test PRIVATE
   XSDPARSE_DIR="${XSDPARSE_DIR}"
   C_COMPILER="${CMAKE_C_COMPILER}"
   CXX_COMPILER="${CMAKE_CXX_COMPILER}"
-  LIBB64_INCLUDE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/libb64/include"
+  LIBB64_INCLUDE_DIR="${LIBB64_INCLUDE_DIR_VAL}"
   LIBB64_ARCHIVE="$<TARGET_FILE:b64>"
   EXPAT_INCLUDE_DIR="${EXPAT_INCLUDE_DIR_VAL}"
   EXPAT_LINK="${EXPAT_LINK_VAL}"

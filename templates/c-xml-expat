@@ -314,6 +314,7 @@ void xml_unmarshal(xml_marshaller* pMarshaller, const xml_buffer* pBuf, int isDo
 		return table.concat({
 			'#include "b64/cencode.h"\n',
 			'#include "b64/cdecode.h"\n',
+			'#include "b64/alloc.h"\n',
 		})
 	end
 ]

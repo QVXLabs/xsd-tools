@@ -120,7 +120,7 @@ namespace {
 		cc << compiler
 		   << " " << std
 		   << includeFlag(dir)
-		   << includeFlag(LIBB64_INCLUDE_DIR)
+		   << includeFlags(LIBB64_INCLUDE_DIR)
 		   << includeFlags(extraInclude)
 		   << " '" << dir << "/" << base << "-bin" << srcExt << "'"
 		   << " '" << dir << "/" << srcPrefix << base << srcExt << "'"
@@ -418,7 +418,7 @@ namespace {
 			"  return 0;\n}\n");
 		std::ostringstream cc;
 		cc << C_COMPILER << " -std=c11" << includeFlag(dir)
-		   << includeFlag(LIBB64_INCLUDE_DIR) << includeFlags(EXPAT_INCLUDE_DIR)
+		   << includeFlags(LIBB64_INCLUDE_DIR) << includeFlags(EXPAT_INCLUDE_DIR)
 		   << " '" << dir << "/" << base << "-bin.c'"
 		   << " '" << dir << "/xml_" << base << ".c'"
 		   << " '" << LIBB64_ARCHIVE << "' " << EXPAT_LINK
@@ -463,7 +463,7 @@ namespace {
 			" xml_unmarshal(x, strlen(x), 0); return 0; }\n");
 		std::ostringstream cc;
 		cc << C_COMPILER << " -std=c11" << includeFlag(dir)
-		   << includeFlag(LIBB64_INCLUDE_DIR) << includeFlags(EXPAT_INCLUDE_DIR)
+		   << includeFlags(LIBB64_INCLUDE_DIR) << includeFlags(EXPAT_INCLUDE_DIR)
 		   << " '" << dir << "/" << base << "-bin.c'"
 		   << " '" << dir << "/xml_" << base << ".c'"
 		   << " '" << LIBB64_ARCHIVE << "' " << EXPAT_LINK
@@ -614,7 +614,7 @@ namespace {
 			"  return g_called ? 1 : 0;\n}\n");
 		std::ostringstream cc;
 		cc << C_COMPILER << " -std=c11" << includeFlag(dir)
-		   << includeFlag(LIBB64_INCLUDE_DIR) << includeFlags(JSONC_INCLUDE_DIR)
+		   << includeFlags(LIBB64_INCLUDE_DIR) << includeFlags(JSONC_INCLUDE_DIR)
 		   << " '" << dir << "/" << base << "-bin.c'"
 		   << " '" << dir << "/json_" << base << ".c'"
 		   << " '" << LIBB64_ARCHIVE << "' " << JSONC_LINK
