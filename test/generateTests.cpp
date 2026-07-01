@@ -4,12 +4,16 @@
  *
  *  This file is part of xsd-tools.
  */
+#include <cstdio>
+#include <cstdlib>
 #include <dirent.h>
 #include <fstream>
 #include <sstream>
 #include <string>
+#include <unistd.h>
 #include <vector>
 #include <gtest/gtest.h>
+#include "src/luaScriptAdapter.hpp"
 #include "src/xsdtools.hpp"
 #include "src/XSDParser/Exception.hpp"
 
@@ -36,6 +40,50 @@ namespace {
 		}
 		closedir(d);
 		return out;
+	}
+
+	/* One-off on-disk template for the engine error/scanner tests; the
+	 * engine only loads templates from files. */
+	class TempTemplate {
+	public:
+		explicit TempTemplate(const std::string& text) {
+			char tmpl[] = "/tmp/xsdb-gen-XXXXXX";
+			const char* d = mkdtemp(tmpl);
+			dir_ = d ? d : "";
+			path_ = dir_ + "/tpl";
+			std::ofstream f(path_.c_str(), std::ios::binary);
+			f << text;
+		}
+		~TempTemplate() {
+			remove(path_.c_str());
+			rmdir(dir_.c_str());
+		}
+		const std::string& Path() const { return path_; }
+	private:
+		std::string dir_;
+		std::string path_;
+	};
+
+	/* Any small valid schema works: these templates never read `schema`. */
+	const char* const kAnyXsd = XSD_CORPUS_DIR "/testA001.xsd";
+
+	std::string generateWith(const std::string& templateText) {
+		TempTemplate tpl(templateText);
+		std::ostringstream out;
+		XsdTools::Generate(tpl.Path(), kAnyXsd, out);
+		return out.str();
+	}
+
+	std::string generateError(const std::string& templateText) {
+		TempTemplate tpl(templateText);
+		std::ostringstream out;
+		try {
+			XsdTools::Generate(tpl.Path(), kAnyXsd, out);
+		} catch (const Core::LuaException& e) {
+			return e.what();
+		}
+		ADD_FAILURE() << "generation succeeded; output: " << out.str();
+		return "";
 	}
 }
 
@@ -69,4 +117,51 @@ TEST(Generate, RejectsNegativeCorpus) {
 		EXPECT_THROW(XsdTools::Generate(TEMPLATES_DIR "/test", xsd, out),
 		             XSD::XMLException) << xsds[i];
 	}
+}
+
+/* A block that raises at runtime must abort generation, not have its error
+ * message pasted into the output. */
+TEST(Generate, BlockRuntimeErrorAborts) {
+	std::string msg = generateError("A[@lua return nil .. 1]B");
+	EXPECT_NE(std::string::npos, msg.find("concatenate")) << msg;
+	EXPECT_NE(std::string::npos, msg.find("line 1")) << msg;
+}
+
+/* Same for a block that fails to even compile. */
+TEST(Generate, BlockLoadErrorAborts) {
+	std::string msg = generateError("\n\nA[@lua return ( ]B");
+	EXPECT_NE(std::string::npos, msg.find("line 3")) << msg;
+}
+
+/* include of a nonexistent template must fail naming the missing path. */
+TEST(Generate, MissingIncludeAborts) {
+	std::string msg =
+		generateError("[@lua return include 'no-such-template']");
+	EXPECT_NE(std::string::npos, msg.find("no-such-template")) << msg;
+}
+
+/* Brackets inside string literals (quoted and long) and comments must not
+ * terminate or unbalance the block scan. */
+TEST(Generate, BracketsInsideBlockLiterals) {
+	EXPECT_EQ("a]b[c", generateWith(
+		"a[@lua return \"]\" ]b[@lua return '[' ]c"));
+	EXPECT_EQ("x]y", generateWith("[@lua return [[x]y]] ]"));
+	EXPECT_EQ("z", generateWith("[@lua -- ]]]\nreturn 'z']"));
+	EXPECT_EQ("q\\]", generateWith("[@lua return 'q\\\\' .. ']' ]"));
+}
+
+/* A block that never closes must fail with a scanner diagnostic instead of
+ * a misleading loadstring error. */
+TEST(Generate, UnterminatedBlockAborts) {
+	std::string msg = generateError("\nx[@lua return \"unclosed");
+	EXPECT_NE(std::string::npos, msg.find("unterminated")) << msg;
+	EXPECT_NE(std::string::npos, msg.find("line 2")) << msg;
+}
+
+/* Documented marker adjacency: a backslash before [@lua emits the block
+ * verbatim; a literal '[' just before it (arr[[@lua..]]) stays intact. */
+TEST(Generate, PreservesMarkerAdjacency) {
+	EXPECT_EQ("e\\[@lua return 1]f",
+	          generateWith("e\\[@lua return 1]f"));
+	EXPECT_EQ("q[7]r", generateWith("q[[@lua return 7]]r"));
 }
