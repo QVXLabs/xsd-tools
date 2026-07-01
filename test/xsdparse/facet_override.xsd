@@ -1,0 +1,21 @@
+<?xml version="1.0"?>
+<schema>
+	<element name="root" type="derivedType"/>
+	<simpleType name="baseType">
+		<restriction base="string">
+			<maxLength value="100"/>
+			<pattern value="[a-z]+"/>
+			<enumeration value="alpha"/>
+			<enumeration value="beta"/>
+			<enumeration value="gamma"/>
+		</restriction>
+	</simpleType>
+	<simpleType name="derivedType">
+		<restriction base="baseType">
+			<maxLength value="10"/>
+			<pattern value="[ab].*"/>
+			<enumeration value="alpha"/>
+			<enumeration value="beta"/>
+		</restriction>
+	</simpleType>
+</schema>

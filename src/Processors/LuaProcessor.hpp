@@ -71,6 +71,10 @@ namespace Processors {
 		virtual void parseType_(const XSD::Types::BaseType& rXSDType);
 	private:
 		LuaProcessor();
+		/* process an element, taking occurs from pOccursSite (the
+		 * referencing site for ref= elements, pNode otherwise) */
+		void processElement_(const XSD::Elements::Element* pNode,
+							 const XSD::Elements::Element* pOccursSite);
 		/* dispatch a restriction's facet children to this processor */
 		void walkFacets_(const XSD::Elements::Node* pNode);
 		/* accumulate an attribute's restriction facets onto facets_ */

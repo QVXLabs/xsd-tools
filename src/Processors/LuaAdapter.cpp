@@ -54,6 +54,34 @@ LuaFacets::addToList(const std::string& rName, const std::string& rValue) {
 		std::make_pair(rName, std::vector<std::string>(1, rValue)));
 }
 
+void
+LuaFacets::mergeBase(const LuaFacets& rBase) {
+	for (size_t i = 0; i < rBase.scalars.size(); ++i) {
+		bool present = false;
+		for (size_t j = 0; !present && j < scalars.size(); ++j)
+			present = (scalars[j].first == rBase.scalars[i].first);
+		if (!present)
+			scalars.push_back(rBase.scalars[i]);
+	}
+	for (size_t i = 0; i < rBase.lists.size(); ++i) {
+		const std::string& rName = rBase.lists[i].first;
+		if (rName == "pattern") {
+			/* pattern facets from every derivation step apply (ANDed) */
+			const std::vector<std::string>& rVals = rBase.lists[i].second;
+			for (size_t j = 0; j < rVals.size(); ++j)
+				addToList(rName, rVals[j]);
+			continue;
+		}
+		/* enumeration (and other value sets): the derived level's set is a
+		   subset that replaces the base's, so keep it only when absent */
+		bool present = false;
+		for (size_t j = 0; !present && j < lists.size(); ++j)
+			present = (lists[j].first == rName);
+		if (!present)
+			lists.push_back(rBase.lists[i]);
+	}
+}
+
 /* helper functions */
 static void luaStackDump_(lua_State * pLuaState);
 #if (DEBUG_LUASTACK)

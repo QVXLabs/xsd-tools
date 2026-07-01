@@ -23,7 +23,11 @@
 
 #include <sstream>
 #include <memory>
+#include <iomanip>
+#include <limits>
 #include <assert.h>
+#include <math.h>
+#include <stdlib.h>
 #include "./src/XSDParser/Parser.hpp"
 #include "./src/XSDParser/Elements/Node.hpp"
 #include "./src/XSDParser/Elements/Schema.hpp"
@@ -144,8 +148,16 @@ LuaProcessor::ProcessSchema(const XSD::Elements::Schema* pNode) {
 
 /* virtual */ void
 LuaProcessor::ProcessElement(const XSD::Elements::Element* pNode) {
+	processElement_(pNode, pNode);
+}
+
+/* Occurs always come from pOccursSite: a ref= element carries them on the
+   referencing site, never on the global element it resolves to. */
+void
+LuaProcessor::processElement_(	const XSD::Elements::Element* pNode,
+								const XSD::Elements::Element* pOccursSite) {
 	/* don't process element if it can't occur */
-	if (pNode->HasMaxOccurs() && (0 == pNode->MaxOccurs()))
+	if (pOccursSite->HasMaxOccurs() && (0 == pOccursSite->MaxOccurs()))
 		return;
 	/* output the element */
 	if (!pNode->HasRef()) {
@@ -158,11 +170,13 @@ LuaProcessor::ProcessElement(const XSD::Elements::Element* pNode) {
 			LuaType * pLuaType = dynamic_cast<LuaType*>(luaAdapter_());
 			LuaProcessor processor(pLuaType->Content());
 			processor.activePath_ = activePath_;
-			processor.ProcessElement(pNode);
+			processor.processElement_(pNode, pOccursSite);
 		} else {
 			/* Default min/maxOccurs is 1 */
-			int maxOccurs = pNode->HasMaxOccurs() ?	pNode->MaxOccurs() : 1;
-			int minOccurs = pNode->HasMinOccurs() ?	pNode->MinOccurs() : 1;
+			int maxOccurs = pOccursSite->HasMaxOccurs() ?
+				pOccursSite->MaxOccurs() : 1;
+			int minOccurs = pOccursSite->HasMinOccurs() ?
+				pOccursSite->MinOccurs() : 1;
 			LuaType * pLuaType =
 				pLuaContent->Type(pNode->Name(), maxOccurs, minOccurs);
 			LuaProcessor luaPrcssr(pLuaType);
@@ -190,7 +204,7 @@ LuaProcessor::ProcessElement(const XSD::Elements::Element* pNode) {
 		}
 	} else {
 		unique_ptr<XSD::Elements::Element> pRefElm(pNode->RefElement());
-		ProcessElement(pRefElm.get());
+		processElement_(pRefElm.get(), pOccursSite);
 	}
 }
 
@@ -222,9 +236,13 @@ LuaProcessor::ProcessRestriction(const XSD::Elements::Restriction* pNode ) {
 }
 
 /* Dispatch each facet child of a simpleType restriction to this processor,
-   so the ProcessXxx facet overrides record their values. */
+   so the ProcessXxx facet overrides record their values. facets_ already
+   holds the more-derived levels' facets; record this level aside and merge
+   it underneath so derived values keep precedence. */
 void
 LuaProcessor::walkFacets_(const XSD::Elements::Node* pNode) {
+	LuaFacets derived = facets_;
+	facets_.clear();
 	pNode->eachChild_([this](const XSD::Elements::Node& rChild) {
 		if (XSD_ISELEMENT(&rChild, XSD::Elements::MinExclusive) ||
 			XSD_ISELEMENT(&rChild, XSD::Elements::MaxExclusive) ||
@@ -241,6 +259,8 @@ LuaProcessor::walkFacets_(const XSD::Elements::Node* pNode) {
 			rChild.ParseElement(*this);
 		}
 	});
+	derived.mergeBase(facets_);
+	facets_ = derived;
 }
 
 /* virtual */ void
@@ -443,6 +463,25 @@ template <typename T>
 static string numStr_(T val) {
 	ostringstream ss;
 	ss << val;
+	return ss.str();
+}
+
+/* Long-double bounds must not lose digits to the default precision (6).
+   Integral values print in plain integer form; fractional ones use the
+   fewest digits that round-trip (trailing zeros still dropped). */
+static string numStr_(long double val) {
+	ostringstream ss;
+	if (val == floorl(val)) {
+		ss << fixed << setprecision(0) << val;
+		return ss.str();
+	}
+	const int maxPrec = numeric_limits<long double>::max_digits10;
+	for (int prec = 6; prec <= maxPrec; ++prec) {
+		ss.str("");
+		ss << setprecision(prec) << val;
+		if (val == strtold(ss.str().c_str(), NULL))
+			break;
+	}
 	return ss.str();
 }
 
