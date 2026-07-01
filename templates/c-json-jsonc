@@ -181,6 +181,7 @@ void json_unmarshal_ex(json_marshaller* pMarshaller, const json_buffer* pBuf, in
 		return table.concat({
 			'#include "b64/cencode.h"\n',
 			'#include "b64/cdecode.h"\n',
+			'#include "b64/alloc.h"\n',
 		})
 	end
 ]
