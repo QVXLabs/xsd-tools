@@ -6,6 +6,16 @@ All notable changes to xsd-tools are documented here. The format is based on
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-06-30
+
+### Changed
+- Improved the base64 templates to better support **libb64 2.1.0**. The C++
+  targets (`cpp-xml-expat`, `cpp-json-jsonc`) now use libb64's C++
+  encoder/decoder builder API, and the C targets (`c-xml-expat` DOM and SAX,
+  `c-json-jsonc`) route base64 output allocation through the generated factory
+  allocator via libb64's allocator hook. The `c-xml-expat-dom` round-trip is
+  also corrected for 2.1.0's default no-trailing-newline encoder output.
+
 ## [0.2.0] - 2026-06-27
 
 ### Added
@@ -126,7 +136,8 @@ All notable changes to xsd-tools are documented here. The format is based on
   schemas via on-disk Lua templates (C, Python and Java output targets).
 - `XSDTOOLS_DATA` environment variable to locate the template/data directory.
 
-[Unreleased]: https://github.com/QVXLabs/xsd-tools/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/QVXLabs/xsd-tools/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/QVXLabs/xsd-tools/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/QVXLabs/xsd-tools/compare/0.1.2...v0.2.0
 [0.1.2]: https://github.com/QVXLabs/xsd-tools/compare/v0.1.1...0.1.2
 [0.1.1]: https://github.com/QVXLabs/xsd-tools/compare/v0.1.0...v0.1.1
