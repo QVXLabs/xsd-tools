@@ -34,8 +34,8 @@ function base64:defMarshal()
    out:append("xml_base64_marshal_(const xml_base64 val, char ** ppOut, const xml_typeFactory * pFactory) {\n")
    out:append("  base64_encodestate base64Encoder;\n")
    out:append("  const size_t srcSz = val->size_;\n")
-   out:append("  /* size calc from http://www.obviex.com/Articles/CiphertextSize.aspx, \n")
-   out:append("     +2 for /n and null termination */\n")
+   out:append("  /* 4 base64 chars per 3 input bytes (rounded up), +2 headroom\n")
+   out:append("     for the null terminator; libb64 emits no trailing newline */\n")
    out:append("  const size_t b64Sz = ((srcSz + 2 - ((srcSz + 2) % 3)) / 3 * 4) + 2;\n")
    out:append("  size_t encodedCnt = 0;\n")
    out:append("  char * outStr = alloc_(b64Sz, pFactory);\n")
@@ -78,6 +78,6 @@ function base64:defDestroy()
 end
 
 function base64:test()
-   return "VGhpcyBpcyBhIHRlc3Q=\\n"
+   return "VGhpcyBpcyBhIHRlc3Q="
 end
 ]
