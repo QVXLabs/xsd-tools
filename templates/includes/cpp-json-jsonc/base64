@@ -15,13 +15,12 @@
 				definition = function()
 					return table.concat({
 						'json_object* _marshal_base64(const std::vector<uint8_t>& data) {\n',
-						'\tbase64_encodestate enc;\n',
+						'\tbase64::encoder enc = base64::encoder_builder().build();\n',
 						'\tconst size_t srcSz = data.size();\n',
 						'\tstd::vector<char> out(((srcSz + 2) / 3) * 4 + 2, 0);\n',
-						'\tbase64_init_encodestate(&enc);\n',
 						'\tconst char* pSrc = srcSz ? reinterpret_cast<const char*>(&data[0]) : "";\n',
-						'\tsize_t n = base64_encode_block(pSrc, srcSz, &out[0], &enc);\n',
-						'\tn += base64_encode_blockend(&out[n], &enc);\n',
+						'\tstd::streamsize n = enc.encode(pSrc, (std::streamsize)srcSz, &out[0]);\n',
+						'\tn += enc.encode_end(&out[n]);\n',
 						'\treturn json_object_new_string_len(&out[0], (int)n);\n',
 						'}\n',
 					})
@@ -35,11 +34,10 @@
 				definition = function()
 					return table.concat({
 						'void _unmarshal_base64(const char* pStr, std::vector<uint8_t>& out) {\n',
-						'\tbase64_decodestate dec;\n',
+						'\tbase64::decoder dec = base64::decoder_builder().build();\n',
 						'\tconst size_t srcLen = pStr ? strlen(pStr) : 0;\n',
 						'\tout.assign((srcLen * 3) / 4 + 1, 0);\n',
-						'\tbase64_init_decodestate(&dec);\n',
-						'\tint n = base64_decode_block(pStr ? pStr : "", srcLen, reinterpret_cast<char*>(&out[0]), &dec);\n',
+						'\tstd::streamsize n = dec.decode(pStr ? pStr : "", (std::streamsize)srcLen, reinterpret_cast<char*>(&out[0]));\n',
 						'\tout.resize(n > 0 ? (size_t)n : 0);\n',
 						'}\n',
 					})

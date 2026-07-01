@@ -149,10 +149,9 @@
 #include <expat.h>
 #include "xml_common.h"
 [@lua
-	-- libb64's headers are C; wrap so the C++ linker finds the unmangled symbols
+	-- libb64's C++ wrappers expose the base64::encoder/decoder builders
 	if usesBase64 then
-		return 'extern "C" {\n#include "b64/cencode.h"\n'
-			..'#include "b64/cdecode.h"\n}\n'
+		return '#include <b64/encode.h>\n#include <b64/decode.h>\n'
 	end
 	return ''
 ]
@@ -164,23 +163,20 @@ namespace xml {
 	if usesBase64 then
 		outbuf:append([[
 inline std::string xml_b64Encode(const std::vector<uint8_t>& in) {
-	base64_encodestate st;
-	base64_init_encodestate(&st);
+	// builder default chars_per_line is 0, so no line-wrapping newlines
+	base64::encoder enc = base64::encoder_builder().build();
 	std::vector<char> buf((in.size() / 3 + 1) * 4 + 4);
-	int n = base64_encode_block(
+	std::streamsize n = enc.encode(
 		reinterpret_cast<const char*>(in.data()),
-		static_cast<int>(in.size()), buf.data(), &st);
-	n += base64_encode_blockend(buf.data() + n, &st);
-	std::string s(buf.data(), n);
-	while (!s.empty() && (s.back() == '\n' || s.back() == '\r')) s.pop_back();
-	return s;
+		static_cast<std::streamsize>(in.size()), buf.data());
+	n += enc.encode_end(buf.data() + n);
+	return std::string(buf.data(), n);
 }
 inline std::vector<uint8_t> xml_b64Decode(const std::string& in) {
-	base64_decodestate st;
-	base64_init_decodestate(&st);
+	base64::decoder dec = base64::decoder_builder().build();
 	std::vector<char> buf(in.size() + 1);
-	int n = base64_decode_block(in.data(), static_cast<int>(in.size()),
-		buf.data(), &st);
+	std::streamsize n = dec.decode(in.data(),
+		static_cast<std::streamsize>(in.size()), buf.data());
 	return std::vector<uint8_t>(buf.data(), buf.data() + n);
 }
 ]])
@@ -422,7 +418,7 @@ private:
 #include <cctype>
 [@lua
 	if usesBase64 then
-		return '#include "b64/cencode.h"\n#include "b64/cdecode.h"\n'
+		return '#include <b64/encode.h>\n#include <b64/decode.h>\n'
 	end
 	return ''
 ]
