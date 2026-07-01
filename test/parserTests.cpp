@@ -3,12 +3,14 @@
  *
  *  This file is part of xsd-tools.
  */
+#include <sstream>
 #include <string>
 #include <gtest/gtest.h>
 #include "src/XSDParser/Parser.hpp"
 #include "src/XSDParser/Elements/Schema.hpp"
 #include "src/XSDParser/Exception.hpp"
 #include "src/XSDParser/XsdQName.hpp"
+#include "src/xsdtools.hpp"
 
 TEST(Parser, ParsesPositiveSchema) {
 	XSD::Parser parser;
@@ -23,6 +25,36 @@ TEST(Parser, ThrowsOnMissingFile) {
 	XSD::Parser parser;
 	EXPECT_THROW(parser.Parse(std::string("/nonexistent/missing.xsd")),
 	             XSD::XMLException);
+}
+
+/* An unsupported protocol must throw — never return NULL — and must not
+ * poison the document cache: a retry of the same URI reports the same
+ * clear error rather than a stale TIXML_NO_ERROR. */
+TEST(Parser, ThrowsOnUnsupportedProtocol) {
+	XSD::Parser parser;
+	for (int attempt = 0; attempt < 2; ++attempt) {
+		try {
+			delete parser.Parse(std::string("http://example.com/x.xsd"));
+			FAIL() << "expected XMLException on attempt " << attempt;
+		} catch (const XSD::XMLException& e) {
+			EXPECT_EQ((int)XSD::XMLException::ProtocolNotSupported,
+			          e.QueryError().errorId_)
+				<< "attempt " << attempt << ": " << e.what();
+		}
+	}
+}
+
+/* xs:include resolution with a prefix-qualified root schema: the include tag
+ * must be searched under the root's XSD-lang prefix, and the searched type
+ * tag re-qualified per included document (xsd:-prefixed and default-xmlns
+ * included docs both resolve). */
+TEST(Schema, PrefixedIncludeResolvesAcrossPrefixes) {
+	std::ostringstream out;
+	ASSERT_NO_THROW(XsdTools::Generate(TEMPLATES_DIR "/test",
+		std::string(XSDPARSE_DIR "/inclPrefixed.xsd"), out));
+	/* content of the included types must appear in the generated model */
+	EXPECT_NE(std::string::npos, out.str().find("FullName"));
+	EXPECT_NE(std::string::npos, out.str().find("Sku"));
 }
 
 /* Phase 0 regression: a schema declaring no namespace at all must still

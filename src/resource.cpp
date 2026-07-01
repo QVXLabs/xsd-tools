@@ -96,6 +96,10 @@ homeDir_() noexcept {
 	const char* home = getenv("USERPROFILE");
 	return home ? string(home) : string();
 #else
+	/* honor $HOME (overridable, e.g. in tests); fall back to passwd */
+	const char* home = getenv("HOME");
+	if (home && *home)
+		return string(home);
 	struct passwd* pw = getpwuid(getuid());
 	return pw ? string(pw->pw_dir) : string();
 #endif
@@ -150,7 +154,7 @@ Resource::GetTemplatePath(const std::string& templateName) noexcept(false) {
 	string homeDir(homeDir_());
 	if (!homeDir.empty()) {
 		string homeFilePath(homeDir);
-		homeFilePath += "/" + gscHOMEPATH.substr(1) + templateName;
+		homeFilePath += gscHOMEPATH.substr(1) + "/" + templateName;
 		if (readable_(homeFilePath))
 			return homeFilePath;
 	}
@@ -186,7 +190,7 @@ Resource::TemplatesDir() noexcept {
 		return string(val);
 	string homeDir(homeDir_());
 	if (!homeDir.empty()) {
-		homeDir += "/" + gscHOMEPATH.substr(1);
+		homeDir += gscHOMEPATH.substr(1);
 		if (readable_(homeDir))
 			return homeDir;
 	}

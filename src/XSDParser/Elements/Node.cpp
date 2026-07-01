@@ -292,13 +292,19 @@ Node::FindXSDElm_(const XsdQName& rName, const char* pTypeName) const noexcept(f
 			: NULL;
 	/* search all included documents (same-namespace merge) */
 	if (!pElm) {
-		const TiXmlElement* pIncludElm = pSchemaRoot->GetXMLElm().FirstChildElement(XSD::Elements::Include::XSDTag());
-		for ( ; pIncludElm; pIncludElm = pIncludElm->NextSiblingElement(XSD::Elements::Include::XSDTag()) ) {
+		std::string includeTag =
+			QualifyElementName(XSD::Elements::Include::XSDTag());
+		const TiXmlElement* pIncludElm =
+			pSchemaRoot->GetXMLElm().FirstChildElement(includeTag.c_str());
+		for ( ; pIncludElm;
+		      pIncludElm = pIncludElm->NextSiblingElement(includeTag.c_str()) ) {
 			std::unique_ptr<Include> pNode(static_cast<Include*>(ConstructNode_(pIncludElm, rParser_)));
 			const Schema* pSchema = pNode->QuerySchema();
 			if (pSchema->TargetNamespace() != rName.ns)
 				continue;
-			if (NULL != (pElm = pSchema->FindChildXMLElement_(elementName.c_str(), "name", pLocal))) {
+			/* qualify the type tag against the included doc's own prefix */
+			std::string inclTypeTag = pSchema->QualifyElementName(pTypeName);
+			if (NULL != (pElm = pSchema->FindChildXMLElement_(inclTypeTag.c_str(), "name", pLocal))) {
 				pRetNode = ConstructNode_(pElm, pSchema->rParser_);
 				break;
 			}
