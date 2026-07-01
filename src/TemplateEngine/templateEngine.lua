@@ -22,7 +22,11 @@
 --require 'src/Processors/stringbuffer'
 
 local loadTemplate = function(fileName)
-	local file = io.open(fileName, "r")
+	local file, err = io.open(fileName, "r")
+	if not file then
+		error("cannot open template '" .. fileName .. "': "
+			.. tostring(err), 0)
+	end
 	local template = file:read("*all")
 	file:close()
 	return template

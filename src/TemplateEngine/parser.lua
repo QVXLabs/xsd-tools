@@ -67,23 +67,80 @@ function parser:new(obj)
 	return obj
 end
 
--- Fold the template into a stringBuffer, recursing over byte offsets: find the
--- next [@lua marker, balance-match its block from there (%b[] anchored on the
--- marker, so a literal '[' just before it -- e.g. arr[[@lua..]] -- is left
--- intact), and substitute it; a backslash before the marker emits it verbatim.
--- Threading the offset (not the remainder) keeps it O(template length).
+-- Offset of the ']' closing the block opened by the '[' at `s`, or nil if
+-- unterminated. Tracks Lua lexical state so brackets inside quoted strings,
+-- long strings/comments and line comments don't affect bracket depth.
+local function blockEnd_(str, s)
+	local n = #str
+	local i = s + 1
+	local depth = 1
+	while i <= n do
+		local c = str:sub(i, i)
+		if c == '"' or c == "'" then
+			i = i + 1
+			while i <= n and str:sub(i, i) ~= c do
+				i = i + (str:sub(i, i) == '\\' and 2 or 1)
+			end
+			if i > n then return nil end
+		elseif c == '[' then
+			local eq = str:match('^%[(=*)%[', i)
+			if eq then
+				local _, e = str:find(']' .. eq .. ']', i + #eq + 2, true)
+				if not e then return nil end
+				i = e
+			else
+				depth = depth + 1
+			end
+		elseif c == '-' and str:sub(i + 1, i + 1) == '-' then
+			local eq = str:match('^%[(=*)%[', i + 2)
+			if eq then
+				local _, e = str:find(']' .. eq .. ']', i + #eq + 4, true)
+				if not e then return nil end
+				i = e
+			else
+				i = (str:find('\n', i + 2, true) or n + 1) - 1
+			end
+		elseif c == ']' then
+			depth = depth - 1
+			if depth == 0 then return i end
+		end
+		i = i + 1
+	end
+	return nil
+end
+
+local function lineOf_(str, pos)
+	local _, nl = str:sub(1, pos):gsub('\n', '')
+	return nl + 1
+end
+
+-- Fold the template into a stringBuffer, recursing over byte offsets: find
+-- the next [@lua marker, lex forward to its matching close bracket (anchored
+-- on the marker, so a literal '[' just before it -- e.g. arr[[@lua..]] -- is
+-- left intact), and substitute it; a backslash before the marker emits it
+-- verbatim. A block that fails to load or run, or never closes, aborts the
+-- fold so no error text leaks into the output. Threading the offset (not the
+-- remainder) keeps it O(template length).
 function parser:parse(str)
 	local function scan(pos, out)
 		local s = str:find("[@lua", pos, true)
 		if not s then return out:append(str:sub(pos)) end
 		out:append(str:sub(pos, s - 1))
-		local _, e = str:find("%b[]", s)
+		local e = blockEnd_(str, s)
+		if not e then
+			error(("unterminated [@lua block at line %d")
+				:format(lineOf_(str, s)), 0)
+		end
 		local blk = str:sub(s, e)
 		if str:sub(s - 1, s - 1) == '\\' then
 			out:append(blk)
 		else
-			local _, msg = self.prvtEnv:invoke(blk:match("^%[@lua(.*)%]$"))
-			out:append(msg or "")
+			local ok, res = self.prvtEnv:invoke(blk:match("^%[@lua(.*)%]$"))
+			if not ok then
+				error(("template error at line %d: %s")
+					:format(lineOf_(str, s), tostring(res)), 0)
+			end
+			out:append(res or "")
 		end
 		return scan(e + 1, out)
 	end
