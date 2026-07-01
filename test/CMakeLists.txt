@@ -141,6 +141,7 @@ endif()
 # every target's code generation; the round-trips run on the POSIX runners.
 if(WIN32)
   add_executable(xsdb-test
+    elementTests.cpp
     facetTests.cpp
     parserTests.cpp
     resourceTests.cpp)
@@ -180,6 +181,7 @@ else()
   add_executable(xsdb-test
     roundtrip_util.cpp
     generateTests.cpp
+    elementTests.cpp
     facetTests.cpp
     parserTests.cpp
     resourceTests.cpp

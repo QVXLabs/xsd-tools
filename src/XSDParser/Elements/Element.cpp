@@ -88,7 +88,8 @@ Element::ParseElement(BaseProcessor& rProcessor) const noexcept(false) {
 		if (pRefElm->HasMaxOccurs() && pRefElm->IsRootNode())
 			throw XMLException(pRefElm->GetXMLElm(), XMLException::InvalidAttribute);
 		/* if an element is a substitution group verify types */
-		if (pRefElm->HasSubstitutionGroup() && !VerifySubstitutionGroup()) {
+		if (pRefElm->HasSubstitutionGroup() &&
+			!pRefElm->VerifySubstitutionGroup()) {
 			throw XMLException(Node::GetXMLElm(), XMLException::SubstitutionGroupTypeMismatch);
 		}
 	}

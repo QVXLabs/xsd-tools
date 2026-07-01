@@ -50,7 +50,7 @@ Attribute::ParseChildren(BaseProcessor& rProcessor) const noexcept(false) {
 	eachChild_([&rProcessor](const Node& rNode) {
 		if (XSD_ISELEMENT(&rNode, SimpleType) ||
 			XSD_ISELEMENT(&rNode, Annotation)) {
-			rProcessor.ProcessSimpleType(static_cast<const SimpleType*>(&rNode));
+			rNode.ParseElement(rProcessor);
 		} else
 			throw XMLException(rNode.GetXMLElm(), XMLException::InvallidChildXMLElement);
 	});
