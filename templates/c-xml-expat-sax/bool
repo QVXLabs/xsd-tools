@@ -37,10 +37,17 @@
 				end,
 			},
 			unmarshal = {
-				definition = function() 
+				definition = function()
 					return table.concat({
 						'void\nunmarshal_bool_(xml_marshaller* pMarshaller, const char* pContent, xml_bool* pObj) {\n',
-						'\t*pObj = (0 == strcmp(pContent, "true") || 0 == strcmp(pContent, "1")) ? 1 : 0;\n',
+						-- xs:boolean has a fixed whiteSpace="collapse" facet, so
+						-- trim surrounding XML whitespace before matching.
+						'\tconst char* s_ = pContent;\n',
+						'\tsize_t n_;\n',
+						'\twhile (\' \'==*s_||\'\\t\'==*s_||\'\\n\'==*s_||\'\\r\'==*s_) ++s_;\n',
+						'\tn_ = strlen(s_);\n',
+						'\twhile (n_ && (\' \'==s_[n_-1]||\'\\t\'==s_[n_-1]||\'\\n\'==s_[n_-1]||\'\\r\'==s_[n_-1])) --n_;\n',
+						'\t*pObj = ((4 == n_ && 0 == strncmp(s_, "true", 4)) || (1 == n_ && \'1\' == *s_)) ? 1 : 0;\n',
 						'\t(void)pMarshaller;\n',
 						'}\n',
 					})
