@@ -15,22 +15,19 @@
 		'lambda','nonlocal','not','or','pass','raise','return','try','while',
 		'with','yield'}) do pythonKeywords[k] = true end
 	schema = schema.python_safeNames(pythonKeywords)
-	-- code identifier for a node: idents live on the type-registry entry, so
-	-- resolve via regkey (structurally-identical elements share one).
-	function pyIdent(node)
-		local reg = schema.types[node.regkey]
-		return (reg and reg.ident) or node.ident
-	end
+	-- collapse orphaned duplicate/ref dependents onto their ident-bearing
+	-- representative (shared/schemaEx) so every node below is canonical and
+	-- carries .ident directly.
+	schema.canonicalizeDeps()
 	depOrder = schema.sortDependencies()
 	depOrderSansRoot = table.filter(depOrder, function(k,v) return v.name ~= schema.root and v or nil end)
-	-- de-dup to one registry node per type so a shared-structure element is not
-	-- emitted twice (and so idents are always present on the emitted node).
-	local _seenReg, _uniqTypes = {}, {}
+	-- de-dup so a shared-structure element is not emitted twice (a type reached
+	-- under several parents recurs in the order).
+	local _seen, _uniqTypes = {}, {}
 	table.map(depOrderSansRoot, function(_, node)
-		local reg = schema.types[node.regkey] or node
-		if not _seenReg[reg] then
-			_seenReg[reg] = true
-			_uniqTypes[#_uniqTypes + 1] = reg
+		if not _seen[node] then
+			_seen[node] = true
+			_uniqTypes[#_uniqTypes + 1] = node
 		end
 	end)
 	depOrderSansRoot = _uniqTypes
@@ -123,7 +120,7 @@ class _jsonelement:
 		-- emit the element/type annotation (#4) above its class
 		outbuf:append(docComment(node.documentation, 'hash', ''))
 		outbuf:append(table.concat({
-			'class json_', pyIdent(node), '(_jsonelement):\n',
+			'class json_', node.ident, '(_jsonelement):\n',
 			'    def __init__(self):\n',
 			'        _jsonelement.__init__(self)\n'
 		}))
@@ -192,13 +189,13 @@ class _jsonelement:
 		local checks = stringBuffer:new()
 		if node.content.facets then
 			checks:append('        _v = self._content[0] if self._content else None\n')
-			checks:append(pyChecks(pyIdent(node), 'content', node.content.type,
+			checks:append(pyChecks(node.ident, 'content', node.content.type,
 				node.content.facets))
 		end
 		table.map(node.attributes, function(an, attr)
 			if attr.facets then
 				checks:append('        _v = self._' .. attr.ident .. '\n')
-				checks:append(pyChecks(pyIdent(node), attr.ident, attr.type,
+				checks:append(pyChecks(node.ident, attr.ident, attr.type,
 					attr.facets))
 			end
 		end)
@@ -235,19 +232,19 @@ class _jsonelement:
 	local outbuf = stringBuffer:new()
 	outbuf:append('factories = {\n')
 	table.map(depOrderSansRoot, function(_, node)
-		outbuf:append("    '" .. pyIdent(node) .. "': json_" .. pyIdent(node)
+		outbuf:append("    '" .. node.ident .. "': json_" .. node.ident
 			.. ",\n")
 	end)
 	outbuf:append('}\n')
 	local function childrenDict(node)
 		local parts = {}
 		table.map(node.dependents, function(wire, child)
-			parts[#parts + 1] = pyQuote(wire) .. ': ' .. pyQuote(pyIdent(child))
+			parts[#parts + 1] = pyQuote(wire) .. ': ' .. pyQuote(child.ident)
 		end)
 		return '{' .. table.concat(parts, ', ') .. '}'
 	end
 	table.map(depOrderSansRoot, function(_, node)
-		outbuf:append('json_' .. pyIdent(node) .. '._children = '
+		outbuf:append('json_' .. node.ident .. '._children = '
 			.. childrenDict(node) .. '\n')
 	end)
 	return outbuf:str()
@@ -272,7 +269,7 @@ class json_[@lua return schema.root](_jsonelement):
 [@lua -- the document root's own child map, assigned after its class is defined
 	local parts = {}
 	table.map(schema.types[schema.root].dependents, function(wire, child)
-		parts[#parts + 1] = pyQuote(wire) .. ': ' .. pyQuote(pyIdent(child))
+		parts[#parts + 1] = pyQuote(wire) .. ': ' .. pyQuote(child.ident)
 	end)
 	return 'json_' .. schema.root .. '._children = {'
 		.. table.concat(parts, ', ') .. '}\n'

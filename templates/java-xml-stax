@@ -49,11 +49,12 @@
 	-- seeded with the Java reserved set; then fix framework-file case clashes.
 	schema = schema.c_safeNames(JAVA_KEYWORDS)
 	guardFrameworkNames(schema)
+	-- collapse orphaned duplicate/ref dependents onto their ident-bearing
+	-- representative (shared/schemaEx) so every dependent is canonical below.
+	schema.canonicalizeDeps()
 	depOrder = schema.sortDependencies()
-	-- A `ref` to a top-level element yields a structural duplicate the model's
-	-- dedup evicts from schema.types, leaving an orphan (no .ident) still
-	-- reachable via dependents. Give it the surviving twin's ident, then
-	-- collapse duplicate idents so each class / Factory entry is emitted once.
+	-- drop the root and collapse duplicates so each class / Factory entry is
+	-- emitted once.
 	depOrderSansRoot = normalizeDepList(schema, depOrder)
 	-- Hex.java is only referenced by scalar hexBinary content/attributes.
 	needsHex = schema.uniqueTypes()["hexBinary"] ~= nil

@@ -6,13 +6,9 @@
 	-- same keyword set as the binding template so idents (class/member names)
 	-- agree between the two translation units.
 	schema = schema.c_safeNames(CPP_KEYWORDS)
-	-- resolve alias dependents (ref/include duplicates with no .ident) to their
-	-- canonical, ident-bearing type via .regkey; mirrors the binding template.
-	function canonNode(node)
-		if node.ident then return node end
-		local reg = node.regkey and schema.types[node.regkey]
-		return reg or node
-	end
+	-- collapse orphaned duplicate/ref dependents onto their ident-bearing
+	-- representative (shared/schemaEx); mirrors the binding template.
+	schema.canonicalizeDeps()
 	depOrder = schema.sortDependencies()
 	typeSansRoot = table.filter(schema.types,
 		function(k, v) return v.name ~= schema.root and v or nil end)
@@ -106,11 +102,9 @@ int main() try {
 	-- document stays finite. Key the cap on node identity, not wire name, since
 	-- distinct types may share a wire name.
 	local function marshalRec(outbuf, node, onPath)
-		node = canonNode(node)
 		outbuf:append('\t\tm.marshal_'..node.ident..'(make_'..node.ident
 			..'());\n')
 		table.map(node.dependents, function(_, child)
-			child = canonNode(child)
 			if next(child.dependents) then
 				if (onPath[child] or 0) >= 2 then return end
 				onPath[child] = (onPath[child] or 0) + 1

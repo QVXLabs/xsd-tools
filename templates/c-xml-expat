@@ -45,17 +45,9 @@
 	end
 	schema = schema.c_safeNames(C_KEYWORDS)
 	rootIdent = schema.types[schema.root].ident
-	-- Collapse duplicate type objects onto their registered representative: a
-	-- type expanded under several parents can leave orphaned copies (same
-	-- regkey, but not the object held in schema.types, so lacking .ident) in the
-	-- dependents graph. Repoint every dependent at schema.types[regkey] so
-	-- identifiers, tids and dispatch stay consistent.
-	local function canonType(n) return (n.regkey and schema.types[n.regkey]) or n end
-	table.map(schema.types, function(_, t)
-		table.map(t.dependents, function(k, child)
-			t.dependents[k] = canonType(child)
-		end)
-	end)
+	-- collapse orphaned duplicate/ref dependents onto their ident-bearing
+	-- representative (shared/schemaEx)
+	schema.canonicalizeDeps()
 	depOrder = schema.sortDependencies()
 	depOrderSansRoot = table.filter(depOrder, function(k,v) return v.name ~= schema.root and v or nil end)
 	-- Unique internal type id per element type (0 = synthetic schema root and

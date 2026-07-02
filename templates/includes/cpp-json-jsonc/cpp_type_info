@@ -158,29 +158,6 @@
 		'volatile','wchar_t','while','xor','xor_eq','eid','Content',
 	}) do cpp_keywords[w] = true end
 
-	-- Rewire every dependent edge to its registered representative in
-	-- schema.types. ref/recursion can leave a parent pointing at a duplicate
-	-- node object that shares a regkey but never received an .ident; the
-	-- representative is the one c_safeNames assigned. `isArray` carries a
-	-- repeated edge's cardinality onto the representative so arrays survive.
-	function canonicalizeDeps(schema, isArray)
-		local function canon(n)
-			return (n.regkey and schema.types[n.regkey]) or n
-		end
-		local seen = {}
-		local function walk(node)
-			if seen[node] then return end
-			seen[node] = true
-			for k, dep in pairs(node.dependents) do
-				local c = canon(dep)
-				if c ~= dep and isArray(dep) then c.maxOccurs = 'unbounded' end
-				node.dependents[k] = c
-				walk(c)
-			end
-		end
-		walk(schema.types[schema.root])
-	end
-
 	-- Escape a schema value so it is safe inside a C++ double-quoted string
 	-- literal in generated source (attribute default/fixed, enum compares).
 	function cEscape(s)

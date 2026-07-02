@@ -83,6 +83,29 @@
 	schema.python_safeNames = function(keywords)
 		return assignIdents(keywords)
 	end
+	-- Collapse orphaned duplicate/ref dependents onto their registered
+	-- representative in schema.types. Expanding a type under several parents
+	-- (or a ref/recursion edge) can leave a distinct node object that shares a
+	-- regkey but never got an .ident from assignIdents; schema.types[regkey] is
+	-- the canonical, ident-bearing node. Repoint every dependent onto it so
+	-- identifiers and dispatch stay consistent and each type emits once.
+	-- Optional isArray(dep): widen the representative to 'unbounded' when a
+	-- repointed edge was a repeated element, so arrays survive the collapse.
+	schema.canonicalizeDeps = function(isArray)
+		local function canon(n)
+			return (n.regkey and schema.types[n.regkey]) or n
+		end
+		table.map(schema.types, function(_, t)
+			table.map(t.dependents, function(k, dep)
+				local c = canon(dep)
+				if isArray and c ~= dep and isArray(dep) then
+					c.maxOccurs = 'unbounded'
+				end
+				t.dependents[k] = c
+			end)
+		end)
+		return schema
+	end
 ][@lua -- find all unique types used in xsd
 	schema.uniqueTypes = function()
 		local ret = {}

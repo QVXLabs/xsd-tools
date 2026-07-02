@@ -45,35 +45,18 @@
 			while frameworkFiles[t.ident:lower()] do t.ident = t.ident.."_" end
 		end
 	end
-	-- Turn a topo-ordered dep list into the emit list: fill idents for orphaned
-	-- dependents (structural duplicates the model's dedup evicted from
-	-- schema.types) from their surviving twin, drop the root, and collapse
-	-- duplicate idents so each class / Factory entry emits exactly once.
+	-- Turn a topo-ordered dep list into the emit list: drop the root and
+	-- collapse duplicates so each class / Factory entry emits exactly once. The
+	-- dependents are already canonical (shared/schemaEx canonicalizeDeps), so
+	-- every node carries its .ident directly.
 	function normalizeDepList(schema, depOrder)
-		local identForName, registered = {}, {}
-		for _, t in pairs(schema.types) do
-			registered[t] = true
-			-- prefer the un-suffixed original (regkey == wire name)
-			if identForName[t.name] == nil or t.regkey == t.name then
-				identForName[t.name] = t.ident
-			end
-		end
-		-- one node per ident, preferring the registered twin: the orphan lacks
-		-- attribute idents, so emitting from it would nil-crash.
-		local pick, order = {}, {}
+		local seen, out = {}, {}
 		for _, v in ipairs(depOrder) do
-			if not v.ident then v.ident = identForName[v.name] end
-			if v.name ~= schema.root and v.ident then
-				if pick[v.ident] == nil then
-					pick[v.ident] = v
-					order[#order + 1] = v.ident
-				elseif registered[v] and not registered[pick[v.ident]] then
-					pick[v.ident] = v
-				end
+			if v.name ~= schema.root and not seen[v] then
+				seen[v] = true
+				out[#out + 1] = v
 			end
 		end
-		local out = {}
-		for _, id in ipairs(order) do out[#out + 1] = pick[id] end
 		return out
 	end
 ]

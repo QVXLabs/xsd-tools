@@ -67,22 +67,19 @@
 		'lambda','nonlocal','not','or','pass','raise','return','try','while',
 		'with','yield'}) do pythonKeywords[k] = true end
 	schema = schema.python_safeNames(pythonKeywords)
-	-- code identifier for a node: idents live on the type-registry entry, so
-	-- resolve via regkey (structurally-identical elements share one).
-	function pyIdent(node)
-		local reg = schema.types[node.regkey]
-		return (reg and reg.ident) or node.ident
-	end
+	-- collapse orphaned duplicate/ref dependents onto their ident-bearing
+	-- representative (shared/schemaEx) so every node below is canonical and
+	-- carries .ident directly.
+	schema.canonicalizeDeps()
 	depOrder = schema.sortDependencies()
 	depOrderSansRoot = table.filter(depOrder, function(k,v) return v.name ~= schema.root and v or nil end)
-	-- de-dup to one registry node per type so a shared-structure element is not
-	-- emitted as two identical classes (would also miss idents on the copy).
-	local _seenReg, _uniqTypes = {}, {}
+	-- de-dup so a shared-structure element is not emitted as two identical
+	-- classes (a type reached under several parents recurs in the order).
+	local _seen, _uniqTypes = {}, {}
 	table.map(depOrderSansRoot, function(_, node)
-		local reg = schema.types[node.regkey] or node
-		if not _seenReg[reg] then
-			_seenReg[reg] = true
-			_uniqTypes[#_uniqTypes + 1] = reg
+		if not _seen[node] then
+			_seen[node] = true
+			_uniqTypes[#_uniqTypes + 1] = node
 		end
 	end)
 	depOrderSansRoot = _uniqTypes
@@ -194,7 +191,7 @@ class _xmlelement:
 		-- emit the element/type annotation (#4) above its class
 		outbuf:append(docComment(node.documentation, 'hash', ''))
 		outbuf:append(table.concat({
-			'class xml_', pyIdent(node), '(_xmlelement):\n',
+			'class xml_', node.ident, '(_xmlelement):\n',
 			'    def __init__(self):\n',
 			'        _xmlelement.__init__(self)\n'
 		}))
@@ -315,12 +312,12 @@ class xml_[@lua return schema.root](_handler, _xmlelement):
 	local function childrenDict(node)
 		local parts = {}
 		table.map(node.dependents, function(wire, child)
-			parts[#parts + 1] = pyQuote(wire) .. ': xml_' .. pyIdent(child)
+			parts[#parts + 1] = pyQuote(wire) .. ': xml_' .. child.ident
 		end)
 		return '{' .. table.concat(parts, ', ') .. '}'
 	end
 	table.map(depOrderSansRoot, function(_, node)
-		outbuf:append('xml_' .. pyIdent(node) .. '._children = '
+		outbuf:append('xml_' .. node.ident .. '._children = '
 			.. childrenDict(node) .. '\n')
 	end)
 	outbuf:append('xml_' .. schema.root .. '._children = '

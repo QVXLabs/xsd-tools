@@ -11,6 +11,9 @@
 	include 'includes/java-xml-stax/java_safe_name'
 	schema = schema.c_safeNames(JAVA_KEYWORDS)
 	guardFrameworkNames(schema)
+	-- collapse orphaned duplicate/ref dependents onto their ident-bearing
+	-- representative (shared/schemaEx) before the dep walk below.
+	schema.canonicalizeDeps()
 ]package com.mobitv.app;
 
 /* Round-trip driver: build a sample tree, marshal it to XML via StAX, unmarshal
@@ -21,7 +24,7 @@ public class RunTest {
 [@lua -- emit a builder method per complex type
 	local outbuf = stringBuffer:new()
 	local depOrder = schema.sortDependencies()
-	-- fill orphan idents + collapse duplicates (see binding template)
+	-- drop the root and collapse duplicates (see binding template)
 	local depOrderSansRoot = normalizeDepList(schema, depOrder)
 	-- A recursive type's builder calls itself (directly or mutually); cap
 	-- re-entry at twice per active path with a per-type static counter so the

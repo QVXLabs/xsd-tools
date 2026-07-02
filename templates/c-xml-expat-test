@@ -18,15 +18,10 @@
 		C_KEYWORDS[w] = true
 	end
 	schema = schema.c_safeNames(C_KEYWORDS)
-	-- collapse orphaned duplicate type objects onto their registered
-	-- representative (see the c-xml-expat template) so the marshal-driver walk
-	-- of the dependents graph uses the same identifiers as the header.
-	local function canonType(n) return (n.regkey and schema.types[n.regkey]) or n end
-	table.map(schema.types, function(_, t)
-		table.map(t.dependents, function(k, child)
-			t.dependents[k] = canonType(child)
-		end)
-	end)
+	-- collapse orphaned duplicate/ref dependents onto their ident-bearing
+	-- representative (shared/schemaEx) so the marshal-driver walk uses the same
+	-- identifiers as the header.
+	schema.canonicalizeDeps()
 	uniqueXSDTypes = schema.uniqueTypes()
 	-- map xsd types to unique c-types
 	uniqueCTypes = {}

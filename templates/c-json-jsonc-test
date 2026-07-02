@@ -13,8 +13,8 @@
 		local mx = n.maxOccurs
 		return mx == 'unbounded' or (type(mx) == 'number' and mx > 1)
 	end
-	-- rewire dependents to their registered representatives (see main template)
-	canonicalizeDeps(schema, isArrayNode)
+	-- collapse orphaned duplicate/ref dependents (shared/schemaEx)
+	schema.canonicalizeDeps(isArrayNode)
 	uniqueXSDTypes = schema.uniqueTypes()
 	uniqueCTypes = {}
 	table.map(uniqueXSDTypes, function(_, v)

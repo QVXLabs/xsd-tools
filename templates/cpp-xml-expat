@@ -28,24 +28,19 @@
 	-- code identifiers (.ident) are keyword- and collision-safe; wire names
 	-- (.name / map keys) stay verbatim for the XML tags and unmarshal dispatch.
 	schema = schema.c_safeNames(CPP_KEYWORDS)
-	-- A ref/include can surface a type as an alias node (distinct table, no
-	-- .ident) that duplicates a registered type; both carry the same .regkey, so
-	-- schema.types[.regkey] is the canonical, ident-bearing node. Collapse onto
-	-- it so each element class is emitted exactly once with a valid identifier.
-	function canonNode(node)
-		if node.ident then return node end
-		local reg = node.regkey and schema.types[node.regkey]
-		return reg or node
-	end
+	-- collapse orphaned duplicate/ref dependents onto their ident-bearing
+	-- representative (shared/schemaEx) so every dependent is canonical below.
+	schema.canonicalizeDeps()
 	depOrder = schema.sortDependencies()
+	-- one entry per element class: a type reached under several parents recurs
+	-- in the topo order, so de-dup by ident.
 	local seenIdent = {}
 	depOrderSansRoot = {}
 	table.map(depOrder, function(_, node)
 		if node.name == schema.root then return end
-		local c = canonNode(node)
-		if c.ident and not seenIdent[c.ident] then
-			seenIdent[c.ident] = true
-			depOrderSansRoot[#depOrderSansRoot + 1] = c
+		if node.ident and not seenIdent[node.ident] then
+			seenIdent[node.ident] = true
+			depOrderSansRoot[#depOrderSansRoot + 1] = node
 		end
 	end)
 	-- unique nonzero id per element class (0 = document root / no parent). Keyed
@@ -645,9 +640,9 @@ Marshaller::marshalBegin() {
 	-- recursive walk, so a cyclic schema doesn't blow the Lua stack.
 	local parentIds = {}
 	table.map(depOrder, function(_, p)
-		local pid = (p.name == schema.root) and 0 or elemId[canonNode(p)]
+		local pid = (p.name == schema.root) and 0 or elemId[p]
 		table.map(p.dependents, function(_, child)
-			local c = canonNode(child)
+			local c = child
 			local set = parentIds[c]
 			if not set then set = {}; parentIds[c] = set end
 			local seen = false
@@ -842,7 +837,7 @@ Marshaller::onStart(const char* tagName, const XML_Char** attrs) {
 	table.map(parents, function(_, p)
 		local kids, seen = {}, {}
 		table.map(p.node.dependents, function(_, child)
-			local c = canonNode(child)
+			local c = child
 			if not seen[c.ident] then
 				seen[c.ident] = true; kids[#kids + 1] = c
 			end

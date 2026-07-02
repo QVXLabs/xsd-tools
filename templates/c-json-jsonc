@@ -16,11 +16,10 @@
 		local mx = n.maxOccurs
 		return mx == 'unbounded' or (type(mx) == 'number' and mx > 1)
 	end
-	-- ref/recursion edges can yield distinct node objects that share a regkey
-	-- while only the registered one carries the assigned .ident; rewire every
-	-- dependent to its registered representative so identifiers resolve. The
-	-- edge's repeated cardinality is carried onto the representative.
-	canonicalizeDeps(schema, isArrayNode)
+	-- collapse orphaned duplicate/ref dependents onto their ident-bearing
+	-- representative (shared/schemaEx); isArrayNode carries a repeated edge's
+	-- cardinality onto the representative so JSON arrays survive.
+	schema.canonicalizeDeps(isArrayNode)
 	depOrder = schema.sortDependencies()
 	depOrderSansRoot = table.filter(depOrder, function(k,v) return v.name ~= schema.root and v or nil end)
 ][@lua -- find all unique types used in xsd
