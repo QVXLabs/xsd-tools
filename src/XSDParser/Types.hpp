@@ -38,7 +38,10 @@
       return new TYPE();						\
     }									\
     virtual bool isTypeRelated(const BaseType* pType) const {		\
-      return (NULL != dynamic_cast<const TYPE*>(pType));		\
+      return pType->isBaseTypeOf(this);					\
+    }									\
+    virtual bool isBaseTypeOf(const BaseType* pOther) const {		\
+      return (NULL != dynamic_cast<const TYPE*>(pOther));		\
     }									\
     virtual const char* Name() const {					\
       return #NAME;							\
@@ -60,7 +63,15 @@ namespace XSD {
     struct BaseType {
       virtual ~BaseType() {}
       virtual BaseType* clone() const = 0;
-      virtual bool isTypeRelated(const BaseType*) const = 0;
+      /* true when this type equals or derives from *pType */
+      virtual bool isTypeRelated(const BaseType* pType) const = 0;
+      /* Double-dispatch helper for isTypeRelated: true when *pOther equals
+       * or derives from this type's class. Non-pure so the wrapper and
+       * processor types keep their bespoke isTypeRelated; nothing derives
+       * from those, hence the false default. */
+      virtual bool isBaseTypeOf(const BaseType* pOther) const {
+        return false;
+      }
       virtual const char* Name() const = 0;
     };
     XSD_VTYPEDEF(AnySimpleType,BaseType, anySimpleType);

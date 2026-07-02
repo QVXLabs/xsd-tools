@@ -45,14 +45,14 @@ All::All(const All& cpy)
 
 void
 All::ParseChildren(BaseProcessor& rProcessor) const noexcept(false) {
-	std::unique_ptr<Node> pNode(Node::FirstChild());
-	if (NULL != pNode.get()) {
-		if (XSD_ISELEMENT(pNode.get(), Element) ||
-			XSD_ISELEMENT(pNode.get(), Annotation))
-			pNode->ParseElement(rProcessor);
-		else
-			throw XMLException(pNode->GetXMLElm(), XMLException::InvallidChildXMLElement);
-	}
+	/* process children */
+	eachChild_([&rProcessor](const Node& rNode) {
+		if (XSD_ISELEMENT(&rNode, Element) ||
+			XSD_ISELEMENT(&rNode, Annotation)) {
+			rNode.ParseElement(rProcessor);
+		} else
+			throw XMLException(rNode.GetXMLElm(), XMLException::InvallidChildXMLElement);
+	});
 }
 
 void

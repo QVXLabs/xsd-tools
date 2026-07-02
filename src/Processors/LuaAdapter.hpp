@@ -49,6 +49,10 @@ namespace Processors {
 			scalars.push_back(std::make_pair(rName, rValue));
 		}
 		void addToList(const std::string& rName, const std::string& rValue);
+		/* merge a base derivation level under this (derived) one: derived
+		   scalars win, a derived enumeration replaces the base's, and
+		   patterns accumulate (steps are ANDed in XSD) */
+		void mergeBase(const LuaFacets& rBase);
 	};
 
 	/* forward declare classes */

@@ -64,7 +64,7 @@ root = {
 					minOccurs = 1
 				}
 			}
-			minOccurs = 1
+			minOccurs = 0
 		}
 		test3 = {
 			attributes = {}
@@ -97,7 +97,7 @@ root = {
 					minOccurs = 0
 				}
 			}
-			minOccurs = 1
+			minOccurs = 0
 		}
 		test2 = {
 			attributes = {}
@@ -110,7 +110,7 @@ root = {
 					minOccurs = 1
 				}
 			}
-			minOccurs = 1
+			minOccurs = 0
 		}
 	}
 	minOccurs = 1

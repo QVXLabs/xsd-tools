@@ -1,0 +1,13 @@
+<?xml version="1.0"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+	<xs:include schemaLocation="inclPrefixedTypes.xsd"/>
+	<xs:include schemaLocation="inclDefaultNsTypes.xsd"/>
+	<xs:element name="Company">
+		<xs:complexType>
+			<xs:sequence>
+				<xs:element name="Person" type="PersonRec"/>
+				<xs:element name="Product" type="ProductRec"/>
+			</xs:sequence>
+		</xs:complexType>
+	</xs:element>
+</xs:schema>

@@ -26,6 +26,8 @@ namespace {
 	/* recursive fixtures live beside the negative corpus but must not be
 	   globbed by it (they are accepted, not rejected) */
 	const std::string RECURSIVE(XSD_NEGATIVE_DIR "/../xsd-recursive/");
+	/* fixtures referenced explicitly (no golden, no round-trip glob) */
+	const std::string PARSE(XSDPARSE_DIR "/");
 }
 
 /* D2b: a 0..255 integer narrows to the smallest fixed-width C type (uint8_t);
@@ -175,6 +177,38 @@ TEST(Attr, CppDispatchUsesHashNotSetAttribute) {
 TEST(Attr, CppDefaultValueInitialized) {
 	const std::string out = gen("cpp-xml-expat", CORPUS + "testA015.xsd");
 	EXPECT_TRUE(has(out, "int32_t a_myAttr = 0;"));
+}
+
+/* Bug: a ref= element's minOccurs/maxOccurs live on the referencing site
+ * (the global element it resolves to legally cannot carry them); the site's
+ * occurs must land in the model. ref_occurs.xsd refs with 0..unbounded. */
+TEST(Bug, RefElementKeepsSiteOccurs) {
+	const std::string out = gen("test", PARSE + "ref_occurs.xsd");
+	EXPECT_TRUE(has(out, "minOccurs = 0"));
+	EXPECT_TRUE(has(out, "maxOccurs = -1"));
+}
+
+/* Bug: a derived restriction's scalar facet must win over the base's (D
+ * restricts B with maxLength=10 where B has maxLength=100 -> 10 applies),
+ * a derived enumeration REPLACES the base's, and pattern facets from every
+ * derivation step accumulate (they are ANDed in XSD). */
+TEST(Bug, DerivedFacetOverridesBase) {
+	const std::string out = gen("test", PARSE + "facet_override.xsd");
+	EXPECT_TRUE(has(out, "maxLength = 10\n"));
+	EXPECT_FALSE(has(out, "maxLength = 100"));
+	EXPECT_TRUE(has(out, "enumeration = { alpha, beta }"));
+	EXPECT_FALSE(has(out, "gamma"));
+	EXPECT_TRUE(has(out, "pattern = { [ab].*, [a-z]+ }"));
+}
+
+/* Bug: numeric facet bounds were rounded to 6 significant digits
+ * (4294967295 -> "4.29497e+09"). Integral bounds print in plain integer
+ * form; fractional ones keep round-trip precision. */
+TEST(Bug, NumericFacetFullPrecision) {
+	const std::string out = gen("test", PARSE + "facet_precision.xsd");
+	EXPECT_TRUE(has(out, "maxInclusive = 4294967295"));
+	EXPECT_FALSE(has(out, "e+09"));
+	EXPECT_TRUE(has(out, "minInclusive = 2.5"));
 }
 
 /* Java centralizes attribute unmarshalling in Element.unmarshal via a native
