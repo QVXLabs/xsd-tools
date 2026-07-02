@@ -6,6 +6,40 @@ All notable changes to xsd-tools are documented here. The format is based on
 
 ## [Unreleased]
 
+### Security
+- Generated XML marshallers now escape string content and attribute values, and
+  enumeration/`default`/`fixed` values embedded in generated source (C, C++,
+  Java, Python, TypeScript) are escaped too — closing an output-injection and
+  compile-break class from unescaped schema values.
+
+### Fixed
+- **Generated code, all targets:**
+  - Keyword, colliding, and reserved-name elements/attributes now yield valid,
+    unique identifiers; wire (XML/JSON) names stay verbatim.
+  - `maxOccurs>1`/`unbounded` emits arrays in every target; `cpp-json-jsonc` no
+    longer drops repeated elements.
+  - Numerics: full `float`/`double` precision; unsigned and 64-bit integers per
+    target (TypeScript `bigint`); `negativeInteger` no longer truncated;
+    narrow-int range checks; exact TypeScript facet bounds `>=2^53`.
+  - `xs:boolean` accepts `1`/`0` and surrounding whitespace; Python no longer
+    reads `"false"` as `True`.
+  - Absent optional attributes are omitted, not serialized as `None`/`null`.
+  - A failed XML/JSON parse raises an error instead of succeeding empty.
+  - Memory: heap overflow (`c-json-jsonc`), NULL-deref on absent optional
+    strings, uninitialized-slot free (`c-xml-expat` lists).
+  - Python `xs:list`/base64/hex attribute `SyntaxError`s; Java `gYearMonth`,
+    unbounded `xs:boolean`, and a child-element `NullPointerException`.
+- **Parser/processing:** `xs:all` processes every member; a `ref` element keeps
+  its own `minOccurs`/`maxOccurs`; derived facets override base ones and bounds
+  are not rounded; `isTypeRelated` direction fixed, so valid substitution groups
+  are accepted; prefixed `xs:include` resolves; a failing template block aborts
+  with a diagnostic; an `http://` schema URL errors cleanly instead of
+  segfaulting.
+- **CLI/templates:** template lookup and `--list` require a regular file (a
+  `./test` directory no longer shadows a template; subdirectories are not
+  listed); `~/.xsdtools/templates` resolves; the `test`/`main` dumps no longer
+  crash on boolean fields or recursion.
+
 ## [0.2.1] - 2026-06-30
 
 ### Changed
