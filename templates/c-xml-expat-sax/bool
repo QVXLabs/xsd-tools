@@ -40,11 +40,8 @@
 				definition = function() 
 					return table.concat({
 						'void\nunmarshal_bool_(xml_marshaller* pMarshaller, const char* pContent, xml_bool* pObj) {\n',
-						'\tif(isDigit(pContent[0]) {\n',
-						'\t\tpVal = (0 != *pContent[0]);\n',
-						'\t} else {',
-						'\t\tpVal = (0 == strcncmp(pContent, "true", 6));\n',
-						'\t}\n',
+						'\t*pObj = (0 == strcmp(pContent, "true") || 0 == strcmp(pContent, "1")) ? 1 : 0;\n',
+						'\t(void)pMarshaller;\n',
 						'}\n',
 					})
 				end,
@@ -57,7 +54,9 @@
 		},
 		test = {
 			assign = function()
-				return tostring(math.random(0, 255))
+				-- marshal canonicalizes to "true"/"false", so unmarshal round-
+				-- trips only the boolean values 0 and 1.
+				return tostring(math.random(0, 1))
 			end,
 			assert = function(obj1, obj2)
 				return string.format("assert(%s == %s);\n", obj1, obj2)

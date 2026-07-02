@@ -66,6 +66,10 @@
 				definition = function() 
 					return table.concat({
 						'static void\nunmarshal_xmlhex_(xml_marshaller* pMarshaller, const char* restrict pContent, xml_hex* restrict pObj) {\n',
+						-- Lenient decode: non-hex characters are skipped and a
+						-- trailing odd nibble is discarded (size_ reflects only the
+						-- fully decoded byte count).
+						'\t/* invalid hex digits are skipped; a trailing odd nibble is dropped */\n',
 						'\tstatic const unsigned char hexTbl[256] = {\n',
 						'\t\t-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,\n',
 						'\t\t-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,\n',

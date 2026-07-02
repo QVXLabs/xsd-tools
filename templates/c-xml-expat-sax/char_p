@@ -18,7 +18,7 @@
 			definition = function() 
 				return table.concat({
 					'static void\ndestroy_charp_(xml_marshaller* pMarshaller, char** ppObj) {\n',
-					'\tif (**ppObj) {\n',
+					'\tif (*ppObj) {\n',
 					'\t\t*ppObj = pMarshaller->realloc(pMarshaller, *ppObj, 0);\n',
 					'\t}\n',
 					'}\n'
@@ -35,12 +35,39 @@
 		end,
 		binding = {
 			marshal = {
-				definition = function() 
-					return ''
-				end,
-				statement = function(dst, obj)
+				definition = function()
+					-- Escape a run of text into the output buffer. `&<>` are
+					-- always escaped; `"'` only in attribute context (isAttr).
+					-- Prevents markup injection from string values.
 					return table.concat({
-						'cstr_append_(pMarshaller, ', dst, ', ', obj, ');\n',
+						'static void\ncstr_appendEscaped_(xml_marshaller* pMarshaller, xml_cstr* pOutStr, const char* pStr, int isAttr) {\n',
+						'\tconst char* pRun = pStr;\n',
+						'\tconst char* p;\n',
+						'\tfor (p = pStr; *p; ++p) {\n',
+						'\t\tconst char* pEsc = 0;\n',
+						'\t\tswitch (*p) {\n',
+						'\t\tcase \'&\': pEsc = "&amp;"; break;\n',
+						'\t\tcase \'<\': pEsc = "&lt;"; break;\n',
+						'\t\tcase \'>\': pEsc = "&gt;"; break;\n',
+						'\t\tcase \'"\': if (isAttr) pEsc = "&quot;"; break;\n',
+						'\t\tcase \'\\\'\': if (isAttr) pEsc = "&apos;"; break;\n',
+						'\t\tdefault: break;\n',
+						'\t\t}\n',
+						'\t\tif (pEsc) {\n',
+						'\t\t\tif (p > pRun)\n',
+						'\t\t\t\tcstr_appendN_(pMarshaller, pOutStr, pRun, (uint32_t)(p - pRun));\n',
+						'\t\t\tcstr_append_(pMarshaller, pOutStr, pEsc);\n',
+						'\t\t\tpRun = p + 1;\n',
+						'\t\t}\n',
+						'\t}\n',
+						'\tif (p > pRun)\n',
+						'\t\tcstr_appendN_(pMarshaller, pOutStr, pRun, (uint32_t)(p - pRun));\n',
+						'}\n',
+					})
+				end,
+				statement = function(dst, obj, isAttr)
+					return table.concat({
+						'cstr_appendEscaped_(pMarshaller, ', dst, ', ', obj, ', ', isAttr and '1' or '0', ');\n',
 					})
 				end,
 			},
