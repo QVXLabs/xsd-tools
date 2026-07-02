@@ -31,7 +31,7 @@
 					return table.concat({
 						'void\nmarshal_double_(xml_marshaller* pMarshaller, xml_cstr* pOutStr, const double val) {\n',
 						'\tchar valBuf[256];\n',
-						'\tconst int n = snprintf(valBuf, sizeof(valBuf), "%f", val);\n',
+						'\tconst int n = snprintf(valBuf, sizeof(valBuf), "%.17g", val);\n',
 						'\tcstr_appendN_(pMarshaller, pOutStr, valBuf, n > 0 ? (uint32_t)n : 0);\n',
 						'}\n',
 					})

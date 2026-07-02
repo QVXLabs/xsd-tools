@@ -33,15 +33,50 @@
 ][@lua --include xsd to c type mapping
 	return include 'c-xml-expat-sax/c_type_info'
 ][@lua --rename any non-c-safe names to c-safe names & sort dependencies so that they are matched correctly
-	schema = schema.c_safeNames()
+	-- C reserved words plus the template-injected struct member basenames
+	-- (eid_/Content_): seeding these keeps attribute idents from colliding with
+	-- those fields.
+	local C_KEYWORDS = {}
+	for w in ('auto break case char const continue default do double else enum '
+		..'extern float for goto if inline int long register restrict return '
+		..'short signed sizeof static struct switch typedef union unsigned void '
+		..'volatile while eid Content'):gmatch('%S+') do
+		C_KEYWORDS[w] = true
+	end
+	schema = schema.c_safeNames(C_KEYWORDS)
+	rootIdent = schema.types[schema.root].ident
+	-- Collapse duplicate type objects onto their registered representative: a
+	-- type expanded under several parents can leave orphaned copies (same
+	-- regkey, but not the object held in schema.types, so lacking .ident) in the
+	-- dependents graph. Repoint every dependent at schema.types[regkey] so
+	-- identifiers, tids and dispatch stay consistent.
+	local function canonType(n) return (n.regkey and schema.types[n.regkey]) or n end
+	table.map(schema.types, function(_, t)
+		table.map(t.dependents, function(k, child)
+			t.dependents[k] = canonType(child)
+		end)
+	end)
 	depOrder = schema.sortDependencies()
 	depOrderSansRoot = table.filter(depOrder, function(k,v) return v.name ~= schema.root and v or nil end)
+	-- Unique internal type id per element type (0 = synthetic schema root and
+	-- unknown elements). Keys the parse-record dispatch and the marshal element
+	-- stack; unlike the wire-name hash it is collision-free, so two elements
+	-- sharing a wire name (different scopes/types) stay distinguishable.
+	_tid = { [schema.types[schema.root]] = 0 }
+	do
+		local n = 0
+		table.map(depOrderSansRoot, function(_, node) n = n + 1; _tid[node] = n end)
+	end
+	function tid(node) return _tid[node] or 0 end
 ][@lua -- find all unique types used in xsd
 	uniqueXSDTypes = schema.uniqueTypes()
 	-- map xsd types to unique c-types
 	uniqueCTypes = {}
 	table.map(uniqueXSDTypes, function(_, v)
 		local ctype = c_type_info[v]
+		-- a complex/element type name has no scalar binding (it is round-tripped
+		-- via its own start/end dispatch, not a leaf helper); skip it here
+		if not ctype then return end
 		uniqueCTypes[ctype] = ctype
 		if 'c_list' == ctype.type then
 			local baseType = ctype.baseType()
@@ -89,13 +124,17 @@
 	-- one case that strcmp-confirms `scrut` against each candidate `bodyFn(key)`
 	-- block (duplicate case labels would not compile, a bare hash could
 	-- misdispatch). Caller supplies the `switch`, `default`, and braces.
-	function sdbmCases(scrut, keys, caseFn, bodyFn, ind)
+	-- `confirm` forces a strcmp guard on every case, not just colliding ones:
+	-- required for switches that dispatch on *untrusted* input (element/attribute
+	-- names, enum content), where an attacker value can collide with a key's hash
+	-- even when the keys themselves do not collide.
+	function sdbmCases(scrut, keys, caseFn, bodyFn, ind, confirm)
 		-- emit case labels in ascending hash order (collision groups inherit it,
 		-- since sdbm_group's first-seen order follows the sorted keys).
 		keys = byHashAsc(keys)
 		local groups, order, collision = sdbm_group(keys)
 		local out = stringBuffer:new()
-		if not collision then
+		if not collision and not confirm then
 			table.map(keys, function(_, k) out:append(caseFn(k)) end)
 			return out:str()
 		end
@@ -211,7 +250,7 @@ typedef struct {
 			-- emit the attribute annotation (#4) above its field
 			outbuf:append(docComment(xsdType.documentation, 'c', '\t'))
 			outbuf:append(table.concat({
-				'\t', c_narrowCType(xsdType.type, xsdType.facets).c_type.statement(name),
+				'\t', c_narrowCType(xsdType.type, xsdType.facets).c_type.statement(xsdType.ident),
 			}))
 		end)
 		if next(node.content) then
@@ -219,7 +258,7 @@ typedef struct {
 				'\t', c_narrowCType(node.content.type, node.content.facets).c_type.statement("Content"),
 			}))
 		end
-		outbuf:append('} xml_'..node.name..';\n\n')
+		outbuf:append('} xml_'..node.ident..';\n\n')
 	end)
 	return outbuf:str()
 ]
@@ -235,7 +274,7 @@ typedef struct xml_typeFactory {
 		.. '\tvoid (*xml_%sConstructor)(const struct xml_typeFactory*, xml_%s*);\n'
 		.. '\tvoid (*xml_%sDestructor)(const struct xml_typeFactory*, xml_%s*);\n'
 	table.map(depOrderSansRoot, function(_, v)
-		outbuf:append(fmt:format(v.name, v.name, v.name, v.name, v.name, v.name, v.name))
+		outbuf:append(fmt:format(v.ident, v.ident, v.ident, v.ident, v.ident, v.ident, v.ident))
 	end)
 	return outbuf:str()
 ]} xml_typeFactory;
@@ -250,7 +289,7 @@ typedef struct xml_marshaller {
 [@lua --output unmarshalling callback structs
 	local outbuf = stringBuffer:new()
 	local methodFmtStr = '\tvoid (*unmarshal_%s)(struct xml_marshaller* pThis, const xml_%s* pObj, uint32_t parent);\n'
-	table.map(depOrderSansRoot, function(k,v) outbuf:append(methodFmtStr:format(v.name, v.name)) end)
+	table.map(depOrderSansRoot, function(k,v) outbuf:append(methodFmtStr:format(v.ident, v.ident)) end)
 	return outbuf:str()
 ]} xml_marshaller;
 
@@ -264,18 +303,18 @@ typedef struct xml_marshaller {
 	-- (or its own) struct by pointer before it is defined; this is what lets a
 	-- recursive type's struct hold a marshaller returning that same struct.
 	table.map(nonLeaf, function(_, node)
-		outbuf:append('typedef struct xml_marshal_'..node.name
-			..' xml_marshal_'..node.name..';\n')
+		outbuf:append('typedef struct xml_marshal_'..node.ident
+			..' xml_marshal_'..node.ident..';\n')
 	end)
 	outbuf:append('\n')
 	table.map(nonLeaf, function(k, node)
-		outbuf:append('struct xml_marshal_'..node.name..' {\n')
+		outbuf:append('struct xml_marshal_'..node.ident..' {\n')
 		-- leaf children marshal in one void call
 		table.map(table.filter(node.dependents, isLeaf), function(_, child)
 			outbuf:append(string.format(
 				'\tvoid (*marshal_%s)(xml_marshaller* pMarshaller, const xml_%s* pObj);\n',
-				child.name,
-				child.name
+				child.ident,
+				child.ident
 			))
 		end)
 		-- non-leaf children return a pointer to their own (static) callback
@@ -283,9 +322,9 @@ typedef struct xml_marshaller {
 		table.map(table.filter(node.dependents, isNotLeaf), function(_, child)
 			outbuf:append(string.format(
 				'\tconst xml_marshal_%s* (*marshal_%s)(xml_marshaller* pMarshaller, const xml_%s* pObj);\n',
-				child.name,
-				child.name,
-				child.name
+				child.ident,
+				child.ident,
+				child.ident
 			))
 		end)
 		outbuf:append('};\n\n')
@@ -294,7 +333,7 @@ typedef struct xml_marshaller {
 ][@lua
 	if next(schema.types[schema.root].dependents) then
 		return table.concat({
-			'const xml_marshal_', schema.root,'* xml_marshal(xml_marshaller* pMarshaller);\n',
+			'const xml_marshal_', rootIdent,'* xml_marshal(xml_marshaller* pMarshaller);\n',
 		})
 	else
 		return 'void xml_marshal(xml_marshaller* pMarshaller);\n'
@@ -352,8 +391,8 @@ typedef union {
 	table.map(depOrderSansRoot, function(_,v)
 		outbuf:append(string.format(
 			"\txml_%s\t%s_;\n",
-			v.name,
-			v.name)
+			v.ident,
+			v.ident)
 		)
 	end)
 	return outbuf:str()
@@ -473,7 +512,7 @@ marshal_adjustElmStk_(xml_marshaller* pMarshaller, uint32_t validType) {
 	local outbuf = stringBuffer:new()
 	table.map(depOrderByHash, function(_,node)
 		outbuf:append(table.concat({
-			"\t\tcase ", hashU(node.name), ":\n",
+			"\t\tcase ", tid(node), ":\n",
 			"\t\t\tcstr_appendN_(pMarshaller, pOutStr, ", cLit('</'..nsQualify(node.name)..'>'), ");\n",
 			"\t\t\tbreak;\n",
 		}))
@@ -517,10 +556,10 @@ marshal_adjustElmStk_(xml_marshaller* pMarshaller, uint32_t validType) {
 	local outbuf = stringBuffer:new()
 	local function isLeaf(node) return not next(node.dependents) end
 	local function retType(node)
-		return isLeaf(node) and 'void' or ('const xml_marshal_'..node.name..'*')
+		return isLeaf(node) and 'void' or ('const xml_marshal_'..node.ident..'*')
 	end
 	local function edgeFn(parent, child)
-		return 'marshal_'..child.name..'__'..parent.name..'_'
+		return 'marshal_'..child.ident..'__'..parent.ident..'_'
 	end
 	-- open tag + attributes + content + stack push for `node`; identical for
 	-- every edge that targets `node`, so emitted once per edge body
@@ -536,12 +575,31 @@ marshal_adjustElmStk_(xml_marshaller* pMarshaller, uint32_t validType) {
 		local pending = openTag
 		table.map(node.attributes, function(k,v)
 			local attribType = c_narrowCType(v.type, v.facets)
-			pending = pending..' '..nsQualify(k)..'="'
-			buf:append(table.concat({
-				'\tcstr_appendN_(pMarshaller, pOutStr, ', cLit(pending), ');\n',
-				'\t', attribType.binding.marshal.statement('pOutStr', attribType.buildVar('pObj->',k)),
-			}))
-			pending = '"'
+			local var = attribType.buildVar('pObj->', v.ident)
+			-- an optional string attribute is omitted when NULL (guarding the
+			-- strlen), so it cannot fold its literals into its neighbours
+			if v.use ~= 'required' and attribType == ctype_char_p then
+				if #pending > 0 then
+					buf:append('\tcstr_appendN_(pMarshaller, pOutStr, '
+						..cLit(pending)..');\n')
+				end
+				pending = ''
+				buf:append(table.concat({
+					'\tif (', var, ') {\n',
+					'\t\tcstr_appendN_(pMarshaller, pOutStr, ',
+						cLit(' '..nsQualify(k)..'="'), ');\n',
+					'\t\t', attribType.binding.marshal.statement('pOutStr', var, true),
+					'\t\tcstr_appendN_(pMarshaller, pOutStr, ', cLit('"'), ');\n',
+					'\t}\n',
+				}))
+			else
+				pending = pending..' '..nsQualify(k)..'="'
+				buf:append(table.concat({
+					'\tcstr_appendN_(pMarshaller, pOutStr, ', cLit(pending), ');\n',
+					'\t', attribType.binding.marshal.statement('pOutStr', var, true),
+				}))
+				pending = '"'
+			end
 		end)
 		buf:append(table.concat({
 			'\tcstr_appendN_(pMarshaller, pOutStr, ', cLit(pending..'>'), ');\n',
@@ -569,7 +627,7 @@ marshal_adjustElmStk_(xml_marshaller* pMarshaller, uint32_t validType) {
 	table.map(edges, function(_, e)
 		outbuf:append(table.concat({
 			'static ', retType(e.child), '\n', edgeFn(e.parent, e.child),
-			'(xml_marshaller* pMarshaller, const xml_', e.child.name, '* pObj);\n',
+			'(xml_marshaller* pMarshaller, const xml_', e.child.ident, '* pObj);\n',
 		}))
 	end)
 	outbuf:append('\n')
@@ -577,10 +635,10 @@ marshal_adjustElmStk_(xml_marshaller* pMarshaller, uint32_t validType) {
 	-- edge function for (this node -> child)
 	table.map(nonLeaf, function(_, node)
 		local wiring = table.filter(node.dependents, function(childName, child)
-			return '.marshal_'..childName..' = '..edgeFn(node, child)
+			return '.marshal_'..child.ident..' = '..edgeFn(node, child)
 		end)
 		outbuf:append(table.concat({
-			'static const xml_marshal_', node.name, ' xml_retFuncs_', node.name,
+			'static const xml_marshal_', node.ident, ' xml_retFuncs_', node.ident,
 			' = {', table.concat(wiring, ', '), '};\n',
 		}))
 	end)
@@ -588,17 +646,17 @@ marshal_adjustElmStk_(xml_marshaller* pMarshaller, uint32_t validType) {
 	-- edge function definitions
 	table.map(edges, function(_, e)
 		local child, parent = e.child, e.parent
-		local retVal = isLeaf(child) and '' or (' &xml_retFuncs_'..child.name)
+		local retVal = isLeaf(child) and '' or (' &xml_retFuncs_'..child.ident)
 		outbuf:append(table.concat({
 			'static ', retType(child), '\n', edgeFn(parent, child),
-			'(xml_marshaller* pMarshaller, const xml_', child.name, '* pObj) {\n',
+			'(xml_marshaller* pMarshaller, const xml_', child.ident, '* pObj) {\n',
 			'\txml_cstr* pOutStr = &pMarshaller->mrshllBuf_;\n',
-			'\tconst xml_mrshllElmRec elemRec = {', hashU(child.name), '};\n',
-			'\tif (!marshal_adjustElmStk_(pMarshaller, ', hashU(parent.name), ')) return', retVal, ';\n',
+			'\tconst xml_mrshllElmRec elemRec = {', tid(child), '};\n',
+			'\tif (!marshal_adjustElmStk_(pMarshaller, ', tid(parent), ')) return', retVal, ';\n',
 			emitBody(child),
 		}))
 		if not isLeaf(child) then
-			outbuf:append('\treturn &xml_retFuncs_'..child.name..';\n')
+			outbuf:append('\treturn &xml_retFuncs_'..child.ident..';\n')
 		end
 		outbuf:append('}\n')
 	end)
@@ -607,13 +665,13 @@ marshal_adjustElmStk_(xml_marshaller* pMarshaller, uint32_t validType) {
 [@lua -- output the marshal entry function
 	if next(schema.types[schema.root].dependents) then
 		return table.concat({
-			'const xml_marshal_', schema.root,'*\nxml_marshal(xml_marshaller* pMarshaller) {\n',
-			'\tconst xml_mrshllElmRec elemRec = {', hashU(schema.root), '};\n',
+			'const xml_marshal_', rootIdent,'*\nxml_marshal(xml_marshaller* pMarshaller) {\n',
+			'\tconst xml_mrshllElmRec elemRec = {', tid(schema.types[schema.root]), '};\n',
 		})
 	else
 		return table.concat({
 			'void\nxml_marshal(xml_marshaller* pMarshaller) {\n',
-			'\tconst xml_mrshllElmRec elemRec = {', hashU(schema.root), '};\n',
+			'\tconst xml_mrshllElmRec elemRec = {', tid(schema.types[schema.root]), '};\n',
 		})
 	end
 ]	xml_cstr* pOutStr = &pMarshaller->mrshllBuf_;
@@ -621,7 +679,7 @@ marshal_adjustElmStk_(xml_marshaller* pMarshaller, uint32_t validType) {
 	cstr_init_(pMarshaller, &pMarshaller->mrshllBuf_);
 	mrshllElmStack_push_(pMarshaller, &pMarshaller->mrshllElmStk_, elemRec);
 	cstr_appendN_(pMarshaller, pOutStr, "<?xml version=\"1.0\" encoding=\"UTF-8\"?>", 38);
-[@lua if next(schema.types[schema.root].dependents) then return "\treturn &xml_retFuncs_"..schema.root..";" end]
+[@lua if next(schema.types[schema.root].dependents) then return "\treturn &xml_retFuncs_"..rootIdent..";" end]
 }
 
 xml_buffer
@@ -677,36 +735,38 @@ expatFree_(void *ptr) {
 	return outbuf:str()
 ]
 static void
-prsElmRec_init_(xml_prsElmRec* pElmRec, xml_marshaller* pMarshaller, const char* pElmName, const char** ppAttrs) {
+prsElmRec_init_(xml_prsElmRec* pElmRec, xml_marshaller* pMarshaller, uint32_t parentId, const char* pElmName, const char** ppAttrs) {
 	const xml_typeFactory* pFactory = pMarshaller->pFactory_;
-	/* Zero only the bookkeeping header; each case zeroes its own element slot.
-	   contentAccum_ stays empty and is allocated lazily on first text. */
+	/* Zero only the bookkeeping header; each accepted case zeroes its own
+	   element slot. contentAccum_ stays empty and is allocated lazily. An
+	   element is accepted only when both its enclosing parent (parentId) and a
+	   strcmp on the wire name match, so two elements sharing a wire name in
+	   different scopes stay distinct and unknown input never dispatches. */
 	memset(pElmRec, 0, offsetof(xml_prsElmRec, element_));
-	pElmRec->typeId_ = SDBMHash_(0, pElmName);
-	switch(pElmRec->typeId_) {
+	switch(SDBMHash_(0, pElmName)) {
 [@lua --output element construction code
-	-- Block following a `case <h>u:` label: allocate, apply attribute
-	-- defaults, dispatch attributes through a (collision-safe) inner switch,
-	-- then construct. Reused verbatim for the distinct path and wrapped in a
-	-- strcmp confirm on the rare colliding path.
+	-- The construct block for one element type: allocate, stamp the unique
+	-- type id, apply attribute defaults, dispatch attributes through a
+	-- collision-safe inner switch, then construct. Emitted inside an
+	-- `if (<parent match> && !strcmp(name))` so it runs only for its own scope.
 	local function elmBody(node)
 		local body, elm, obj = stringBuffer:new(),
-			'pElmRec->element_.'..node.name..'_', 'pElm->'
+			'pElmRec->element_.'..node.ident..'_', 'pElm->'
 		body:append(table.concat({
-			' {\n',
-			'\t\tmemset(&', elm, ', 0, sizeof(xml_', node.name, '));\n',
-			'\t\txml_', node.name, '* pElm = AllocateElement(xml_', node.name, ', &', elm, ', pFactory);\n',
-			'\t\tpElm->eid_ = pElmRec->typeId_;\n',
+			'\t\t\tmemset(&', elm, ', 0, sizeof(xml_', node.ident, '));\n',
+			'\t\t\txml_', node.ident, '* pElm = AllocateElement(xml_', node.ident, ', &', elm, ', pFactory);\n',
+			'\t\t\tpElmRec->typeId_ = ', tid(node), 'u;\n',
+			'\t\t\tpElm->eid_ = pElmRec->typeId_;\n',
 		}))
 		if next(node.content) then
-			body:append('\t\tpElmRec->wantsContent_ = 1;\n')
+			body:append('\t\t\tpElmRec->wantsContent_ = 1;\n')
 		end
 		table.map(node.attributes, function(name, attrib)
 			if attrib.default then
 				local at = c_narrowCType(attrib.type, attrib.facets)
 				body:append(reindent(at.binding.unmarshal.statement(
-					'"'..attrib.default..'"', at.buildVar(obj, name)),
-					'\t\t\t'))
+					'"'..attrib.default..'"', at.buildVar(obj, attrib.ident)),
+					'\t\t\t\t'))
 			end
 		end)
 		if next(node.attributes) then
@@ -720,40 +780,72 @@ prsElmRec_init_(xml_prsElmRec* pElmRec, xml_marshaller* pMarshaller, const char*
 				local a = node.attributes[name]
 				local at = c_narrowCType(a.type, a.facets)
 				return reindent(at.binding.unmarshal.statement('*(ppAttrs + 1)',
-					at.buildVar(obj, name)), '\t\t\t\t')
+					at.buildVar(obj, a.ident)), '\t\t\t\t\t')
 			end
 			local function attrCase(name)
-				return '\t\t\tcase '..hashU(name)..':\n'
-					..attrStmt(name)..'\t\t\t\tbreak;\n'
+				return '\t\t\t\tcase '..hashU(name)..':\n'
+					..attrStmt(name)..'\t\t\t\t\tbreak;\n'
 			end
-			body:append('\t\tfor ( ; *ppAttrs ; ppAttrs+=2) {\n')
+			body:append('\t\t\tfor ( ; *ppAttrs ; ppAttrs+=2) {\n')
 			if docRootNS then
-				body:append('\t\t\tconst char* pAttrLocal = strrchr(*ppAttrs, '
+				body:append('\t\t\t\tconst char* pAttrLocal = strrchr(*ppAttrs, '
 					..'\':\') ? strrchr(*ppAttrs, \':\') + 1 : *ppAttrs;\n')
 			end
-			body:append('\t\t\tswitch(SDBMHash_(0, '..scrut..')) {\n')
-			body:append(sdbmCases(scrut, attrKeys, attrCase, attrStmt, '\t\t\t'))
-			body:append('\t\t\tdefault:break;\n\t\t\t}\n\t\t}\n')
+			body:append('\t\t\t\tswitch(SDBMHash_(0, '..scrut..')) {\n')
+			body:append(sdbmCases(scrut, attrKeys, attrCase, attrStmt,
+				'\t\t\t\t', true))
+			body:append('\t\t\t\tdefault:break;\n\t\t\t\t}\n\t\t\t}\n')
 		end
-		body:append(table.concat({
-			'\t\tConstructElement(xml_', node.name, ', pElm, pFactory);\n',
-			'\t\tbreak;\n\t}\n',
-		}))
+		body:append('\t\t\tConstructElement(xml_'..node.ident
+			..', pElm, pFactory);\n')
 		return body:str()
 	end
-	local elmKeys, byName = {}, {}
-	table.map(depOrderSansRoot, function(_, n)
-		elmKeys[#elmKeys+1] = n.name
-		byName[n.name] = n
+	-- child -> set of accepting parent tids (a type reachable from several
+	-- parents, e.g. a recursive type, accepts under each). Root's tid is 0,
+	-- matching the empty parse stack at the document element.
+	local childParents = {}
+	table.map(depOrder, function(_, parent)
+		table.map(parent.dependents, function(_, child)
+			childParents[child] = childParents[child] or {}
+			local pt, seen = tid(parent), false
+			table.map(childParents[child], function(_, v)
+				if v == pt then seen = true end
+			end)
+			if not seen then
+				childParents[child][#childParents[child]+1] = pt
+			end
+		end)
 	end)
-	local function elmCase(k)
-		return '\tcase '..hashU(k)..':'..elmBody(byName[k])
-	end
+	-- group element types by wire-name hash for the switch cases
+	local groups, order = {}, {}
+	table.map(depOrderSansRoot, function(_, child)
+		local h = uHash(child.name)
+		if not groups[h] then groups[h] = {}; order[#order+1] = h end
+		groups[h][#groups[h]+1] = child
+	end)
+	table.sort(order)
+	local out = stringBuffer:new()
+	table.map(order, function(_, h)
+		local children = groups[h]
+		out:append('\tcase '..hashU(children[1].name)..':\n')
+		table.map(children, function(_, child)
+			local conds = {}
+			table.map(childParents[child] or {}, function(_, pt)
+				conds[#conds+1] = 'parentId == '..pt..'u'
+			end)
+			local parentCond = (#conds > 0)
+				and ('('..table.concat(conds, ' || ')..')') or '0'
+			out:append('\t\tif ('..parentCond
+				..' && !strcmp(pElmName, "'..child.name..'")) {\n')
+			out:append(elmBody(child))
+			out:append('\t\t}\n')
+		end)
+		out:append('\t\tbreak;\n')
+	end)
 	return table.concat({
-		sdbmCases('pElmName', elmKeys, elmCase,
-			function(k) return elmBody(byName[k]) end, '\t'),
+		out:str(),
 		'\tdefault: break;\n\t}\n',
-		'\tXML_UNUSED_ARG(ppAttrs);\n\t(void)pFactory;\n}\n',
+		'\tXML_UNUSED_ARG(ppAttrs);\n\t(void)pFactory;\n\t(void)parentId;\n}\n',
 	})
 ]
 static void
@@ -765,15 +857,15 @@ prsElmRec_destory_(xml_prsElmRec* pElmRec, xml_marshaller* pMarshaller) {
 	local outbuf = stringBuffer:new()
 	table.map(depOrderByHash, function(_, node)
 		-- output case statement for element
-		outbuf:append(table.concat({'\t\tcase ', hashU(node.name), ':\n',}))
+		outbuf:append(table.concat({'\t\tcase ', tid(node), ':\n',}))
 		-- output destructor for each attribute (3-tab indent under the case;
 		-- scalar delete.statement is empty, so skip its indentation entirely)
-		local elm = 'pElmRec->element_.'..node.name..'_'
+		local elm = 'pElmRec->element_.'..node.ident..'_'
 		local objName = elm..'.'
 		table.map(node.attributes, function(name, attrib)
 			local attribType = c_narrowCType(attrib.type, attrib.facets)
 			local stmt = attribType.delete.statement(
-				attribType.buildVar(objName, name))
+				attribType.buildVar(objName, attrib.ident))
 			if stmt ~= '' then outbuf:append('\t\t\t'..stmt) end
 		end)
 		-- output destructor for content
@@ -785,7 +877,7 @@ prsElmRec_destory_(xml_prsElmRec* pElmRec, xml_marshaller* pMarshaller) {
 		end
 		-- route element-level teardown through the factory (no-op by default)
 		outbuf:append(table.concat({
-			'\t\t\tDestroyElement(xml_', node.name, ', &', elm, ', pFactory);\n',
+			'\t\t\tDestroyElement(xml_', node.ident, ', &', elm, ', pFactory);\n',
 			'\t\t\tbreak;\n',
 		}))
 	end)
@@ -830,14 +922,23 @@ prsElmRec_destory_(xml_prsElmRec* pElmRec, xml_marshaller* pMarshaller) {
 					table.map(c.values, function(_, v) ors[#ors+1] = expr..' == '..v end)
 					guard(' || ', ors)
 				else
-					-- string enum: collision-safe sdbm switch over the allowed
-					-- set. A hit breaks (falls to later checks); a miss hits
-					-- `default: return 1`. The confirm is the strcmp in the
-					-- merged colliding case; distinct values need no strcmp.
+					-- string enum over untrusted content: an O(1) sdbm pre-
+					-- filter then a strcmp confirm, so a hash collision cannot
+					-- smuggle a disallowed value past. A confirmed match breaks
+					-- (valid); every other path returns 1 (invalid).
+					local keys = byHashAsc(c.values)
+					local groups, order = sdbm_group(keys)
 					out:append('\tswitch (SDBMHash_(0, '..expr..')) {\n')
-					out:append(sdbmCases(expr, c.values,
-						function(v) return '\tcase '..hashU(v)..': break;\n' end,
-						function(_) return '' end, '\t'))
+					table.map(order, function(_, h)
+						out:append('\tcase '..h..'u:\n')
+						local ors = {}
+						table.map(groups[h], function(_, v)
+							ors[#ors+1] = '0 == strcmp('..expr..', "'..v..'")'
+						end)
+						out:append('\t\tif ('..table.concat(ors, ' || ')
+							..') break;\n')
+						out:append('\t\treturn 1;\n')
+					end)
 					out:append('\tdefault: return 1;\n\t}\n')
 				end
 			end
@@ -855,14 +956,15 @@ prsElmRec_destory_(xml_prsElmRec* pElmRec, xml_marshaller* pMarshaller) {
 		table.map(node.attributes, function(name, attr)
 			if attr.facets then
 				local at = c_narrowCType(attr.type, attr.facets)
-				body:append(cChecks(at, at.buildVar('pObj->', name), attr.facets))
+				body:append(cChecks(at, at.buildVar('pObj->', attr.ident),
+					attr.facets))
 			end
 		end)
 		if 0 == #body:str() then return end
 		node._hasValidator = true
 		outbuf:append(table.concat({
-			'static int\nvalidate_', node.name,
-			'_(const xml_', node.name, '* pObj) {\n',
+			'static int\nvalidate_', node.ident,
+			'_(const xml_', node.ident, '* pObj) {\n',
 			body:str(), '\treturn 0;\n}\n\n',
 		}))
 	end)
@@ -876,8 +978,8 @@ prsElmRec_id_(xml_prsElmRec* pElmRec) {
 	local outbuf = stringBuffer:new()
 	table.map(depOrderByHash, function(_, node)
 		outbuf:append(table.concat({
-			'\t\tcase ', hashU(node.name), ':\n',
-			'\t\t\t return pElmRec->element_.', node.name, '_.eid_;\n',
+			'\t\tcase ', tid(node), ':\n',
+			'\t\t\t return pElmRec->element_.', node.ident, '_.eid_;\n',
 		}))
 	end)
 	return outbuf:str()
@@ -894,7 +996,7 @@ prsElmRec_invoke_(xml_prsElmRec* pElmRec, xml_marshaller* pMarshaller, const uin
 [@lua -- output element content assignment and data notification invocation
 	local outbuf = stringBuffer:new()
 	table.map(depOrderByHash, function(_, node)
-		outbuf:append(table.concat({'\t\tcase ', hashU(node.name), ':\n'}))
+		outbuf:append(table.concat({'\t\tcase ', tid(node), ':\n'}))
 		if next(node.content) then
 			local contentType = c_narrowCType(node.content.type, node.content.facets)
 			-- NUL-terminate the accumulated text once, then read it as a C string
@@ -902,21 +1004,21 @@ prsElmRec_invoke_(xml_prsElmRec* pElmRec, xml_marshaller* pMarshaller, const uin
 				'\t\t\tcstr_terminate_(pMarshaller, &pElmRec->contentAccum_);\n')
 			outbuf:append(reindent(contentType.binding.unmarshal.statement(
 				'cstr_cstr_(&pElmRec->contentAccum_)',
-				contentType.buildVar('pElmRec->element_.'..node.name..'_.',
+				contentType.buildVar('pElmRec->element_.'..node.ident..'_.',
 					'Content')), '\t\t\t'))
 		end
 		-- facet validation (D2): abort on an invalid value
 		if node._hasValidator then
 			outbuf:append(table.concat({
-				'\t\t\tif (validate_', node.name,
-				'_(&pElmRec->element_.', node.name, '_)) {\n',
+				'\t\t\tif (validate_', node.ident,
+				'_(&pElmRec->element_.', node.ident, '_)) {\n',
 				'\t\t\t\tfprintf(stderr, "', node.name,
 				': facet validation failed\\n");\n',
 				'\t\t\t\tabort();\n\t\t\t}\n',
 			}))
 		end
 		outbuf:append(table.concat({
-			'\t\t\tpMarshaller->unmarshal_', node.name, '(pMarshaller, &pElmRec->element_.', node.name, '_, parentId);\n',
+			'\t\t\tpMarshaller->unmarshal_', node.ident, '(pMarshaller, &pElmRec->element_.', node.ident, '_, parentId);\n',
 		}))
 		outbuf:append('\t\t\tbreak;\n')
 	end)
@@ -943,8 +1045,12 @@ expatStartElementHandler_(void* pCtx,
 									 const XML_Char** ppattrs) {
 	const char* pElmName = strrchr(pName, ':') ? strrchr(pName, ':') + 1: pName;
 	xml_marshaller* pMarshaller = (xml_marshaller*)pCtx;
+	/* the enclosing element's type id (0 at the document root); scopes the
+	   accept decision so same-named elements in different parents stay distinct */
+	const uint32_t parentId = prsElmRec_id_(
+		prsElmStack_top_(&pMarshaller->prsElmStk_));
 	xml_prsElmRec elemRec;
-	prsElmRec_init_(&elemRec, pMarshaller, pElmName, ppattrs);
+	prsElmRec_init_(&elemRec, pMarshaller, parentId, pElmName, ppattrs);
 	prsElmStack_push_(pMarshaller, &pMarshaller->prsElmStk_, elemRec);
 }
 

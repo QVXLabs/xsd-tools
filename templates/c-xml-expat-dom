@@ -274,8 +274,9 @@ function outputXmlStartElement(XSDDoc)
         -- Match the wire tag (prefixed when qualified); bare name otherwise.
         local wire = c_nsTagName(name, ctype._typedef)
         local elemName = sdbm_hash(wire)
-        local confirm = collisions[name]
-           and (" && !strcmp(pElmName, \"%s\")"):format(wire) or ""
+        -- always strcmp-confirm: the element name is untrusted input, so a hash
+        -- collision must never accept a foreign element in this one's place
+        local confirm = (" && !strcmp(pElmName, \"%s\")"):format(wire)
         local parentEnum = parentName and parentCType:typeEnum() or "0"
         if ifCnt == 0 then
            str:append(
@@ -336,8 +337,8 @@ function outputXmlEndElement(XSDDoc)
         -- Match the wire tag (prefixed when qualified); bare name otherwise.
         local wire = c_nsTagName(name, ctype._typedef)
         local elemName = sdbm_hash(wire)
-        local confirm = collisions[name]
-           and (" && !strcmp(pElmName, \"%s\")"):format(wire) or ""
+        -- always strcmp-confirm untrusted element names (see startElement_)
+        local confirm = (" && !strcmp(pElmName, \"%s\")"):format(wire)
         -- handle first if statment which doesn't use an 'else if'
         if ifCnt == 0 then
            str:append(

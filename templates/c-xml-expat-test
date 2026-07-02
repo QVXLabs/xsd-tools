@@ -8,12 +8,32 @@
 ][@lua --include xsd to c type mapping
 	return include 'c-xml-expat-sax/c_type_info'
 ][@lua --generate helper globals
-	schema = schema.c_safeNames()
+	-- must match the identifier assignment in the c-xml-expat template exactly,
+	-- so seed c_safeNames with the same C keyword + member-name reserved set.
+	local C_KEYWORDS = {}
+	for w in ('auto break case char const continue default do double else enum '
+		..'extern float for goto if inline int long register restrict return '
+		..'short signed sizeof static struct switch typedef union unsigned void '
+		..'volatile while eid Content'):gmatch('%S+') do
+		C_KEYWORDS[w] = true
+	end
+	schema = schema.c_safeNames(C_KEYWORDS)
+	-- collapse orphaned duplicate type objects onto their registered
+	-- representative (see the c-xml-expat template) so the marshal-driver walk
+	-- of the dependents graph uses the same identifiers as the header.
+	local function canonType(n) return (n.regkey and schema.types[n.regkey]) or n end
+	table.map(schema.types, function(_, t)
+		table.map(t.dependents, function(k, child)
+			t.dependents[k] = canonType(child)
+		end)
+	end)
 	uniqueXSDTypes = schema.uniqueTypes()
 	-- map xsd types to unique c-types
 	uniqueCTypes = {}
 	table.map(uniqueXSDTypes, function(_, v)
 		local ctype = c_type_info[v]
+		-- complex/element type names have no scalar binding; skip them
+		if not ctype then return end
 		uniqueCTypes[ctype] = ctype
 		if 'c_list' == ctype.type then
 			local baseType = ctype.baseType()
@@ -50,21 +70,21 @@
 	table.map(typeSansRoot, function(_, node)
 		-- build list of attributes to output test values for
 		valTbl = {'.eid_ = '..tostring(ID)}
-		local prcssType = function(ncname, xsdType)
+		local prcssType = function(member, xsdType)
 			local c_type = c_narrowCType(xsdType.type, xsdType.facets)
 			if "c_list" == c_type.type then
 				local cVarName = listTypeVarMap[c_type]
-				table.insert(valTbl, c_type.buildVar('.',ncname)..' = '..c_type.test.assign(cVarName))
+				table.insert(valTbl, c_type.buildVar('.',member)..' = '..c_type.test.assign(cVarName))
 			else
-				table.insert(valTbl, c_type.buildVar('.',ncname)..' = '..c_type.test.assign(xsdType.facets))
+				table.insert(valTbl, c_type.buildVar('.',member)..' = '..c_type.test.assign(xsdType.facets))
 			end
 		end
-		table.map(node.attributes, prcssType)
+		table.map(node.attributes, function(_, attr) prcssType(attr.ident, attr) end)
 		if next(node.content) then
 			prcssType("Content", node.content)
 		end
 		outbuf:append(table.concat({
-			"static const xml_", node.name, " ", node.name, "Tst = {", table.concat(valTbl, ','),"};\n",
+			"static const xml_", node.ident, " ", node.ident, "Tst = {", table.concat(valTbl, ','),"};\n",
 		}));
 		-- inc the ID
 		ID = ID + 1
@@ -81,16 +101,16 @@ static void* reallocCb(struct xml_marshaller* pMarshaller, void* pMem, size_t si
 	local outbuf = stringBuffer:new()
 	table.map(typeSansRoot, function(_, node)
 		outbuf:append(table.concat({
-			"static void unmarshal_", node.name, "(struct xml_marshaller* pMarshaller, const xml_", node.name, "* pObj, uint32_t parent) {\n",
+			"static void unmarshal_", node.ident, "(struct xml_marshaller* pMarshaller, const xml_", node.ident, "* pObj, uint32_t parent) {\n",
 			"\t(void)pMarshaller;\n",
 			"\t(void)parent;\n",
 			"\t(void)pObj;\n",
 		}))
-		local prcssType = function(ncname, xsdtype)
+		local prcssType = function(member, xsdtype)
 			local c_type = c_narrowCType(xsdtype.type, xsdtype.facets)
-			outbuf:append(c_type.test.assert(c_type.buildVar('pObj->', ncname), c_type.buildVar(node.name..'Tst'..'.', ncname)))
+			outbuf:append(c_type.test.assert(c_type.buildVar('pObj->', member), c_type.buildVar(node.ident..'Tst'..'.', member)))
 		end
-		table.map(node.attributes, prcssType)
+		table.map(node.attributes, function(_, attr) prcssType(attr.ident, attr) end)
 		if next(node.content) then
 			prcssType("Content", node.content)
 		end
@@ -106,7 +126,7 @@ int main(void) {
 [@lua --output unmarshal function assignments
 	local tbl = {}
 	table.map(typeSansRoot, function(_, node)
-		table.insert(tbl, "\t\t.unmarshal_"..node.name.." = unmarshal_"..node.name)
+		table.insert(tbl, "\t\t.unmarshal_"..node.ident.." = unmarshal_"..node.ident)
 	end)
 	return table.concat(tbl, ",\n")
 ]
@@ -117,7 +137,7 @@ int main(void) {
 	local rootHasDeps = next(schema.types[schema.root].dependents)
 	-- the entry returns the document's callback struct (now a pointer)
 	if rootHasDeps then
-		outbuf:append('\tconst xml_marshal_'..schema.root
+		outbuf:append('\tconst xml_marshal_'..schema.types[schema.root].ident
 			..'* ret0 = xml_marshal(&mrshllr);\n')
 	else
 		outbuf:append('\txml_marshal(&mrshllr);\n')
@@ -130,18 +150,18 @@ int main(void) {
 	local function marshalChildren(parentVar, node)
 		table.map(node.dependents, function(_, child)
 			if next(child.dependents) then
-				if (onPath[child.name] or 0) >= 2 then return end
-				onPath[child.name] = (onPath[child.name] or 0) + 1
+				if (onPath[child.ident] or 0) >= 2 then return end
+				onPath[child.ident] = (onPath[child.ident] or 0) + 1
 				seqId = seqId + 1
 				local v = 'ret'..seqId
-				outbuf:append('\tconst xml_marshal_'..child.name..'* '..v..' = '
-					..parentVar..'->marshal_'..child.name
-					..'(&mrshllr, &'..child.name..'Tst);\n')
+				outbuf:append('\tconst xml_marshal_'..child.ident..'* '..v..' = '
+					..parentVar..'->marshal_'..child.ident
+					..'(&mrshllr, &'..child.ident..'Tst);\n')
 				marshalChildren(v, child)
-				onPath[child.name] = onPath[child.name] - 1
+				onPath[child.ident] = onPath[child.ident] - 1
 			else
-				outbuf:append('\t'..parentVar..'->marshal_'..child.name
-					..'(&mrshllr, &'..child.name..'Tst);\n')
+				outbuf:append('\t'..parentVar..'->marshal_'..child.ident
+					..'(&mrshllr, &'..child.ident..'Tst);\n')
 			end
 		end)
 	end
