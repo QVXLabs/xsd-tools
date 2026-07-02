@@ -6,8 +6,8 @@
 		end,
 		default = function(name, value)
 			return table.concat({
-				"\t\tthis._", name,
-				' = "', value, '".split(" ").map(Number);\n' })
+				"\t\tthis._", name, " = ", tsStr(value),
+				'.split(" ").map(Number);\n' })
 		end,
 		toText = function(expr) return expr .. '.map(String).join(" ")' end,
 		fromText = function(expr)

@@ -7,9 +7,12 @@
 		default = function(name, value)
 			return table.concat({ "\t\tthis._", name, " = ", value, ";\n" })
 		end,
+		-- canonical "true"/"false" on the wire
 		toText = function(expr) return "String(" .. expr .. ")" end,
+		-- XSD boolean lexical space is {true, false, 1, 0}
 		fromText = function(expr)
-			return "(" .. expr .. ".trim() === \"true\")"
+			return "([\"true\", \"1\"].indexOf((" .. expr
+				.. ").trim()) >= 0)"
 		end,
 		test = {
 			assign = function()
