@@ -151,7 +151,10 @@ function trnsfrm_oldFmt(tbl)
 					-- recursive reference: bind to the nearest lexical ancestor
 					-- of this name (A/C). Scope is collision-safe where the flat
 					-- registry is not; fall back to a deferred placeholder only
-					-- if no ancestor matches.
+					-- if no ancestor matches. No setOccurs_ here on purpose: the
+					-- ancestor is the same element declaration under this name, so
+					-- it already carries this reference's minOccurs/maxOccurs (a
+					-- name can't recur with different occurs in one content model).
 					local target = scope[v.typeref]
 					if target then
 						outTbl.dependents[k] = target
