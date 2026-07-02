@@ -12,10 +12,11 @@
 			})
 		end,
 		marshal = {
-			attribute = function(attribName)
+			attribute = function(attribName, wireName)
+				wireName = wireName or attribName
 				return table.concat({
 					"\t\tif (_", attribName,
-					" != null) w.writeAttribute(\"", attribName,
+					" != null) w.writeAttribute(\"", wireName,
 					"\", String.valueOf(_", attribName, "));\n",
 				})
 			end,
@@ -27,9 +28,10 @@
 			end,
 		},
 		unmarshal = {
-			attribute = function(attribName)
+			attribute = function(attribName, wireName)
+				wireName = wireName or attribName
 				return table.concat({
-					"\t\t\tif (an.equals(\"", attribName, "\")) _",
+					"\t\t\tif (an.equals(\"", wireName, "\")) _",
 					attribName, " = Double.parseDouble(av.trim());\n",
 				})
 			end,

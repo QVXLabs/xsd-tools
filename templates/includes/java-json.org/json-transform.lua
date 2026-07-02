@@ -52,7 +52,9 @@
          local ty2 = type(typedef2)
          if ty1 ~= ty2 then return false end
          -- non-table types can be directly compared
-         if ty1 ~= 'table' and ty2 ~= 'table' then return t1 == t2 end
+         if ty1 ~= 'table' and ty2 ~= 'table' then
+            return typedef1 == typedef2
+         end
          -- compare table types
          -- facets don't affect Java type identity (not enforced here)
          for k1,v1 in pairs(typedef1) do

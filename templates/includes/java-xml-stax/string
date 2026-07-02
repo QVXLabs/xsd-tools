@@ -8,14 +8,15 @@
 		end,
 		default = function(attribName, value)
 			return table.concat({
-				"\t\t_", attribName, " = \"", value, "\";\n",
+				"\t\t_", attribName, " = ", javaStrLit(value), ";\n",
 			})
 		end,
 		marshal = {
-			attribute = function(attribName)
+			attribute = function(attribName, wireName)
+				wireName = wireName or attribName
 				return table.concat({
 					"\t\tif (_", attribName, " != null) w.writeAttribute(\"",
-					attribName, "\", _", attribName, ");\n",
+					wireName, "\", _", attribName, ");\n",
 				})
 			end,
 			content = function()
@@ -25,9 +26,10 @@
 			end,
 		},
 		unmarshal = {
-			attribute = function(attribName)
+			attribute = function(attribName, wireName)
+				wireName = wireName or attribName
 				return table.concat({
-					"\t\t\tif (an.equals(\"", attribName, "\")) _",
+					"\t\t\tif (an.equals(\"", wireName, "\")) _",
 					attribName, " = av;\n",
 				})
 			end,

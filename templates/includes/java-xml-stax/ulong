@@ -1,5 +1,9 @@
-[@lua --define StAX long type
-	javatype_long = {
+[@lua --define StAX unsignedLong type
+	-- 2^64-1 overflows a signed Long, so parse/format it as unsigned into a
+	-- 64-bit slot: the stored long may be negative but the wire text (and thus
+	-- the round-trip) is preserved. Field type stays Long for facet-range
+	-- checks; callers see the unsigned string form via marshalling.
+	javatype_ulong = {
 		jtype = "Long",
 		field = function(attribName)
 			return table.concat({
@@ -8,7 +12,8 @@
 		end,
 		default = function(attribName, value)
 			return table.concat({
-				"\t\t_", attribName, " = ", value, "L;\n",
+				"\t\t_", attribName,
+				" = Long.parseUnsignedLong(\"", value, "\");\n",
 			})
 		end,
 		marshal = {
@@ -17,13 +22,13 @@
 				return table.concat({
 					"\t\tif (_", attribName,
 					" != null) w.writeAttribute(\"", wireName,
-					"\", String.valueOf(_", attribName, "));\n",
+					"\", Long.toUnsignedString(_", attribName, "));\n",
 				})
 			end,
 			content = function()
 				return table.concat({
 					"\t\tif (_text != null) w.writeCharacters(",
-					"String.valueOf(_text));\n",
+					"Long.toUnsignedString(_text));\n",
 				})
 			end,
 		},
@@ -32,19 +37,22 @@
 				wireName = wireName or attribName
 				return table.concat({
 					"\t\t\tif (an.equals(\"", wireName, "\")) _",
-					attribName, " = Long.parseLong(av.trim());\n",
+					attribName, " = Long.parseUnsignedLong(av.trim());\n",
 				})
 			end,
 			content = function()
 				return table.concat({
-					"\t\t_text = Long.parseLong(_buf.toString().trim());\n",
+					"\t\t_text = Long.parseUnsignedLong(",
+					"_buf.toString().trim());\n",
 				})
 			end,
 		},
 		test = {
 			assign = function()
-				return string.format("%.0f",
-					math.floor(math.random() * 9223372036854775807.0))
+				-- includes 2^64-1 to exercise the unsigned round-trip
+				local ret = { '0', '1', '4294967296',
+					'9223372036854775808', '18446744073709551615' }
+				return ret[math.random(1, #ret)]
 			end,
 		},
 	}

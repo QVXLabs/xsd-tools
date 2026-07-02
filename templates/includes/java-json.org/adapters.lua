@@ -15,6 +15,8 @@
 '\tpublic int getInt(String key) throws JSONException {\n\t\treturn _jObj.getInt(key);\n\t}\n',
       getLong =
 '\tpublic long getLong(String key) throws JSONException {\n\t\treturn _jObj.getLong(key);\n\t}\n',
+      getBigInteger =
+'\tpublic java.math.BigInteger getBigInteger(String key) throws JSONException {\n\t\treturn _jObj.getBigInteger(key);\n\t}\n',
       getDouble =
 '\tpublic double getDouble(String key) throws JSONException {\n\t\treturn _jObj.getDouble(key);\n\t}\t\n',
       getObject =
@@ -31,6 +33,8 @@
 '\tpublic JSONObjectAdapter put(String key, Long value) throws JSONException {\n\t\treturn new JSONObjectAdapter(_jObj.put(key, value.longValue()));\n\t}\t\n',
       putInteger =
 '\tpublic JSONObjectAdapter put(String key, Integer value) throws JSONException {\n\t\treturn new JSONObjectAdapter(_jObj.put(key, value.intValue()));\n\t}\n',
+      putBigInteger =
+'\tpublic JSONObjectAdapter put(String key, java.math.BigInteger value) throws JSONException {\n\t\treturn new JSONObjectAdapter(_jObj.put(key, (Object) value));\n\t}\n',
       putString =
 '\tpublic JSONObjectAdapter put(String key, String value) throws JSONException {\n\t\treturn new JSONObjectAdapter(_jObj.put(key, value));\n\t}\n',
       putInt =
@@ -48,20 +52,24 @@
    }
    -- Ordered keys so emitted output keeps the historical block order.
    local objOrder = {
-      'getBoolean','getString','getInt','getLong','getDouble','getObject',
-      'getList','getBase64','getHex','putBoolean','putLong','putInteger',
-      'putString','putInt','putDouble','putArray','putJSONObject','putBase64',
-      'putHex',
+      'getBoolean','getString','getInt','getLong','getBigInteger','getDouble',
+      'getObject','getList','getBase64','getHex','putBoolean','putLong',
+      'putInteger','putBigInteger','putString','putInt','putDouble','putArray',
+      'putJSONObject','putBase64','putHex',
    }
 
    -- Array-adapter accessor blocks (indexed by int position).
    local arrBlocks = {
+      getBoolean =
+'\tpublic boolean getBoolean(int ndx) throws JSONException {\n\t\treturn _jObj.getBoolean(ndx);\n\t}\n',
       getString =
 '\tpublic String getString(int ndx) throws JSONException {\n\t\treturn _jObj.getString(ndx);\n\t}\t\n',
       getInt =
 '\tpublic int getInt(int ndx) throws JSONException {\n\t\treturn _jObj.getInt(ndx);\n\t}\n',
       getLong =
 '\tpublic long getLong(int ndx) throws JSONException {\n\t\treturn _jObj.getLong(ndx);\n\t}\n',
+      getBigInteger =
+'\tpublic java.math.BigInteger getBigInteger(int ndx) throws JSONException {\n\t\treturn _jObj.getBigInteger(ndx);\n\t}\n',
       getDouble =
 '\tpublic double getDouble(int ndx) throws JSONException {\n\t\treturn _jObj.getDouble(ndx);\n\t}\t\n',
       getObject =
@@ -70,8 +78,12 @@
 '\tpublic byte[] getBase64(int ndx) throws JSONException {\n\t\treturn Base64.decodeBase64(_jObj.getString(ndx));\n\t}\n',
       getHex =
 '\tpublic byte[] getHex(int ndx) throws JSONException, DecoderException {\n\t\treturn Hex.decodeHex(_jObj.getString(ndx).toCharArray());\n\t}\t\n',
+      putBoolean =
+'\tpublic JSONArrayAdapter put(Boolean value) throws JSONException {\n\t\treturn new JSONArrayAdapter(_jObj.put(value.booleanValue()));\n\t}\n',
       putString =
 '\tpublic JSONArrayAdapter put(String value) throws JSONException {\n\t\treturn new JSONArrayAdapter(_jObj.put(value));\n\t}\n',
+      putBigInteger =
+'\tpublic JSONArrayAdapter put(java.math.BigInteger value) throws JSONException {\n\t\treturn new JSONArrayAdapter(_jObj.put((Object) value));\n\t}\n',
       putInt =
 '\tpublic JSONArrayAdapter put(int value) throws JSONException {\n\t\treturn new JSONArrayAdapter(_jObj.put(value));\n\t}\n',
       putLong =
@@ -86,15 +98,16 @@
 '\tpublic JSONArrayAdapter putHex(byte [] buffer) throws JSONException {\n\t\treturn new JSONArrayAdapter(_jObj.put(Hex.encodeHexString(buffer)));\n\t}\n',
    }
    local arrOrder = {
-      'getString','getInt','getLong','getDouble','getObject','getBase64',
-      'getHex','putString','putInt','putLong','putDouble','putMarshalable',
-      'putBase64','putHex',
+      'getBoolean','getString','getInt','getLong','getBigInteger','getDouble',
+      'getObject','getBase64','getHex','putBoolean','putString','putBigInteger',
+      'putInt','putLong','putDouble','putMarshalable','putBase64','putHex',
    }
 
    -- Map a primitive leaf typename to its (objGet,objPut,arrGet,arrPut) tokens.
    -- Reflects the fixed marshal/unmarshal expressions the strategies emit.
    local leafTokens = {
-      Boolean   = {objGet='getBoolean', objPut='putBoolean'},
+      Boolean   = {objGet='getBoolean', objPut='putBoolean',
+                   arrGet='getBoolean', arrPut='putBoolean'},
       String    = {objGet='getString', objPut='putString',
                    arrGet='getString', arrPut='putString'},
       Integer   = {objGet='getInt', objPut='putInteger',
@@ -103,6 +116,9 @@
                    arrGet='getLong', arrPut='putLong'},
       Double    = {objGet='getDouble', objPut='putDouble',
                    arrGet='getDouble', arrPut='putDouble'},
+      ['java.math.BigInteger'] = {objGet='getBigInteger',
+                   objPut='putBigInteger', arrGet='getBigInteger',
+                   arrPut='putBigInteger'},
    }
 
    local function isListType(t) return (t:match('^list%(.+%)') ~= nil) end
