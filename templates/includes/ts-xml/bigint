@@ -1,0 +1,32 @@
+[@lua --TS bigint type: 64-bit / arbitrary-precision integers (long, integer,
+	-- unsignedLong, (non)positive/negativeInteger). Values above 2^53 would
+	-- lose precision as `number`, so these round-trip through `bigint`. Files
+	-- using this type emit a `es2020.bigint` lib reference so BigInt() resolves
+	-- under the pinned ES2019 tsconfig without a target bump.
+	tstype_bigint = {
+		tsType = "bigint",
+		field = function(name)
+			return table.concat({ "\t_", name, "?: bigint;\n" })
+		end,
+		default = function(name, value)
+			return table.concat({
+				"\t\tthis._", name, " = BigInt(", tsStr(value), ");\n" })
+		end,
+		-- canonical decimal text (String(bigint) has no `n` suffix)
+		toText = function(expr) return "String(" .. expr .. ")" end,
+		fromText = function(expr)
+			return "BigInt((" .. expr .. ").trim())"
+		end,
+		test = {
+			assign = function()
+				-- values beyond 2^53 (incl. max signed long and max
+				-- unsignedLong) so a lossy `number` path would fail the check
+				local big = {
+					"9223372036854775807", "18446744073709551615",
+					"9007199254740993", "12345678901234567890",
+				}
+				return "BigInt(\"" .. big[math.random(1, #big)] .. "\")"
+			end,
+		},
+	}
+]

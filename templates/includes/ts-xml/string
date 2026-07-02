@@ -5,7 +5,8 @@
 			return table.concat({ "\t_", name, "?: string;\n" })
 		end,
 		default = function(name, value)
-			return table.concat({ "\t\tthis._", name, ' = "', value, '";\n' })
+			return table.concat({
+				"\t\tthis._", name, " = ", tsStr(value), ";\n" })
 		end,
 		-- value (typed) -> XML string
 		toText = function(expr) return expr end,

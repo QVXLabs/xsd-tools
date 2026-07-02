@@ -6,7 +6,7 @@
 		end,
 		default = function(name, value)
 			return table.concat({
-				"\t\tthis._", name, ' = "', value, '".split(" ");\n' })
+				"\t\tthis._", name, " = ", tsStr(value), '.split(" ");\n' })
 		end,
 		toText = function(expr) return expr .. '.join(" ")' end,
 		fromText = function(expr) return "(" .. expr .. ').trim().split(" ")' end,
