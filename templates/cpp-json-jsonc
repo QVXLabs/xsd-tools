@@ -8,18 +8,35 @@
 	include 'shared/doc'
 	return include 'includes/cpp-json-jsonc/cpp_type_info'
 ][@lua --rename non-c-safe names & sort dependencies
-	schema = schema.c_safeNames()
+	schema = schema.c_safeNames(cpp_keywords)
+	rootIdent = schema.types[schema.root].ident
+	-- a child with maxOccurs>1/'unbounded' serializes as a JSON array so every
+	-- repeated sibling survives the round trip.
+	function isArrayNode(n)
+		local mx = n.maxOccurs
+		return mx == 'unbounded' or (type(mx) == 'number' and mx > 1)
+	end
+	-- ref/recursion edges can yield distinct node objects that share a regkey
+	-- while only the registered one carries the assigned .ident; rewire every
+	-- dependent to its registered representative so identifiers resolve. The
+	-- edge's repeated cardinality is carried onto the representative.
+	canonicalizeDeps(schema, isArrayNode)
 	depOrder = schema.sortDependencies()
 	depOrderSansRoot = table.filter(depOrder, function(k,v) return v.name ~= schema.root and v or nil end)
 ][@lua -- find all unique types used in xsd
 	uniqueXSDTypes = schema.uniqueTypes()
 	uniqueCTypes = {}
 	table.map(uniqueXSDTypes, function(_, v)
+		-- skip non-builtin names (a complexType can surface here via the model's
+		-- substitutionGroup handling); those are emitted as element classes, not
+		-- base-type bindings.
 		local ctype = cpp_type_info[v]
-		uniqueCTypes[ctype] = ctype
-		if 'cpp_list' == ctype.type then
-			local baseType = ctype.baseType()
-			uniqueCTypes[baseType] = baseType
+		if ctype then
+			uniqueCTypes[ctype] = ctype
+			if 'cpp_list' == ctype.type then
+				local baseType = ctype.baseType()
+				uniqueCTypes[baseType] = baseType
+			end
 		end
 	end)
 	uniqueLists = table.filter(uniqueCTypes, function(_,v)
@@ -89,7 +106,7 @@ typedef std::string json_buffer;
 [@lua -- forward-declare every element class
 	local outbuf = stringBuffer:new()
 	table.map(depOrderSansRoot, function(_, node)
-		outbuf:append('class json_'..node.name..';\n')
+		outbuf:append('class json_'..node.ident..';\n')
 	end)
 	return outbuf:str()
 ]
@@ -98,7 +115,7 @@ typedef std::string json_buffer;
 	table.map(depOrderSansRoot, function(k, node)
 		-- emit the element/type annotation (#4) above its class
 		outbuf:append(docComment(node.documentation, 'c', ''))
-		outbuf:append('class json_'..node.name..' {\npublic:\n')
+		outbuf:append('class json_'..node.ident..' {\npublic:\n')
 		-- eid_ seeds children's parentId; kept for nodes with dependents and as
 		-- a filler for otherwise-empty leaves to avoid degenerate cases.
 		local hasMembers = next(node.attributes) or next(node.content)
@@ -108,13 +125,13 @@ typedef std::string json_buffer;
 		table.map(node.attributes, function(name, xsdType)
 			-- emit the attribute annotation (#4) above its field
 			outbuf:append(docComment(xsdType.documentation, 'c', '\t'))
-			outbuf:append('\t'..cpp_narrowType(xsdType.type, xsdType.facets).cpp_type.statement(name))
+			outbuf:append('\t'..cpp_narrowType(xsdType.type, xsdType.facets).cpp_type.statement(xsdType.ident))
 		end)
 		if next(node.content) then
 			outbuf:append('\t'..cpp_narrowType(node.content.type, node.content.facets).cpp_type.statement("Content"))
 		end
 		outbuf:append('\tbool validate() const;\n')
-		outbuf:append('\tvirtual ~json_'..node.name..'() {}\n')
+		outbuf:append('\tvirtual ~json_'..node.ident..'() {}\n')
 		outbuf:append('};\n\n')
 	end)
 	return outbuf:str()
@@ -124,7 +141,7 @@ struct json_marshaller;
 [@lua --output unmarshalling callback typedefs (std::function per element)
 	local outbuf = stringBuffer:new()
 	local fmt = 'typedef std::function<void(json_marshaller* pThis, const json_%s* pObj, uint32_t parent)> unmarshalCb_%s;\n'
-	table.map(depOrderSansRoot, function(k,v) outbuf:append(fmt:format(v.name, v.name)) end)
+	table.map(depOrderSansRoot, function(k,v) outbuf:append(fmt:format(v.ident, v.ident)) end)
 	return outbuf:str()
 ]
 struct json_marshaller {
@@ -132,7 +149,7 @@ struct json_marshaller {
 [@lua --output per-element unmarshal callbacks
 	local outbuf = stringBuffer:new()
 	table.map(depOrderSansRoot, function(k,v)
-		outbuf:append('\tunmarshalCb_'..v.name..' unmarshal_'..v.name..';\n')
+		outbuf:append('\tunmarshalCb_'..v.ident..' unmarshal_'..v.ident..';\n')
 	end)
 	return outbuf:str()
 ]};
@@ -147,9 +164,9 @@ public:
 [@lua --output one create_<name>() virtual per complex type
 	local outbuf = stringBuffer:new()
 	table.map(depOrderSansRoot, function(_, node)
-		outbuf:append('\tvirtual std::unique_ptr<json_'..node.name
-			..'> create_'..node.name..'() const {\n\t\treturn std::unique_ptr<json_'
-			..node.name..'>(new json_'..node.name..'());\n\t}\n')
+		outbuf:append('\tvirtual std::unique_ptr<json_'..node.ident
+			..'> create_'..node.ident..'() const {\n\t\treturn std::unique_ptr<json_'
+			..node.ident..'>(new json_'..node.ident..'());\n\t}\n')
 	end)
 	return outbuf:str()
 ]};
@@ -163,23 +180,23 @@ public:
 	-- its own -- struct before it is defined; this is what lets a recursive
 	-- type's struct hold a marshaller returning that same struct.
 	table.map(nonLeaf, function(_, node)
-		outbuf:append('struct json_marshal_'..node.name..';\n')
+		outbuf:append('struct json_marshal_'..node.ident..';\n')
 	end)
 	outbuf:append('\n')
 	-- pSelf is this element's json_object; callers pass it as the parent when
 	-- marshalling its children, so the parent is threaded explicitly.
 	table.map(nonLeaf, function(k, node)
-		outbuf:append('struct json_marshal_'..node.name..' {\n')
+		outbuf:append('struct json_marshal_'..node.ident..' {\n')
 		outbuf:append('\tjson_object* pSelf = nullptr;\n')
 		table.map(table.filter(node.dependents, isLeaf), function(_, dep)
 			outbuf:append(string.format(
 				'\tstd::function<void(json_marshaller* pMarshaller, const json_%s* pObj, json_object* pParent)> marshal_%s;\n',
-				dep.name, dep.name))
+				dep.ident, dep.ident))
 		end)
 		table.map(table.filter(node.dependents, isNotLeaf), function(_, dep)
 			outbuf:append(string.format(
 				'\tstd::function<json_marshal_%s(json_marshaller* pMarshaller, const json_%s* pObj, json_object* pParent)> marshal_%s;\n',
-				dep.name, dep.name, dep.name))
+				dep.ident, dep.ident, dep.ident))
 		end)
 		-- (callbacks take json_marshaller* to match the explicit-address call
 		-- shape from the marshal driver)
@@ -188,7 +205,7 @@ public:
 	return outbuf:str()
 ][@lua
 	if next(schema.types[schema.root].dependents) then
-		return 'json_marshal_'..schema.root..' json_marshal(json_marshaller& marshaller);\n'
+		return 'json_marshal_'..rootIdent..' json_marshal(json_marshaller& marshaller);\n'
 	else
 		return 'void json_marshal(json_marshaller& marshaller);\n'
 	end
@@ -254,11 +271,29 @@ namespace {
 	end)
 	return outbuf:str()
 ]
+/* Attach pElm under pParent[pKey]. Repeated (maxOccurs>1) elements accumulate
+   into a JSON array so each sibling survives; scalars are set directly. */
+void attach_(json_object* pParent, const char* pKey, json_object* pElm, bool isArray) {
+	if (isArray) {
+		json_object* pArr = nullptr;
+		if (json_object_object_get_ex(pParent, pKey, &pArr)
+			&& json_object_is_type(pArr, json_type_array)) {
+			json_object_array_add(pArr, pElm);
+		} else {
+			pArr = json_object_new_array();
+			json_object_array_add(pArr, pElm);
+			json_object_object_add(pParent, pKey, pArr);
+		}
+	} else {
+		json_object_object_add(pParent, pKey, pElm);
+	}
+}
+
 /* Build a fresh json object holding this element's attributes + content. */
 [@lua --output per-element object builders
 	local outbuf = stringBuffer:new()
 	table.map(depOrderSansRoot, function(_, node)
-		outbuf:append('json_object* build_'..node.name..'_(const json_'..node.name..'* pObj) {\n')
+		outbuf:append('json_object* build_'..node.ident..'_(const json_'..node.ident..'* pObj) {\n')
 		outbuf:append('\tjson_object* pJson = json_object_new_object();\n')
 		-- pure-container elements (only child elements) never read pObj here
 		if not (next(node.attributes) or next(node.content)) then
@@ -266,7 +301,8 @@ namespace {
 		end
 		table.map(node.attributes, function(k, v)
 			local attribType = cpp_narrowType(v.type, v.facets)
-			outbuf:append('\t'..attribType.binding.marshal.statement('pJson', '"'..k..'"', attribType.buildVar('pObj->', k)))
+			-- k is the verbatim wire key; v.ident names the C++ class member
+			outbuf:append('\t'..attribType.binding.marshal.statement('pJson', '"'..k..'"', attribType.buildVar('pObj->', v.ident)))
 		end)
 		if next(node.content) then
 			local contentType = cpp_narrowType(node.content.type, node.content.facets)
@@ -281,21 +317,22 @@ namespace {
 	-- forward-declare every marshal function: a node's retFuncs wires its
 	-- children's functions, and a cyclic edge references one defined later.
 	table.map(depOrderSansRoot, function(_, node)
-		local retType = (not next(node.dependents)) and 'void' or 'json_marshal_'..node.name
-		outbuf:append(retType..' marshal_'..node.name..'_(json_marshaller* pMarshaller, const json_'..node.name..'* pObj, json_object* pParent);\n')
+		local retType = (not next(node.dependents)) and 'void' or 'json_marshal_'..node.ident
+		outbuf:append(retType..' marshal_'..node.ident..'_(json_marshaller* pMarshaller, const json_'..node.ident..'* pObj, json_object* pParent);\n')
 	end)
 	outbuf:append('\n')
 	table.map(depOrderSansRoot, function(k, node)
-		local retType = (not next(node.dependents)) and 'void' or 'json_marshal_'..node.name
-		outbuf:append(retType..' marshal_'..node.name..'_(json_marshaller* pMarshaller, const json_'..node.name..'* pObj, json_object* pParent) {\n')
-		outbuf:append('\tjson_object* pElm = build_'..node.name..'_(pObj);\n')
-		-- attach pElm under the parent threaded in by the caller (root if none)
-		outbuf:append('\tjson_object_object_add(pParent ? pParent : pMarshaller->pRoot_.get(), "'..node.name..'", pElm);\n')
+		local retType = (not next(node.dependents)) and 'void' or 'json_marshal_'..node.ident
+		outbuf:append(retType..' marshal_'..node.ident..'_(json_marshaller* pMarshaller, const json_'..node.ident..'* pObj, json_object* pParent) {\n')
+		outbuf:append('\tjson_object* pElm = build_'..node.ident..'_(pObj);\n')
+		-- attach pElm under the parent (root if none), keyed by the verbatim wire
+		-- name; array-valued when repeated.
+		outbuf:append('\tattach_(pParent ? pParent : pMarshaller->pRoot_.get(), "'..node.name..'", pElm, '..(isArrayNode(node) and 'true' or 'false')..');\n')
 		if next(node.dependents) then
-			local depFncLst = table.filter(node.dependents, function(depName, _)
-				return 'retFuncs.marshal_'..depName..' = marshal_'..depName..'_;'
+			local depFncLst = table.filter(node.dependents, function(depName, dep)
+				return 'retFuncs.marshal_'..dep.ident..' = marshal_'..dep.ident..'_;'
 			end)
-			outbuf:append('\tjson_marshal_'..node.name..' retFuncs;\n')
+			outbuf:append('\tjson_marshal_'..node.ident..' retFuncs;\n')
 			outbuf:append('\tretFuncs.pSelf = pElm;\n')
 			outbuf:append('\t'..table.concat(depFncLst, '\n\t')..'\n')
 			outbuf:append('\treturn retFuncs;\n')
@@ -308,13 +345,13 @@ namespace {
 
 [@lua -- output json_marshal()
 	if next(schema.types[schema.root].dependents) then
-		local depFncLst = table.filter(schema.types[schema.root].dependents, function(depName, _)
-			return 'retFuncs.marshal_'..depName..' = marshal_'..depName..'_;'
+		local depFncLst = table.filter(schema.types[schema.root].dependents, function(depName, dep)
+			return 'retFuncs.marshal_'..dep.ident..' = marshal_'..dep.ident..'_;'
 		end)
 		return table.concat({
-			'json_marshal_', schema.root, ' json_marshal(json_marshaller& marshaller) {\n',
+			'json_marshal_', rootIdent, ' json_marshal(json_marshaller& marshaller) {\n',
 			'\tmarshaller.pRoot_.reset(json_object_new_object());\n',
-			'\tjson_marshal_', schema.root, ' retFuncs;\n',
+			'\tjson_marshal_', rootIdent, ' retFuncs;\n',
 			'\tretFuncs.pSelf = marshaller.pRoot_.get();\n',
 			'\t', table.concat(depFncLst, '\n\t'), '\n',
 			'\treturn retFuncs;\n',
@@ -406,7 +443,7 @@ static const Factory& defaultFactory_() {
 						-- hash collision: confirm the exact literal
 						local ors = {}
 						table.map(vs, function(_, v)
-							ors[#ors + 1] = '(' .. expr .. ') == "' .. v .. '"'
+							ors[#ors + 1] = '(' .. expr .. ') == "' .. cEscape(v) .. '"'
 						end)
 						out:append('\tcase ' .. h .. 'u:\n')
 						out:append('\t\tif (' .. table.concat(ors, ' || ') .. ') break;\n')
@@ -431,14 +468,14 @@ static const Factory& defaultFactory_() {
 			if attr.facets then
 				local at = cpp_narrowType(attr.type, attr.facets)
 				emitted[#emitted + 1] =
-					cppChecks(at.buildVar('', name), at, attr.facets)
+					cppChecks(at.buildVar('', attr.ident), at, attr.facets)
 			end
 		end)
 		local body = table.concat(emitted)
 		return (#body > 0) and body or nil
 	end
 	table.map(depOrderSansRoot, function(_, node)
-		outbuf:append('bool json_'..node.name..'::validate() const {\n')
+		outbuf:append('bool json_'..node.ident..'::validate() const {\n')
 		local body = nodeFacets(node)
 		if body then outbuf:append(body) end
 		outbuf:append('\treturn true;\n}\n\n')
@@ -450,39 +487,41 @@ namespace {
 [@lua -- forward-declare per-element unmarshalElm helpers
 	local outbuf = stringBuffer:new()
 	table.map(depOrderSansRoot, function(_, node)
-		outbuf:append('void unmarshalElm_'..node.name..'_(json_marshaller& marshaller, json_object* pJson, const Factory& factory, uint32_t parentId);\n')
+		outbuf:append('void unmarshalElm_'..node.ident..'_(json_marshaller& marshaller, json_object* pJson, const Factory& factory, uint32_t parentId);\n')
 	end)
 	return outbuf:str()
 ]
 [@lua -- per-element unmarshalElm helpers (RAII over the allocated object)
 	local outbuf = stringBuffer:new()
 	table.map(depOrderSansRoot, function(_, node)
-		outbuf:append('void unmarshalElm_'..node.name..'_(json_marshaller& marshaller, json_object* pJson, const Factory& factory, uint32_t parentId) {\n')
+		outbuf:append('void unmarshalElm_'..node.ident..'_(json_marshaller& marshaller, json_object* pJson, const Factory& factory, uint32_t parentId) {\n')
 		outbuf:append('\tjson_object* pField = nullptr;\n')
 		outbuf:append('\t(void)pField;\n')
 		-- allocate via the factory; the returned unique_ptr owns the object and
 		-- frees it on scope exit.
-		outbuf:append('\tstd::unique_ptr<json_'..node.name..'> pObjOwner = factory.create_'..node.name..'();\n')
-		outbuf:append('\tjson_'..node.name..'* pObj = pObjOwner.get();\n')
+		outbuf:append('\tstd::unique_ptr<json_'..node.ident..'> pObjOwner = factory.create_'..node.ident..'();\n')
+		outbuf:append('\tjson_'..node.ident..'* pObj = pObjOwner.get();\n')
 		-- eid_ seeds children's parentId; assigned here since the factory body
 		-- is consumer-overridable.
 		if next(node.dependents) then
 			outbuf:append('\tpObj->eid_ = gtlssIdCnt++;\n')
 		end
 		local objName = 'pObj->'
-		-- defaults
+		-- defaults: build the value as a json string (json-c coerces it to the
+		-- target scalar); json_object_new_string escapes on output, cEscape keeps
+		-- the C++ source literal valid.
 		table.map(node.attributes, function(name, attrib)
 			if attrib.default then
 				local attribType = cpp_narrowType(attrib.type, attrib.facets)
-				outbuf:append('\t{ JsonRef defRef(json_tokener_parse("\\"'..attrib.default..'\\"")); '
-					..attribType.binding.unmarshal.statement('defRef.get()', attribType.buildVar(objName, name))..' }\n')
+				outbuf:append('\t{ JsonRef defRef(json_object_new_string("'..cEscape(attrib.default)..'")); '
+					..attribType.binding.unmarshal.statement('defRef.get()', attribType.buildVar(objName, attrib.ident))..' }\n')
 			end
 		end)
-		-- read attributes
+		-- read attributes (verbatim wire key -> ident member)
 		table.map(node.attributes, function(name, attrib)
 			local attribType = cpp_narrowType(attrib.type, attrib.facets)
 			outbuf:append('\tif (json_object_object_get_ex(pJson, "'..name..'", &pField)) {\n')
-			outbuf:append('\t\t'..attribType.binding.unmarshal.statement('pField', attribType.buildVar(objName, name)))
+			outbuf:append('\t\t'..attribType.binding.unmarshal.statement('pField', attribType.buildVar(objName, attrib.ident)))
 			outbuf:append('\t}\n')
 		end)
 		-- read content
@@ -492,16 +531,27 @@ namespace {
 			outbuf:append('\t\t'..contentType.binding.unmarshal.statement('pField', contentType.buildVar(objName, 'Content')))
 			outbuf:append('\t}\n')
 		end
-		-- recurse into child elements
+		-- recurse into child elements. Repeated children arrive as a JSON array;
+		-- iterate it so every element is delivered (a lone scalar is tolerated).
 		table.map(node.dependents, function(_, child)
 			outbuf:append('\tif (json_object_object_get_ex(pJson, "'..child.name..'", &pField)) {\n')
-			outbuf:append('\t\tunmarshalElm_'..child.name..'_(marshaller, pField, factory, pObj->eid_);\n')
+			if isArrayNode(child) then
+				outbuf:append('\t\tif (json_object_is_type(pField, json_type_array)) {\n')
+				outbuf:append('\t\t\tsize_t n = json_object_array_length(pField);\n')
+				outbuf:append('\t\t\tfor (size_t ndx = 0; ndx < n; ++ndx)\n')
+				outbuf:append('\t\t\t\tunmarshalElm_'..child.ident..'_(marshaller, json_object_array_get_idx(pField, ndx), factory, pObj->eid_);\n')
+				outbuf:append('\t\t} else {\n')
+				outbuf:append('\t\t\tunmarshalElm_'..child.ident..'_(marshaller, pField, factory, pObj->eid_);\n')
+				outbuf:append('\t\t}\n')
+			else
+				outbuf:append('\t\tunmarshalElm_'..child.ident..'_(marshaller, pField, factory, pObj->eid_);\n')
+			end
 			outbuf:append('\t}\n')
 		end)
 		-- validate (D2) gates only the notify; the object is freed by pObjOwner
 		-- on scope exit regardless.
 		outbuf:append('\tif (pObj->validate()) {\n')
-		outbuf:append('\t\tif (marshaller.unmarshal_'..node.name..') marshaller.unmarshal_'..node.name..'(&marshaller, pObj, parentId);\n')
+		outbuf:append('\t\tif (marshaller.unmarshal_'..node.ident..') marshaller.unmarshal_'..node.ident..'(&marshaller, pObj, parentId);\n')
 		outbuf:append('\t}\n')
 		outbuf:append('}\n\n')
 	end)
@@ -514,12 +564,24 @@ void json_unmarshal_ex(json_marshaller& marshaller, const json_buffer& buf, bool
 	JsonRef root(json_tokener_parse(buf.c_str()));
 	json_object* pField = nullptr;
 	(void)pField;
-	if (root.get()) {
+	if (!root.get())
+		throw std::runtime_error("json_unmarshal: failed to parse input document");
+	{
 [@lua -- dispatch root-level elements
 	local outbuf = stringBuffer:new()
 	table.map(schema.types[schema.root].dependents, function(_, child)
 		outbuf:append('\t\tif (json_object_object_get_ex(root.get(), "'..child.name..'", &pField)) {\n')
-		outbuf:append('\t\t\tunmarshalElm_'..child.name..'_(marshaller, pField, factory, 0);\n')
+		if isArrayNode(child) then
+			outbuf:append('\t\t\tif (json_object_is_type(pField, json_type_array)) {\n')
+			outbuf:append('\t\t\t\tsize_t n = json_object_array_length(pField);\n')
+			outbuf:append('\t\t\t\tfor (size_t ndx = 0; ndx < n; ++ndx)\n')
+			outbuf:append('\t\t\t\t\tunmarshalElm_'..child.ident..'_(marshaller, json_object_array_get_idx(pField, ndx), factory, 0);\n')
+			outbuf:append('\t\t\t} else {\n')
+			outbuf:append('\t\t\t\tunmarshalElm_'..child.ident..'_(marshaller, pField, factory, 0);\n')
+			outbuf:append('\t\t\t}\n')
+		else
+			outbuf:append('\t\t\tunmarshalElm_'..child.ident..'_(marshaller, pField, factory, 0);\n')
+		end
 		outbuf:append('\t\t}\n')
 	end)
 	return outbuf:str()

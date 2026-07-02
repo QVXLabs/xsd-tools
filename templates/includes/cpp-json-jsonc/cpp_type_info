@@ -138,4 +138,56 @@
 	function cpp_narrowType(xsdType, facets)
 		return facets_narrowType(cpp_type_info[xsdType], facets, cpp_narrowMap, cpp_intTypes)
 	end
+
+	-- Reserved C++ identifiers passed to c_safeNames so wire names that collide
+	-- with a keyword or a bookkeeping class member (eid_/Content) get a safe
+	-- .ident. Seeded here since the class layout is target-specific.
+	cpp_keywords = {}
+	for _, w in ipairs({
+		'alignas','alignof','and','and_eq','asm','auto','bitand','bitor',
+		'bool','break','case','catch','char','char16_t','char32_t','class',
+		'compl','const','constexpr','const_cast','continue','decltype',
+		'default','delete','do','double','dynamic_cast','else','enum',
+		'explicit','export','extern','false','float','for','friend','goto',
+		'if','inline','int','long','mutable','namespace','new','noexcept',
+		'not','not_eq','nullptr','operator','or','or_eq','private','protected',
+		'public','register','reinterpret_cast','return','short','signed',
+		'sizeof','static','static_assert','static_cast','struct','switch',
+		'template','this','thread_local','throw','true','try','typedef',
+		'typeid','typename','union','unsigned','using','virtual','void',
+		'volatile','wchar_t','while','xor','xor_eq','eid','Content',
+	}) do cpp_keywords[w] = true end
+
+	-- Rewire every dependent edge to its registered representative in
+	-- schema.types. ref/recursion can leave a parent pointing at a duplicate
+	-- node object that shares a regkey but never received an .ident; the
+	-- representative is the one c_safeNames assigned. `isArray` carries a
+	-- repeated edge's cardinality onto the representative so arrays survive.
+	function canonicalizeDeps(schema, isArray)
+		local function canon(n)
+			return (n.regkey and schema.types[n.regkey]) or n
+		end
+		local seen = {}
+		local function walk(node)
+			if seen[node] then return end
+			seen[node] = true
+			for k, dep in pairs(node.dependents) do
+				local c = canon(dep)
+				if c ~= dep and isArray(dep) then c.maxOccurs = 'unbounded' end
+				node.dependents[k] = c
+				walk(c)
+			end
+		end
+		walk(schema.types[schema.root])
+	end
+
+	-- Escape a schema value so it is safe inside a C++ double-quoted string
+	-- literal in generated source (attribute default/fixed, enum compares).
+	function cEscape(s)
+		return (tostring(s):gsub('[%z\1-\31"\\]', function(ch)
+			local m = { ['"'] = '\\"', ['\\'] = '\\\\', ['\n'] = '\\n',
+				['\r'] = '\\r', ['\t'] = '\\t' }
+			return m[ch] or string.format('\\%03o', string.byte(ch))
+		end))
+	end
 ]
