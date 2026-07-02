@@ -30,6 +30,7 @@
 #else
 #	include <unistd.h>
 #	include <sys/types.h>
+#	include <sys/stat.h>
 #	include <pwd.h>
 #	include <dirent.h>
 #endif
@@ -89,6 +90,23 @@ readable_(const string& path) noexcept {
 #endif
 }
 
+/* True if `path` is a readable regular file. Template lookups need this so a
+   same-named directory (e.g. ./test) can't shadow a template and the engine
+   never tries to io.open a directory. */
+static bool
+isFile_(const string& path) noexcept {
+#if defined(_WIN32)
+	DWORD attr = GetFileAttributesA(path.c_str());
+	return INVALID_FILE_ATTRIBUTES != attr &&
+		0 == (attr & FILE_ATTRIBUTE_DIRECTORY) &&
+		0 == _access(path.c_str(), 4 /* R_OK */);
+#else
+	struct stat st;
+	return 0 == stat(path.c_str(), &st) && S_ISREG(st.st_mode) &&
+		0 == access(path.c_str(), R_OK);
+#endif
+}
+
 /* The current user's home directory, or "" if unknown. */
 static string
 homeDir_() noexcept {
@@ -139,15 +157,16 @@ exeDir_() noexcept {
 
 string
 Resource::GetTemplatePath(const std::string& templateName) noexcept(false) {
-	/* test if the template name exists */
-	if (readable_(templateName))
+	/* test if the template name exists (regular file only, so a same-named
+	   directory in the cwd can't shadow a template) */
+	if (isFile_(templateName))
 		return templateName;
 	/* check environment variable for template file */
 	const char * val = getenv("XSDTOOLS_DATA");
 	if (nullptr != val) {
 		string envFilePath(val);
 		envFilePath += "/" + templateName;
-		if (readable_(envFilePath))
+		if (isFile_(envFilePath))
 			return envFilePath;
 	}
 	/* check the home directory for template file */
@@ -155,7 +174,7 @@ Resource::GetTemplatePath(const std::string& templateName) noexcept(false) {
 	if (!homeDir.empty()) {
 		string homeFilePath(homeDir);
 		homeFilePath += gscHOMEPATH.substr(1) + "/" + templateName;
-		if (readable_(homeFilePath))
+		if (isFile_(homeFilePath))
 			return homeFilePath;
 	}
 	/* check relative to the executable (relocatable install / tarball) */
@@ -166,18 +185,18 @@ Resource::GetTemplatePath(const std::string& templateName) noexcept(false) {
 			exeDir + "/templates/" + templateName,
 		};
 		for (const string& relPath : relPaths) {
-			if (readable_(relPath))
+			if (isFile_(relPath))
 				return relPath;
 		}
 	}
 	/* check the global directory for template file */
 	string globalFilePath(gscGLOBALPATH);
 	globalFilePath += "/" + templateName;
-	if (readable_(globalFilePath))
+	if (isFile_(globalFilePath))
 		return globalFilePath;
 	/* source-tree convenience: ./templates/<name> */
 	string localPath("templates/" + templateName);
-	if (readable_(localPath))
+	if (isFile_(localPath))
 		return localPath;
 	throw ResourceException("Could not open template " + templateName);
 	return std::string("");
@@ -217,7 +236,7 @@ Resource::ListTemplates() noexcept {
 		string name(fd.cFileName);
 		if ("." == name || ".." == name)
 			continue;
-		if (readable_(dir + "/" + name))
+		if (isFile_(dir + "/" + name))
 			names.push_back(name);
 	} while (FindNextFileA(h, &fd));
 	FindClose(h);
@@ -230,7 +249,7 @@ Resource::ListTemplates() noexcept {
 		string name(pEnt->d_name);
 		if ("." == name || ".." == name)
 			continue;
-		if (readable_(dir + "/" + name))
+		if (isFile_(dir + "/" + name))
 			names.push_back(name);
 	}
 	closedir(pDir);
