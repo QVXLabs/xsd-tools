@@ -294,15 +294,36 @@ export * from "./Document";
 		end
 		-- bigint comparisons use BigInt("N") rather than an `N` literal: `n`
 		-- suffixes need target ES2020, while BigInt() only needs the
-		-- es2020.bigint lib the file already references.
+		-- es2020.bigint lib the file already references. bigint bounds/enums
+		-- render from the RAW facet strings: a Lua number (double) rounds
+		-- integers >= 2^53, so numeric lo/hi would mis-render the bound.
 		local function numLit(n)
-			if tsType == "bigint" then
-				return "BigInt(\"" .. string.format("%.0f", n) .. "\")"
-			end
 			return tostring(n)
 		end
+		local function bigLit(s)
+			return "BigInt(" .. tsStr(tostring(s)) .. ")"
+		end
 		table.map(facets_checks(facets), function(_, c)
-			if c.kind == 'range' and numericTs[tsType] then
+			if c.kind == 'range' and tsType == "bigint" then
+				-- exclusive bounds use strict inequality, so no ±1 arithmetic
+				-- (which would need bignum) is applied to the raw string.
+				local conds = {}
+				if facets.minInclusive then
+					conds[#conds + 1] = bigLit(facets.minInclusive) .. " <= v"
+				end
+				if facets.minExclusive then
+					conds[#conds + 1] = bigLit(facets.minExclusive) .. " < v"
+				end
+				if facets.maxInclusive then
+					conds[#conds + 1] = "v <= " .. bigLit(facets.maxInclusive)
+				end
+				if facets.maxExclusive then
+					conds[#conds + 1] = "v < " .. bigLit(facets.maxExclusive)
+				end
+				if #conds > 0 then
+					guard(table.concat(conds, " && "), 'out of range')
+				end
+			elseif c.kind == 'range' and numericTs[tsType] then
 				local lo = c.lo and (numLit(c.lo) .. " <= v")
 				local hi = c.hi and ("v <= " .. numLit(c.hi))
 				guard(c.lo and c.hi and (numLit(c.lo) .. " <= v && v <= "
@@ -313,6 +334,11 @@ export * from "./Document";
 				if c.min then parts[#parts + 1] = n .. " >= " .. c.min end
 				if c.max then parts[#parts + 1] = n .. " <= " .. c.max end
 				guard(table.concat(parts, " && "), 'bad length')
+			elseif c.kind == 'enum' and tsType == "bigint" then
+				local vals = {}
+				table.map(c.values, function(_, v)
+					vals[#vals + 1] = "v === " .. bigLit(v) end)
+				guard(table.concat(vals, " || "), 'not permitted')
 			elseif c.kind == 'enum' and numericTs[tsType] then
 				local vals = {}
 				table.map(c.values, function(_, v)
