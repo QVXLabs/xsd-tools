@@ -1,42 +1,44 @@
 [@lua --define python base64 type
 	pythontype_base64 = {
 		marshal = {
-			attribute = function(attributeName)
+			attribute = function(wire, ident)
 				return table.concat({
-					"        stream.write(' ", attributeName, " = \\'' + base64/b64encode(self._", attributeName, ").decode('utf-8') + '\\n\\'')\n",
+					"        if self._", ident, " is not None:\n",
+					"            stream.write(' ", wire, "=\"' + base64.b64encode(self._", ident, ").decode('ascii') + '\"')\n",
 				})
 			end,
 			content = function()
 				return table.concat({
-					"        stream.write(base64.b64encode(self.getContent()[0]).decode('utf-8') + '\\n')\n",
+					"        if self.getContent():\n",
+					"            stream.write(base64.b64encode(self.getContent()[0]).decode('ascii'))\n",
 				})
 			end,
 		},
 		unmarshal = {
-			attribute = function(attribName)
+			attribute = function(wire, ident)
 				return table.concat({
-					"        if \"", attribName, "\" in attributes:\n",
-					"            self._", attribName, " = base64.b64decode(attributes[\"", attribName, "\"].encode('utf-8'))\n",
+					"        if \"", wire, "\" in attributes:\n",
+					"            self._", ident, " = base64.b64decode(attributes[\"", wire, "\"].encode('ascii'))\n",
 				})
 			end,
 			content = function()
 				return table.concat({
-					"        self._content = [base64.b64decode(content[0].encode('utf-8'))]\n"
+					"        self._content = [base64.b64decode(content[0].encode('ascii'))] if content else []\n"
 				})
 			end
 		},
-		default = function(attribName, value)
-			return table.concat({"        base64.b64decode(self._", attribName, " = \"", value, "\".encode('utf-8')\n"})
+		default = function(ident, value)
+			return table.concat({"        self._", ident, " = base64.b64decode(", pyQuote(value), ".encode('ascii'))\n"})
 		end,
 		test = {
 			assign = function()
-				   local ret = {
-				   		 "Q3yj/lYzNI0Fp0SrC8sctw==\\n",
-				   		 "kpxzQiW1uLkFessP+5xZjQ==\\n",
-						 "/kFxXF8edN6Dt3L99Y6aFQ==\\n",
-						 "PceWThKB0OQoYk6O0nigSw==\\n",
-						 "KDk10Nf+vS+JrzsYzRuDRw==\\n" }
-				   return ret[math.random(1, 5)]
+				local ret = {
+					"Q3yj/lYzNI0Fp0SrC8sctw==",
+					"kpxzQiW1uLkFessP+5xZjQ==",
+					"/kFxXF8edN6Dt3L99Y6aFQ==",
+					"PceWThKB0OQoYk6O0nigSw==",
+					"KDk10Nf+vS+JrzsYzRuDRw==" }
+				return ret[math.random(1, 5)]
 			end,
 		},
 	}

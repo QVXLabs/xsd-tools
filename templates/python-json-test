@@ -20,6 +20,10 @@ import [@lua return schemaName]
 	-- Render a test value as the Python literal the binding stores in
 	-- "content"/"attrs" for a given XSD type. Mirrors each type's marshal
 	-- output so json.loads(marshal()) compares equal.
+	-- XSD boolean lexicals that map to Python True.
+	local function isTrue(v)
+		return v == 'true' or v == '1' or v == 'True' or v == 'TRUE'
+	end
 	local function pyLiteral(typeName, value, isAttr)
 		local t = pyjson_type_info[typeName]
 		if t == pyjsontype_int or t == pyjsontype_long then
@@ -27,37 +31,32 @@ import [@lua return schemaName]
 		elseif t == pyjsontype_float then
 			return value
 		elseif t == pyjsontype_bool then
-			-- binding marshals bool(non-empty str) == True
-			return "True"
+			return isTrue(value) and "True" or "False"
 		elseif t == pyjsontype_string then
 			-- an attribute stores a bare scalar; simple-content stores a
-			-- list of text nodes
+			-- list of text nodes. pyQuote escapes adversarial values.
 			if isAttr then
-				return table.concat({'"', value, '"'})
+				return pyQuote(value)
 			end
-			return table.concat({'["', value, '"]'})
+			return table.concat({'[', pyQuote(value), ']'})
 		elseif t == pyjsontype_base64 or t == pyjsontype_hex then
-			-- base64 test values carry a trailing escaped newline that the
-			-- JSON binding does not reproduce; strip it.
-			value = value:gsub('\\n', '')
-			return table.concat({'"', value, '"'})
+			return pyQuote(value)
 		elseif t == pyjsontype_listString then
 			local parts = {}
 			for w in value:gmatch('%S+') do
-				parts[#parts + 1] = table.concat({'"', w, '"'})
+				parts[#parts + 1] = pyQuote(w)
 			end
 			return table.concat({'[', table.concat(parts, ', '), ']'})
 		elseif t == pyjsontype_listBase64 or t == pyjsontype_listHex then
 			local parts = {}
 			for w in value:gmatch('%S+') do
-				w = w:gsub('\\n', '')
-				parts[#parts + 1] = table.concat({'"', w, '"'})
+				parts[#parts + 1] = pyQuote(w)
 			end
 			return table.concat({'[', table.concat(parts, ', '), ']'})
 		elseif t == pyjsontype_listBool then
 			local parts = {}
 			for w in value:gmatch('%S+') do
-				parts[#parts + 1] = "True"
+				parts[#parts + 1] = isTrue(w) and "True" or "False"
 			end
 			return table.concat({'[', table.concat(parts, ', '), ']'})
 		else

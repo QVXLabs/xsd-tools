@@ -1,9 +1,10 @@
 [@lua --define python list float type (JSON)
 	pyjsontype_listFloat = {
 		marshal = {
-			attribute = function(attribName)
+			attribute = function(wire, ident)
 				return table.concat({
-					"        attrs[\"", attribName, "\"] = [float(x) for x in self._", attribName, "]\n",
+					"        if self._", ident, " is not None:\n",
+					"            attrs[\"", wire, "\"] = [float(x) for x in self._", ident, "]\n",
 				})
 			end,
 			content = function()
@@ -13,10 +14,10 @@
 			end,
 		},
 		unmarshal = {
-			attribute = function(attribName)
+			attribute = function(wire, ident)
 				return table.concat({
-					"            if \"", attribName, "\" == attribute:\n",
-					"                self._", attribName, " = [float(x) for x in attributes[attribute]]\n",
+					"            if \"", wire, "\" == attribute:\n",
+					"                self._", ident, " = [float(x) for x in attributes[attribute]]\n",
 				})
 			end,
 			content = function()
@@ -25,8 +26,8 @@
 				})
 			end
 		},
-		default = function(attribName, value)
-			return table.concat({"        self._", attribName, " = [float(\"\".join(x.split())) for x in \"", value, "\".split(\" \")]\n"})
+		default = function(ident, value)
+			return table.concat({"        self._", ident, " = [float(x) for x in ", pyQuote(value), ".split()]\n"})
 		end,
 		test = {
 			assign = function()

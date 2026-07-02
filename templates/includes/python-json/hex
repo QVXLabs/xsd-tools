@@ -1,32 +1,33 @@
 [@lua --define python hex type (JSON)
 	pyjsontype_hex = {
 		marshal = {
-			attribute = function(attributeName)
+			attribute = function(wire, ident)
 				return table.concat({
-					"        attrs[\"", attributeName, "\"] = binascii.hexlify(self._", attributeName, ").decode('utf-8')\n",
+					"        if self._", ident, " is not None:\n",
+					"            attrs[\"", wire, "\"] = binascii.hexlify(self._", ident, ").decode('utf-8')\n",
 				})
 			end,
 			content = function()
 				return table.concat({
-					"        content = binascii.hexlify(self.getContent()[0]).decode('utf-8')\n",
+					"        content = binascii.hexlify(self.getContent()[0]).decode('utf-8') if self.getContent() else None\n",
 				})
 			end,
 		},
 		unmarshal = {
-			attribute = function(attribName)
+			attribute = function(wire, ident)
 				return table.concat({
-					"            if \"", attribName, "\" == attribute:\n",
-					"                self._", attribName, " = bytes.fromhex(\"\".join(attributes[attribute].split()))\n",
+					"            if \"", wire, "\" == attribute:\n",
+					"                self._", ident, " = bytes.fromhex(\"\".join(attributes[attribute].split()))\n",
 				})
 			end,
 			content = function()
 				return table.concat({
-					"        self._content = [bytes.fromhex(\"\".join(content.split()))]\n"
+					"        self._content = [bytes.fromhex(\"\".join(content.split()))] if content is not None else []\n"
 				})
 			end
 		},
-		default = function(attribName, value)
-			return table.concat({"        self._", attribName, " = bytes.fromhex(\"\".join(\"", value, "\".split()))\n"})
+		default = function(ident, value)
+			return table.concat({"        self._", ident, " = bytes.fromhex(\"\".join(", pyQuote(value), ".split()))\n"})
 		end,
 		test = {
 			assign = function()

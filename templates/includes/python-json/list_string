@@ -1,9 +1,10 @@
 [@lua --define python list String type (JSON)
 	pyjsontype_listString = {
 		marshal = {
-			attribute = function(attribName)
+			attribute = function(wire, ident)
 				return table.concat({
-					"        attrs[\"", attribName, "\"] = list(self._", attribName, ")\n",
+					"        if self._", ident, " is not None:\n",
+					"            attrs[\"", wire, "\"] = list(self._", ident, ")\n",
 				})
 			end,
 			content = function()
@@ -13,10 +14,10 @@
 			end,
 		},
 		unmarshal = {
-			attribute = function(attribName)
+			attribute = function(wire, ident)
 				return table.concat({
-					"            if \"", attribName, "\" == attribute:\n",
-					"                self._", attribName, " = list(attributes[attribute])\n",
+					"            if \"", wire, "\" == attribute:\n",
+					"                self._", ident, " = list(attributes[attribute])\n",
 				})
 			end,
 			content = function()
@@ -25,8 +26,8 @@
 				})
 			end
 		},
-		default = function(attribName, value)
-			return table.concat({"        self._", attribName, " = \"", value, "\".split(\" \")\n"})
+		default = function(ident, value)
+			return table.concat({"        self._", ident, " = ", pyQuote(value), ".split()\n"})
 		end,
 		test = {
 			assign = function()

@@ -1,37 +1,42 @@
 [@lua --define python boolean type (JSON)
+	-- XSD boolean lexicals 1/true map to Python True, 0/false to False.
+	local function pyBoolLit(value)
+		return (value == 'true' or value == '1') and 'True' or 'False'
+	end
 	pyjsontype_bool = {
 		marshal = {
-			attribute = function(attribName)
+			attribute = function(wire, ident)
 				return table.concat({
-					"        attrs[\"", attribName, "\"] = bool(self._", attribName, ")\n",
+					"        if self._", ident, " is not None:\n",
+					"            attrs[\"", wire, "\"] = bool(self._", ident, ")\n",
 				})
 			end,
 			content = function()
 				return table.concat({
-					"        content = bool(self._content[0])\n"
+					"        content = bool(self._content[0]) if self._content else None\n"
 				})
 			end,
 		},
 		unmarshal = {
-			attribute = function(attribName)
+			attribute = function(wire, ident)
 				return table.concat({
-					"            if \"", attribName, "\" == attribute:\n",
-					"                self._", attribName, " = bool(attributes[attribute])\n",
+					"            if \"", wire, "\" == attribute:\n",
+					"                self._", ident, " = bool(attributes[attribute])\n",
 				})
 			end,
 			content = function()
 				return table.concat({
-					"        self._content = [bool(content)]\n"
+					"        self._content = [bool(content)] if content is not None else []\n"
 				})
 			end
 		},
-		default = function(attribName, value)
-			return table.concat({"        self._", attribName, " = ", value, "\n"})
+		default = function(ident, value)
+			return table.concat({"        self._", ident, " = ", pyBoolLit(value), "\n"})
 		end,
 		test = {
 			assign = function()
-				local tbl = { 'true', 'false', 'True', 'False', '0', '1', 'TRUE', 'FALSE'}
-				return tbl[tostring(math.random(0, #tbl))]
+				local tbl = { 'true', 'false' }
+				return tbl[math.random(1, #tbl)]
 			end,
 		},
 	}

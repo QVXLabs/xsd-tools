@@ -1,37 +1,39 @@
 [@lua --define python list bool type
 	pythontype_listBool = {
 		marshal = {
-			attribute = function(attribName)
+			attribute = function(wire, ident)
 				return table.concat({
-					"        stream.write(' ", attribName, "=\"' + \" \".join([str(x) for x in self._", attribName, "])\"')\n",
+					"        if self._", ident, " is not None:\n",
+					"            stream.write(' ", wire, "=\"' + \" \".join(['true' if x else 'false' for x in self._", ident, "]) + '\"')\n",
 				})
 			end,
 			content = function()
 				return table.concat({
-					"        stream.write(\" \".join([str(x) for x in self.getContent()]))\n"
+					"        stream.write(\" \".join(['true' if x else 'false' for x in self.getContent()]))\n"
 				})
 			end,
 		},
 		unmarshal = {
-			attribute = function(attribName)
+			attribute = function(wire, ident)
 				return table.concat({
-					"        if \"", attribName, "\" in attributes:\n",
-					"            self._", attribName, " = [bool(\"\".join(x.split())) for x in attributes[\"", attribName, "\"].split(\" \")]\n",
+					"        if \"", wire, "\" in attributes:\n",
+					"            self._", ident, " = [x in (\"1\", \"true\") for x in attributes[\"", wire, "\"].split()]\n",
 				})
 			end,
 			content = function()
 				return table.concat({
-					"        self._content = [bool(x) for x in content[0].split(\" \")]\n"
+					"        self._content = [x in (\"1\", \"true\") for x in content[0].split()] if content else []\n"
 				})
 			end
 		},
-		default = function(attribName, value)
-			return table.concat({"        self._", attribName, " = [bool(\"\".join(x.split())) for x in \"", value, "\".split(\" \")]\n"})
+		default = function(ident, value)
+			return table.concat({"        self._", ident, " = [x in (\"1\", \"true\") for x in ", pyQuote(value), ".split()]\n"})
 		end,
 		test = {
 			assign = function()
+				local tbl = { 'true', 'false' }
 				return table.concat({
-					tostring(math.random(0, 255)),tostring(math.random(0, 255)), tostring(math.random(0, 255))
+					tbl[math.random(1, #tbl)], tbl[math.random(1, #tbl)], tbl[math.random(1, #tbl)]
 				}, " ")
 			end,
 		},

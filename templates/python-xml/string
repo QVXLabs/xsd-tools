@@ -1,9 +1,13 @@
 [@lua --define python String type
 	pythontype_string = {
 		marshal = {
-			attribute = function(attribName)
+			-- wire = XML tag name (verbatim NCName); ident = python member.
+			-- Optional attrs are None when absent, so only emit when set;
+			-- values are XML-escaped (SAX decodes entities on the way in).
+			attribute = function(wire, ident)
 				return table.concat({
-					"        stream.write(' ", attribName, "=\"' + str(self._", attribName, ") + '\"')\n",
+					"        if self._", ident, " is not None:\n",
+					"            stream.write(' ", wire, "=\"' + xml.sax.saxutils.escape(str(self._", ident, "), {'\"': '&quot;'}) + '\"')\n",
 				})
 			end,
 			content = function()
@@ -12,15 +16,15 @@
 					"            if isinstance(node, _xmlelement):\n",
 					"                node.marshal(stream)\n",
 					"            else:\n",
-					"                stream.write(str(node))\n",
+					"                stream.write(xml.sax.saxutils.escape(str(node)))\n",
 				})
 			end,
 		},
 		unmarshal = {
-			attribute = function(attribName)
+			attribute = function(wire, ident)
 				return table.concat({
-					"        if \"", attribName, "\" in attributes:\n",
-					"            self._", attribName, " = attributes[\"", attribName, "\"]\n",
+					"        if \"", wire, "\" in attributes:\n",
+					"            self._", ident, " = attributes[\"", wire, "\"]\n",
 				})
 			end,
 			content = function()
@@ -29,8 +33,8 @@
 				})
 			end
 		},
-		default = function(attribName, value)
-			return table.concat({"        self._", attribName, " = \"", value, "\"\n"})
+		default = function(ident, value)
+			return table.concat({"        self._", ident, " = ", pyQuote(value), "\n"})
 		end,
 		test = {
 			assign = function(facets)

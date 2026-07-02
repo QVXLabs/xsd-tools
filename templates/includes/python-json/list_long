@@ -1,9 +1,10 @@
 [@lua --define python list long type (JSON)
 	pyjsontype_listLong = {
 		marshal = {
-			attribute = function(attribName)
+			attribute = function(wire, ident)
 				return table.concat({
-					"        attrs[\"", attribName, "\"] = [int(x) for x in self._", attribName, "]\n",
+					"        if self._", ident, " is not None:\n",
+					"            attrs[\"", wire, "\"] = [int(x) for x in self._", ident, "]\n",
 				})
 			end,
 			content = function()
@@ -13,10 +14,10 @@
 			end,
 		},
 		unmarshal = {
-			attribute = function(attribName)
+			attribute = function(wire, ident)
 				return table.concat({
-					"            if \"", attribName, "\" == attribute:\n",
-					"                self._", attribName, " = [int(x) for x in attributes[attribute]]\n",
+					"            if \"", wire, "\" == attribute:\n",
+					"                self._", ident, " = [int(x) for x in attributes[attribute]]\n",
 				})
 			end,
 			content = function()
@@ -25,8 +26,8 @@
 				})
 			end
 		},
-		default = function(attribName, value)
-			return table.concat({"        self._", attribName, " = [int(\"\".join(x.split())) for x in \"", value, "\".split(\" \")]\n"})
+		default = function(ident, value)
+			return table.concat({"        self._", ident, " = [int(x) for x in ", pyQuote(value), ".split()]\n"})
 		end,
 		test = {
 			assign = function()
