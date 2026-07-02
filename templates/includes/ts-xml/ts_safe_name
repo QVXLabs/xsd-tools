@@ -39,4 +39,41 @@
 		end
 		return name
 	end
+	-- Reserved-identifier set handed to schema.c_safeNames so `.ident` avoids TS
+	-- keywords and predefined type names. Framework/file-name collisions stay in
+	-- tsSafeName (case-insensitive, which sanitizeIdent cannot express).
+	tsKeywords = {}
+	table.map(tsReserved, function(k, _) tsKeywords[k] = true end)
+	table.map(tsPredefinedType, function(k, _) tsKeywords[k] = true end)
+	-- Some reachable nodes (e.g. an element the model reaches by ref but does
+	-- not register in schema.types) never receive an `.ident` — nor do their
+	-- attributes — from the shared c_safeNames pass. Fill any gaps here, each
+	-- de-collided against the identifiers already taken (types globally,
+	-- attributes within their owning node), so codegen never sees a nil name.
+	function tsAssignIdents(sch)
+		local reserved = {}
+		table.map(tsKeywords, function(k, _) reserved[k] = true end)
+		table.map(sch.types, function(_, t)
+			if t.ident then reserved[t.ident] = true end
+		end)
+		table.map(sch.sortDependencies(), function(_, node)
+			if not node.ident then
+				node.ident = sch.sanitizeIdent(node.name, reserved)
+			end
+			local fieldReserved
+			table.map(node.attributes or {}, function(an, a)
+				if not a.ident then
+					if not fieldReserved then
+						fieldReserved = {}
+						table.map(tsKeywords,
+							function(k, _) fieldReserved[k] = true end)
+						table.map(node.attributes, function(_, b)
+							if b.ident then fieldReserved[b.ident] = true end
+						end)
+					end
+					a.ident = sch.sanitizeIdent(a.name or an, fieldReserved)
+				end
+			end)
+		end)
+	end
 ]

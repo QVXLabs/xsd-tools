@@ -29,9 +29,35 @@ end
 
 function cstring:defMarshal()
    out = stringBuffer:new()
+   -- Escape the five predefined XML entities so string content and attribute
+   -- values cannot inject markup. `"` and `'` are escaped unconditionally (a
+   -- superset of what element content needs); expat un-escapes them on the way
+   -- back, so the round trip is exact.
+   out:append("static void\n")
+   out:append("xml_string_escapeAppend_(char ** ppOut, const char * pStr, const xml_typeFactory * pFactory) {\n")
+   out:append("  const char * pRun = pStr;\n")
+   out:append("  const char * p;\n")
+   out:append("  for (p = pStr; *p; ++p) {\n")
+   out:append("    const char * pEsc = 0;\n")
+   out:append("    switch (*p) {\n")
+   out:append("    case '&': pEsc = \"&amp;\"; break;\n")
+   out:append("    case '<': pEsc = \"&lt;\"; break;\n")
+   out:append("    case '>': pEsc = \"&gt;\"; break;\n")
+   out:append("    case '\"': pEsc = \"&quot;\"; break;\n")
+   out:append("    case '\\'': pEsc = \"&apos;\"; break;\n")
+   out:append("    default: break;\n")
+   out:append("    }\n")
+   out:append("    if (pEsc) {\n")
+   out:append("      if (p > pRun) cstr_appendEx_(ppOut, pRun, (unsigned)(p - pRun), pFactory);\n")
+   out:append("      cstr_append_(ppOut, pEsc, pFactory);\n")
+   out:append("      pRun = p + 1;\n")
+   out:append("    }\n")
+   out:append("  }\n")
+   out:append("  if (p > pRun) cstr_appendEx_(ppOut, pRun, (unsigned)(p - pRun), pFactory);\n")
+   out:append("}\n")
    out:append("static void\n")
    out:append("xml_string_marshal_(const xml_string str, char ** ppOut, const xml_typeFactory * pFactory) {\n")
-   out:append("  cstr_append_(ppOut, str, pFactory);\n")
+   out:append("  xml_string_escapeAppend_(ppOut, str, pFactory);\n")
    out:append("}\n")
    return out:str()
 end

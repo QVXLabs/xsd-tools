@@ -6,13 +6,13 @@
 		end,
 		default = function(name, value)
 			return table.concat({
-				"\t\tthis._", name,
-				' = "', value, '".split(" ").map((s) => s === "true");\n' })
+				"\t\tthis._", name, " = ", tsStr(value),
+				'.split(" ").map((s) => s === "true" || s === "1");\n' })
 		end,
 		toText = function(expr) return expr .. '.map(String).join(" ")' end,
 		fromText = function(expr)
 			return "(" .. expr
-				.. ').trim().split(" ").map((s) => s === "true")'
+				.. ').trim().split(" ").map((s) => s === "true" || s === "1")'
 		end,
 		test = {
 			assign = function()

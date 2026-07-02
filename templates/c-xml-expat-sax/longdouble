@@ -31,7 +31,7 @@
 					return table.concat({
 						'void\nmarshal_longdouble_(xml_marshaller* pMarshaller, xml_cstr* pOutStr, const long double val) {\n',
 						'\tchar valBuf[256];\n',
-						'\tconst int n = snprintf(valBuf, sizeof(valBuf), "%lf", val);\n',
+						'\tconst int n = snprintf(valBuf, sizeof(valBuf), "%.21Lg", val);\n',
 						'\tcstr_appendN_(pMarshaller, pOutStr, valBuf, n > 0 ? (uint32_t)n : 0);\n',
 						'}\n',
 					})
@@ -47,8 +47,10 @@
 					return ''
 				end,
 				statement = function(src, obj)
+					-- strtold preserves long double precision (atof narrows to
+					-- double); pairs with the %.21Lg round-trip marshal.
 					return table.concat({
-						obj, ' = atof(', src, ');\n',
+						obj, ' = strtold(', src, ', NULL);\n',
 					})
 				end,
 			},

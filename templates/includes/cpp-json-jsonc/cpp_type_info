@@ -138,4 +138,33 @@
 	function cpp_narrowType(xsdType, facets)
 		return facets_narrowType(cpp_type_info[xsdType], facets, cpp_narrowMap, cpp_intTypes)
 	end
+
+	-- Reserved C++ identifiers passed to c_safeNames so wire names that collide
+	-- with a keyword or a bookkeeping class member (eid_/Content) get a safe
+	-- .ident. Seeded here since the class layout is target-specific.
+	cpp_keywords = {}
+	for _, w in ipairs({
+		'alignas','alignof','and','and_eq','asm','auto','bitand','bitor',
+		'bool','break','case','catch','char','char16_t','char32_t','class',
+		'compl','const','constexpr','const_cast','continue','decltype',
+		'default','delete','do','double','dynamic_cast','else','enum',
+		'explicit','export','extern','false','float','for','friend','goto',
+		'if','inline','int','long','mutable','namespace','new','noexcept',
+		'not','not_eq','nullptr','operator','or','or_eq','private','protected',
+		'public','register','reinterpret_cast','return','short','signed',
+		'sizeof','static','static_assert','static_cast','struct','switch',
+		'template','this','thread_local','throw','true','try','typedef',
+		'typeid','typename','union','unsigned','using','virtual','void',
+		'volatile','wchar_t','while','xor','xor_eq','eid','Content',
+	}) do cpp_keywords[w] = true end
+
+	-- Escape a schema value so it is safe inside a C++ double-quoted string
+	-- literal in generated source (attribute default/fixed, enum compares).
+	function cEscape(s)
+		return (tostring(s):gsub('[%z\1-\31"\\]', function(ch)
+			local m = { ['"'] = '\\"', ['\\'] = '\\\\', ['\n'] = '\\n',
+				['\r'] = '\\r', ['\t'] = '\\t' }
+			return m[ch] or string.format('\\%03o', string.byte(ch))
+		end))
+	end
 ]

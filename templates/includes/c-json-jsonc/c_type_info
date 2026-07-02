@@ -139,4 +139,28 @@
 	function c_narrowCType(xsdType, facets)
 		return facets_narrowType(c_type_info[xsdType], facets, c_narrowMap, c_intTypes)
 	end
+
+	-- Reserved C identifiers passed to c_safeNames so wire names that collide
+	-- with a keyword or a bookkeeping struct member (eid_/Content) get a safe
+	-- .ident. Seeded here since the struct layout is target-specific.
+	c_keywords = {}
+	for _, w in ipairs({
+		'auto','break','case','char','const','continue','default','do',
+		'double','else','enum','extern','float','for','goto','if','inline',
+		'int','long','register','restrict','return','short','signed','sizeof',
+		'static','struct','switch','typedef','union','unsigned','void',
+		'volatile','while','_Bool','_Complex','_Imaginary','_Atomic',
+		'_Noreturn','_Generic','_Alignas','_Alignof','_Static_assert',
+		'_Thread_local','NULL','bool','true','false','eid','Content',
+	}) do c_keywords[w] = true end
+
+	-- Escape a schema value so it is safe inside a C/C++ double-quoted string
+	-- literal in generated source (attribute default/fixed, enum compares).
+	function cEscape(s)
+		return (tostring(s):gsub('[%z\1-\31"\\]', function(ch)
+			local m = { ['"'] = '\\"', ['\\'] = '\\\\', ['\n'] = '\\n',
+				['\r'] = '\\r', ['\t'] = '\\t' }
+			return m[ch] or string.format('\\%03o', string.byte(ch))
+		end))
+	end
 ]

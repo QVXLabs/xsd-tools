@@ -1,7 +1,10 @@
-[@lua --map an XSD name to a legal Java class identifier
-	-- Java keywords + restricted identifiers can't name a class; suffix '_'.
-	-- The XML local name is kept separately (localName()).
-	local javaReserved = {
+[@lua --Java reserved-identifier set for the contract sanitizer.
+	-- Passed to schema.c_safeNames so BOTH type (class) idents and attribute
+	-- accessor idents avoid: Java keywords; java.lang.Object methods that would
+	-- collide with a generated accessor; the Element base class's members
+	-- (fields prefixed '_' and its methods) that a subclass field/accessor
+	-- would shadow; and the framework class names this target emits.
+	JAVA_KEYWORDS = {
 		['abstract']=true, ['assert']=true, ['boolean']=true, ['break']=true,
 		['byte']=true, ['case']=true, ['catch']=true, ['char']=true,
 		['class']=true, ['const']=true, ['continue']=true, ['default']=true,
@@ -16,19 +19,44 @@
 		['throws']=true, ['transient']=true, ['try']=true, ['void']=true,
 		['volatile']=true, ['while']=true, ['true']=true, ['false']=true,
 		['null']=true, ['record']=true, ['var']=true, ['yield']=true,
-		['sealed']=true, ['permits']=true,
+		-- java.lang.Object methods (getClass/etc. are final -> override = error)
+		['getClass']=true, ['hashCode']=true, ['equals']=true, ['clone']=true,
+		['toString']=true, ['wait']=true, ['notify']=true, ['notifyAll']=true,
+		['finalize']=true,
+		-- Element base members: '_'-prefixed fields and its methods, so a
+		-- subclass field (_ident) or accessor (ident()) can't shadow them
+		['buf']=true, ['children']=true, ['factory']=true, ['text']=true,
+		['localName']=true, ['namespaceURI']=true, ['marshal']=true,
+		['marshalNamespaces']=true, ['marshalAttributes']=true,
+		['marshalContent']=true, ['readContent']=true, ['unmarshal']=true,
+		['validate']=true,
+		-- framework class names this target emits (block same-name type idents)
+		['Element']=true, ['Factory']=true, ['Document']=true, ['Hex']=true,
 	}
-	-- Class/file names this target emits itself. A schema element whose name
-	-- matches one (even only by case) would write a second file colliding with
-	-- the framework's on a case-insensitive filesystem (macOS/Windows), so
-	-- compare case-insensitively. The XML local name is unaffected.
-	local javaFramework = {
+	-- Case-insensitive framework-file guard: a type ident matching a framework
+	-- class name only by case would overwrite its file on a case-insensitive
+	-- filesystem (macOS/Windows). c_safeNames only de-collides exact matches,
+	-- so fix up case variants here.
+	local frameworkFiles = {
 		['element']=true, ['factory']=true, ['document']=true, ['hex']=true,
 	}
-	function javaSafeName(name)
-		if javaReserved[name] or javaFramework[string.lower(name)] then
-			return name .. "_"
+	function guardFrameworkNames(schema)
+		for _, t in pairs(schema.types) do
+			while frameworkFiles[t.ident:lower()] do t.ident = t.ident.."_" end
 		end
-		return name
+	end
+	-- Turn a topo-ordered dep list into the emit list: drop the root and
+	-- collapse duplicates so each class / Factory entry emits exactly once. The
+	-- dependents are already canonical (shared/schemaEx canonicalizeDeps), so
+	-- every node carries its .ident directly.
+	function normalizeDepList(schema, depOrder)
+		local seen, out = {}, {}
+		for _, v in ipairs(depOrder) do
+			if v.name ~= schema.root and not seen[v] then
+				seen[v] = true
+				out[#out + 1] = v
+			end
+		end
+		return out
 	end
 ]

@@ -50,28 +50,34 @@ function c_isNumericType(typedef)
    return numeric[ctypes[typedef]] == true
 end
 
--- Collision-safe sdbm string-enum dispatch. Hash every key at codegen; if all
--- distinct the bare hash switch is provably exact, else strcmp-confirm the
--- colliding literals inside the shared case. `valExpr(literal)` renders the
--- body to run on a match.
+-- sdbm string-enum acceptance dispatch over *untrusted* input. The hash only
+-- selects the case; every case then strcmp-confirms the exact literal(s) before
+-- running the body, so an input whose hash collides with an enum member cannot
+-- be accepted in its place. `valExpr(literal)` renders the on-match body.
+-- Escape a value for embedding inside a C "..." literal: quotes and backslash,
+-- plus control bytes as 3-digit octal. Enum literals are schema-controlled, so
+-- an unescaped `"` or `\` would break compilation (and splice arbitrary source).
+local function cStrEsc(s)
+   return (tostring(s):gsub('[%c"\\]', function(ch)
+      if ch == '"' then return '\\"'
+      elseif ch == '\\' then return '\\\\'
+      else return ('\\%03o'):format(ch:byte()) end
+   end))
+end
+
 function c_sdbmStringSwitch(strExpr, values, valExpr)
    local byHash = sdbm_group(values)
    local out = stringBuffer:new()
    out:append(("  switch (sdbmHash_(%s)) {\n"):format(strExpr))
    table.map(byHash, function(h, lits)
       out:append(("    case 0x%xU:\n"):format(h))
-      if #lits == 1 then
-         out:append(valExpr(lits[1]))
-      else
-         -- hash collision: confirm the exact literal before accepting
-         local cmps = {}
-         table.map(lits, function(_, v)
-            cmps[#cmps + 1] = ("!strcmp(%s, \"%s\")"):format(strExpr, v)
-         end)
-         out:append(("      if (%s) {\n"):format(table.concat(cmps, " || ")))
-         out:append(valExpr(lits[1]))
-         out:append("      }\n")
-      end
+      local cmps = {}
+      table.map(lits, function(_, v)
+         cmps[#cmps + 1] = ("!strcmp(%s, \"%s\")"):format(strExpr, cStrEsc(v))
+      end)
+      out:append(("      if (%s) {\n"):format(table.concat(cmps, " || ")))
+      out:append(valExpr(lits[1]))
+      out:append("      }\n")
       out:append("      break;\n")
    end)
    out:append("  }\n")

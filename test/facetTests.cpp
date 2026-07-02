@@ -112,7 +112,8 @@ TEST(Cycle, MutualExtensionRejected) {
 TEST(Cycle, SelfReferenceGenerates) {
 	std::string out;
 	EXPECT_NO_THROW(out = gen("python-sax", RECURSIVE + "cyclic_self.xsd"));
-	EXPECT_TRUE(has(out, "'child'"));
+	/* the self-recursive element is wired into its own per-parent dispatch */
+	EXPECT_TRUE(has(out, "\"child\": xml_child"));
 }
 TEST(Cycle, MutualReferenceGenerates) {
 	EXPECT_NO_THROW(gen("python-sax", RECURSIVE + "cyclic_type.xsd"));

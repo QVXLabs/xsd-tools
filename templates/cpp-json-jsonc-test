@@ -7,15 +7,25 @@
 	include 'shared/facets'
 	return include 'includes/cpp-json-jsonc/cpp_type_info'
 ][@lua --generate helper globals
-	schema = schema.c_safeNames()
+	schema = schema.c_safeNames(cpp_keywords)
+	rootIdent = schema.types[schema.root].ident
+	function isArrayNode(n)
+		local mx = n.maxOccurs
+		return mx == 'unbounded' or (type(mx) == 'number' and mx > 1)
+	end
+	-- collapse orphaned duplicate/ref dependents (shared/schemaEx)
+	schema.canonicalizeDeps(isArrayNode)
 	uniqueXSDTypes = schema.uniqueTypes()
 	uniqueCTypes = {}
 	table.map(uniqueXSDTypes, function(_, v)
+		-- skip non-builtin names (see main template)
 		local ctype = cpp_type_info[v]
-		uniqueCTypes[ctype] = ctype
-		if 'cpp_list' == ctype.type then
-			local baseType = ctype.baseType()
-			uniqueCTypes[baseType] = baseType
+		if ctype then
+			uniqueCTypes[ctype] = ctype
+			if 'cpp_list' == ctype.type then
+				local baseType = ctype.baseType()
+				uniqueCTypes[baseType] = baseType
+			end
 		end
 	end)
 	-- typeSansRoot in dependency order so child Tst objects precede parents
@@ -34,15 +44,17 @@
 	local outbuf = stringBuffer:new()
 	local ID = 1
 	table.map(typeSansRoot, function(_, node)
-		outbuf:append('static json_'..node.name..' make_'..node.name..'Tst() {\n')
-		outbuf:append('\tjson_'..node.name..' o;\n')
+		outbuf:append('static json_'..node.ident..' make_'..node.ident..'Tst() {\n')
+		outbuf:append('\tjson_'..node.ident..' o;\n')
 		local hasMembers = next(node.attributes) or next(node.content)
 		if next(node.dependents) or not hasMembers then
 			outbuf:append('\to.eid_ = '..tostring(ID)..';\n')
 		end
 		local prcssType = function(ncname, xsdType)
 			local cpp = cpp_narrowType(xsdType.type, xsdType.facets)
-			local lhs = cpp.buildVar('o.', ncname)
+			-- attributes address their .ident member; content uses "Content"
+			local member = xsdType.ident or ncname
+			local lhs = cpp.buildVar('o.', member)
 			if 'cpp_list' == cpp.type then
 				outbuf:append('\t'..lhs..' = '..cpp.cpp_type.name()..' '..cpp.test.assign()..';\n')
 			elseif cpp == ctype_base64 or cpp == ctype_hex then
@@ -60,7 +72,7 @@
 	end)
 	-- materialize the instances once
 	table.map(typeSansRoot, function(_, node)
-		outbuf:append('static const json_'..node.name..' '..node.name..'Tst = make_'..node.name..'Tst();\n')
+		outbuf:append('static const json_'..node.ident..' '..node.ident..'Tst = make_'..node.ident..'Tst();\n')
 	end)
 	return outbuf:str()
 ]
@@ -68,11 +80,12 @@
 [@lua -- output unmarshal callbacks (assert round-tripped fields match)
 	local outbuf = stringBuffer:new()
 	table.map(typeSansRoot, function(_, node)
-		outbuf:append('static void unmarshal_'..node.name..'(json_marshaller* pMarshaller, const json_'..node.name..'* pObj, uint32_t parent) {\n')
+		outbuf:append('static void unmarshal_'..node.ident..'(json_marshaller* pMarshaller, const json_'..node.ident..'* pObj, uint32_t parent) {\n')
 		outbuf:append('\t(void)pMarshaller; (void)parent; (void)pObj;\n')
 		local prcssType = function(ncname, xsdtype)
 			local cpp = cpp_narrowType(xsdtype.type, xsdtype.facets)
-			outbuf:append(cpp.test.assert(cpp.buildVar('pObj->', ncname), cpp.buildVar(node.name..'Tst.', ncname)))
+			local member = xsdtype.ident or ncname
+			outbuf:append(cpp.test.assert(cpp.buildVar('pObj->', member), cpp.buildVar(node.ident..'Tst.', member)))
 		end
 		table.map(node.attributes, prcssType)
 		if next(node.content) then
@@ -93,15 +106,15 @@ static int g_destroyCnt = 0;
 	local outbuf = stringBuffer:new()
 	-- one instrumented subtype per complex type that counts its own destruction
 	table.map(typeSansRoot, function(_, node)
-		outbuf:append('struct Counting_'..node.name..' : json_'..node.name..' {\n')
-		outbuf:append('\t~Counting_'..node.name..'() override { ++g_destroyCnt; }\n')
+		outbuf:append('struct Counting_'..node.ident..' : json_'..node.ident..' {\n')
+		outbuf:append('\t~Counting_'..node.ident..'() override { ++g_destroyCnt; }\n')
 		outbuf:append('};\n')
 	end)
 	outbuf:append('class CountingFactory : public Factory {\npublic:\n')
 	table.map(typeSansRoot, function(_, node)
-		outbuf:append('\tstd::unique_ptr<json_'..node.name..'> create_'..node.name..'() const override {\n')
+		outbuf:append('\tstd::unique_ptr<json_'..node.ident..'> create_'..node.ident..'() const override {\n')
 		outbuf:append('\t\t++g_createCnt;\n')
-		outbuf:append('\t\treturn std::unique_ptr<json_'..node.name..'>(new Counting_'..node.name..'());\n\t}\n')
+		outbuf:append('\t\treturn std::unique_ptr<json_'..node.ident..'>(new Counting_'..node.ident..'());\n\t}\n')
 	end)
 	outbuf:append('};\n')
 	return outbuf:str()
@@ -112,7 +125,7 @@ int main() {
 [@lua --assign unmarshal callbacks
 	local tbl = {}
 	table.map(typeSansRoot, function(_, node)
-		table.insert(tbl, '\tmrshllr.unmarshal_'..node.name..' = unmarshal_'..node.name..';')
+		table.insert(tbl, '\tmrshllr.unmarshal_'..node.ident..' = unmarshal_'..node.ident..';')
 	end)
 	return table.concat(tbl, '\n')
 ]
@@ -123,7 +136,7 @@ int main() {
 	local rootHasDeps = next(schema.types[schema.root].dependents)
 	-- the entry returns the document's callback struct (by value)
 	if rootHasDeps then
-		outbuf:append('\tjson_marshal_'..schema.root
+		outbuf:append('\tjson_marshal_'..rootIdent
 			..' ret0 = json_marshal(mrshllr);\n')
 	else
 		outbuf:append('\tjson_marshal(mrshllr);\n')
@@ -136,18 +149,18 @@ int main() {
 	local function marshalChildren(parentVar, node)
 		table.map(node.dependents, function(_, child)
 			if next(child.dependents) then
-				if (onPath[child.name] or 0) >= 2 then return end
-				onPath[child.name] = (onPath[child.name] or 0) + 1
+				if (onPath[child.ident] or 0) >= 2 then return end
+				onPath[child.ident] = (onPath[child.ident] or 0) + 1
 				seqId = seqId + 1
 				local v = 'ret'..seqId
-				outbuf:append('\tjson_marshal_'..child.name..' '..v..' = '
-					..parentVar..'.marshal_'..child.name
-					..'(&mrshllr, &'..child.name..'Tst, '..parentVar..'.pSelf);\n')
+				outbuf:append('\tjson_marshal_'..child.ident..' '..v..' = '
+					..parentVar..'.marshal_'..child.ident
+					..'(&mrshllr, &'..child.ident..'Tst, '..parentVar..'.pSelf);\n')
 				marshalChildren(v, child)
-				onPath[child.name] = onPath[child.name] - 1
+				onPath[child.ident] = onPath[child.ident] - 1
 			else
-				outbuf:append('\t'..parentVar..'.marshal_'..child.name
-					..'(&mrshllr, &'..child.name..'Tst, '..parentVar..'.pSelf);\n')
+				outbuf:append('\t'..parentVar..'.marshal_'..child.ident
+					..'(&mrshllr, &'..child.ident..'Tst, '..parentVar..'.pSelf);\n')
 			end
 		end)
 	end

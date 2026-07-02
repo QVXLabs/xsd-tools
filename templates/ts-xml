@@ -36,7 +36,8 @@
 		os.exit()
 	end
 	include 'includes/ts-xml/ts_safe_name'
-	schema = schema.c_safeNames()
+	schema = schema.c_safeNames(tsKeywords)
+	tsAssignIdents(schema)
 	depOrder = schema.sortDependencies()
 	depOrderSansRoot = table.filter(depOrder, function(k, v)
 		return v.name ~= schema.root and v or nil end)
@@ -53,6 +54,14 @@
 	-- TS string literal for an element's namespace URI, or nil when unqualified.
 	function nsUriExpr(name)
 		return nsIsQualified(name) and ('"' .. docRootNS .. '"') or nil
+	end
+	-- Wire tag: qualified elements carry the synthesized `tns` prefix so the
+	-- declared xmlns:tns is actually used, and marshal/unmarshal agree on the
+	-- qualified form (dispatch keys and localName() both use it) so a
+	-- `<tns:record>` document round-trips. Unqualified / no-namespace names stay
+	-- bare, so non-namespaced schemas emit byte-identical output.
+	function wireTag(name)
+		return nsIsQualified(name) and (nsPrefix .. ":" .. name) or name
 	end
 ]/* command to split output: csplit - '/\/\* FILE: /' {*} */
 /* FILE: Element.ts */
@@ -154,7 +163,7 @@ import { Element } from "./Element";
 [@lua
 	local outbuf = stringBuffer:new()
 	table.map(depOrderSansRoot, function(_, node)
-		local tn = tsSafeName(node.name)
+		local tn = tsSafeName(node.ident)
 		outbuf:append(table.concat({
 			"import { ", tn, " } from \"./", tn, "\";\n",
 		}))
@@ -167,7 +176,7 @@ export class Factory {
 [@lua
 	local outbuf = stringBuffer:new()
 	table.map(depOrderSansRoot, function(_, node)
-		local tn = tsSafeName(node.name)
+		local tn = tsSafeName(node.ident)
 		outbuf:append(table.concat({
 			"\tprotected create", tn, "(): ", tn, " {\n",
 			"\t\treturn new ", tn, "();\n",
@@ -189,8 +198,9 @@ export class Factory {
 	outbuf:append("\t\tlet e: Element | undefined;\n")
 	table.map(depOrderSansRoot, function(_, node)
 		outbuf:append(table.concat({
-			"\t\tif (localName === \"", node.name, "\") e = this.create",
-			tsSafeName(node.name), "();\n\t\telse ",
+			"\t\tif (localName === \"", wireTag(node.name),
+			"\") e = this.create", tsSafeName(node.ident),
+			"();\n\t\telse ",
 		}))
 	end)
 	outbuf:append("e = undefined;\n")
@@ -262,7 +272,7 @@ export * from "./Document";
 [@lua
 	local outbuf = stringBuffer:new()
 	table.map(depOrderSansRoot, function(_, node)
-		local tn = tsSafeName(node.name)
+		local tn = tsSafeName(node.ident)
 		outbuf:append(table.concat({
 			"export * from \"./", tn, "\";\n",
 		}))
@@ -282,12 +292,38 @@ export * from "./Document";
 			out:append("\t\t\t\tthrow new Error(\"" .. label .. ": "
 				.. msg .. "\");\n")
 		end
-		-- bigint range literals need the `n` suffix so comparisons typecheck.
+		-- bigint comparisons use BigInt("N") rather than an `N` literal: `n`
+		-- suffixes need target ES2020, while BigInt() only needs the
+		-- es2020.bigint lib the file already references. bigint bounds/enums
+		-- render from the RAW facet strings: a Lua number (double) rounds
+		-- integers >= 2^53, so numeric lo/hi would mis-render the bound.
 		local function numLit(n)
-			return tsType == "bigint" and (tostring(n) .. "n") or tostring(n)
+			return tostring(n)
+		end
+		local function bigLit(s)
+			return "BigInt(" .. tsStr(tostring(s)) .. ")"
 		end
 		table.map(facets_checks(facets), function(_, c)
-			if c.kind == 'range' and numericTs[tsType] then
+			if c.kind == 'range' and tsType == "bigint" then
+				-- exclusive bounds use strict inequality, so no ±1 arithmetic
+				-- (which would need bignum) is applied to the raw string.
+				local conds = {}
+				if facets.minInclusive then
+					conds[#conds + 1] = bigLit(facets.minInclusive) .. " <= v"
+				end
+				if facets.minExclusive then
+					conds[#conds + 1] = bigLit(facets.minExclusive) .. " < v"
+				end
+				if facets.maxInclusive then
+					conds[#conds + 1] = "v <= " .. bigLit(facets.maxInclusive)
+				end
+				if facets.maxExclusive then
+					conds[#conds + 1] = "v < " .. bigLit(facets.maxExclusive)
+				end
+				if #conds > 0 then
+					guard(table.concat(conds, " && "), 'out of range')
+				end
+			elseif c.kind == 'range' and numericTs[tsType] then
 				local lo = c.lo and (numLit(c.lo) .. " <= v")
 				local hi = c.hi and ("v <= " .. numLit(c.hi))
 				guard(c.lo and c.hi and (numLit(c.lo) .. " <= v && v <= "
@@ -298,6 +334,11 @@ export * from "./Document";
 				if c.min then parts[#parts + 1] = n .. " >= " .. c.min end
 				if c.max then parts[#parts + 1] = n .. " <= " .. c.max end
 				guard(table.concat(parts, " && "), 'bad length')
+			elseif c.kind == 'enum' and tsType == "bigint" then
+				local vals = {}
+				table.map(c.values, function(_, v)
+					vals[#vals + 1] = "v === " .. bigLit(v) end)
+				guard(table.concat(vals, " || "), 'not permitted')
 			elseif c.kind == 'enum' and numericTs[tsType] then
 				local vals = {}
 				table.map(c.values, function(_, v)
@@ -306,7 +347,7 @@ export * from "./Document";
 			elseif c.kind == 'enum' then
 				local vals = {}
 				table.map(c.values,
-					function(_, v) vals[#vals + 1] = '"' .. v .. '"' end)
+					function(_, v) vals[#vals + 1] = tsStr(v) end)
 				local set = "ENUM_" .. label
 				statics:append("const " .. set
 					.. ": ReadonlySet<string> = new Set([\n\t"
@@ -321,7 +362,16 @@ export * from "./Document";
 		local hasAttrs   = next(node.attributes) ~= nil
 		local contentInfo = hasContent
 			and ts_type_info[node.content.type] or nil
-		local tn = tsSafeName(node.name)
+		local tn = tsSafeName(node.ident)
+		-- Files touching a 64-bit/arbitrary-precision integer need BigInt(),
+		-- pulled in via a lib reference so it resolves under the ES2019 target.
+		local usesBigint = contentInfo ~= nil
+			and contentInfo.tsType == "bigint"
+		table.map(node.attributes, function(_, attr)
+			if ts_type_info[attr.type].tsType == "bigint" then
+				usesBigint = true
+			end
+		end)
 
 		-- Collect facet validation + module-level enum Sets first, so the
 		-- Sets can be hoisted above the class declaration (TS top-level decls).
@@ -341,19 +391,22 @@ export * from "./Document";
 			emitChecks(contentInfo.tsType, "this._text", 'content',
 				node.content.facets)
 		end
-		table.map(node.attributes, function(an, attr)
+		table.map(node.attributes, function(_, attr)
 			if attr.facets then
-				emitChecks(ts_type_info[attr.type].tsType, "this._" .. an, an,
-					attr.facets)
+				emitChecks(ts_type_info[attr.type].tsType,
+					"this._" .. attr.ident, attr.ident, attr.facets)
 			end
 		end)
 
 		-- file header + import + hoisted enum Sets + class declaration
 		outbuf:append(table.concat({
 			"\n/* FILE: ", tn, ".ts */\n",
-			"/* This file was generated by xsdb */\n\n",
-			"import { Element } from \"./Element\";\n\n",
+			"/* This file was generated by xsdb */\n",
 		}))
+		if usesBigint then
+			outbuf:append("/// <reference lib=\"es2020.bigint\" />\n")
+		end
+		outbuf:append("\nimport { Element } from \"./Element\";\n\n")
 		if #statics:str() > 0 then
 			outbuf:append(statics:str())
 			outbuf:append("\n")
@@ -362,9 +415,9 @@ export * from "./Document";
 		outbuf:append(table.concat({
 			"export class ", tn, " extends Element {\n",
 		}))
-		table.map(node.attributes, function(an, attr)
+		table.map(node.attributes, function(_, attr)
 			outbuf:append(docComment(attr.documentation, 'c', '\t'))
-			outbuf:append(ts_type_info[attr.type].field(an))
+			outbuf:append(ts_type_info[attr.type].field(attr.ident))
 		end)
 		if hasContent then
 			outbuf:append(table.concat({
@@ -375,16 +428,18 @@ export * from "./Document";
 
 		-- constructor with attribute defaults
 		outbuf:append("\tconstructor() {\n\t\tsuper();\n")
-		table.map(node.attributes, function(an, attr)
+		table.map(node.attributes, function(_, attr)
 			if attr.default then
-				outbuf:append(ts_type_info[attr.type].default(an, attr.default))
+				outbuf:append(
+					ts_type_info[attr.type].default(attr.ident, attr.default))
 			end
 		end)
 		outbuf:append("\t}\n\n")
 
-		-- localName()
+		-- localName() reports the wire tag (prefixed when qualified).
 		outbuf:append(table.concat({
-			"\tlocalName(): string { return \"", node.name, "\"; }\n\n",
+			"\tlocalName(): string { return \"", wireTag(node.name),
+			"\"; }\n\n",
 		}))
 
 		-- E3d: qualified elements report their namespace URI.
@@ -409,8 +464,10 @@ export * from "./Document";
 			end
 			table.map(node.attributes, function(an, attr)
 				outbuf:append(table.concat({
-					"\t\tif (this._", an, " !== undefined) a[\"", an, "\"] = ",
-					ts_type_info[attr.type].toText("this._" .. an), ";\n",
+					"\t\tif (this._", attr.ident, " !== undefined) a[\"", an,
+					"\"] = ",
+					ts_type_info[attr.type].toText("this._" .. attr.ident),
+					";\n",
 				}))
 			end)
 			outbuf:append("\t\treturn a;\n\t}\n\n")
@@ -421,7 +478,8 @@ export * from "./Document";
 					.. "attrs: Record<string, string>): void {\n")
 				table.map(node.attributes, function(an, attr)
 					outbuf:append(table.concat({
-						"\t\tif (\"", an, "\" in attrs) this._", an, " = ",
+						"\t\tif (\"", an, "\" in attrs) this._", attr.ident,
+						" = ",
 						ts_type_info[attr.type].fromText("attrs[\"" .. an
 							.. "\"]"), ";\n",
 					}))

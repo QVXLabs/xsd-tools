@@ -1,6 +1,20 @@
 [@lua --TS type mapping objects (mirrors java_type_info)
+	-- Emit a safe TS/JS double-quoted string literal. Callers splice
+	-- schema-supplied text (enum/default/fixed values) into generated source;
+	-- an unescaped `"` or `\` would break the literal (JSON.stringify-equivalent
+	-- for the source-breaking characters).
+	function tsStr(s)
+		s = tostring(s)
+		s = s:gsub('\\', '\\\\')
+		s = s:gsub('"', '\\"')
+		s = s:gsub('\n', '\\n')
+		s = s:gsub('\r', '\\r')
+		s = s:gsub('\t', '\\t')
+		return '"' .. s .. '"'
+	end
 	include 'includes/ts-xml/string'
 	include 'includes/ts-xml/number'
+	include 'includes/ts-xml/bigint'
 	include 'includes/ts-xml/bool'
 	include 'includes/ts-xml/base64'
 	include 'includes/ts-xml/hex'
@@ -40,22 +54,22 @@
 		['IDREFS']				= tstype_string,
 		['NMTOKENS']			= tstype_string,
 		['decimal']				= tstype_number,
-		['integer']				= tstype_number,
-		['long']				= tstype_number,
+		['integer']				= tstype_bigint,
+		['long']				= tstype_bigint,
 		['int']					= tstype_number,
 		['short']				= tstype_number,
 		['byte']				= tstype_number,
-		['positiveInteger']		= tstype_number,
-		['unsignedLong']		= tstype_number,
+		['positiveInteger']		= tstype_bigint,
+		['unsignedLong']		= tstype_bigint,
 		['unsignedInt']			= tstype_number,
 		['unsignedShort']		= tstype_number,
 		['unsignedByte']		= tstype_number,
-		['negativeInteger']		= tstype_number,
+		['negativeInteger']		= tstype_bigint,
 		['double']				= tstype_number,
 		['float']				= tstype_number,
 		['precisionDecimal']	= tstype_number,
-		['nonPositiveInteger']	= tstype_number,
-		['nonNegativeInteger']	= tstype_number,
+		['nonPositiveInteger']	= tstype_bigint,
+		['nonNegativeInteger']	= tstype_bigint,
 		['base64Binary']		= tstype_base64,
 		['hexBinary']			= tstype_hex,
 		['list(anySimpleType)']		= tstype_listString,

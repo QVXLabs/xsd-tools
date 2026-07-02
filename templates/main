@@ -1,22 +1,41 @@
 [@lua
+	include 'shared/trnsfrm_old'
+	schema = trnsfrm_oldFmt(schema)
+][@lua
 local out = stringBuffer:new()
-function printTable(t, depth)
-	for k,v in pairs(t) do
-		if "table" == type(v) then
-			if nill == next(v) then out:append(string.rep("\t", depth)..k.." = {}\n")
-			else
-				out:append(string.rep("\t", depth)..k.." = {\n")
-				printTable(v, depth + 1)
-				out:append(string.rep("\t", depth).."}\n")
-				end
- 			else
- 				out:append(string.rep("\t", depth)..k.." = "..v.."\n")
-			end
+-- a table is list-like if its only keys are the sequence 1..#t
+local function isList(t)
+	local n = 0
+	for _ in pairs(t) do n = n + 1 end
+	return n > 0 and n == #t
+end
+-- render a list's elements as strings; the model may hold numbers/booleans
+local function listStr(v)
+	local parts = {}
+	for i = 1, #v do parts[i] = tostring(v[i]) end
+	return table.concat(parts, ", ")
+end
+-- the normalized model is a by-reference graph: recursive types point back at
+-- an ancestor node, so guard against cycles to keep the dump finite.
+local function printTable(t, depth, seen)
+	local pad = string.rep("\t", depth)
+	for k, v in pairs(t) do
+		if "table" ~= type(v) then
+			out:append(pad..tostring(k).." = "..tostring(v).."\n")
+		elseif seen[v] then
+			out:append(pad..tostring(k).." = <recursive>\n")
+		elseif nil == next(v) then
+			out:append(pad..tostring(k).." = {}\n")
+		elseif isList(v) then
+			out:append(pad..tostring(k).." = { "..listStr(v).." }\n")
+		else
+			seen[v] = true
+			out:append(pad..tostring(k).." = {\n")
+			printTable(v, depth + 1, seen)
+			out:append(pad.."}\n")
 		end
 	end
-function main(template)
-	printTable(schema.types[schema.root], 0)
 end
-main("")
-return(out:str())
+printTable(schema.types[schema.root], 0, {})
+return out:str()
 ]

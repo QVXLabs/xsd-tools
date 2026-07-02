@@ -42,12 +42,65 @@
 	  return itr, tbl, nil
    end
 
-   local function makeJavaSafeName(fieldName)
-	  if '$' == fieldName then
-		 return 'value'
-	  else
-		 return fieldName:gsub('[%$,/,%-,%%,#,@,!,%^,&,*,%(,%),  ,]', '_')
+   -- Java keywords + java.lang.Object methods whose bare name (or, via the
+   -- get-prefix, `getClass`) would collide with a generated accessor. Seeded
+   -- into every per-class field namespace so a JSON tag like `class` can't
+   -- produce an illegal field or an override of a final Object method.
+   local javaReserved = {
+	  ['abstract']=true, ['assert']=true, ['boolean']=true, ['break']=true,
+	  ['byte']=true, ['case']=true, ['catch']=true, ['char']=true,
+	  ['class']=true, ['const']=true, ['continue']=true, ['default']=true,
+	  ['do']=true, ['double']=true, ['else']=true, ['enum']=true,
+	  ['extends']=true, ['final']=true, ['finally']=true, ['float']=true,
+	  ['for']=true, ['goto']=true, ['if']=true, ['implements']=true,
+	  ['import']=true, ['instanceof']=true, ['int']=true, ['interface']=true,
+	  ['long']=true, ['native']=true, ['new']=true, ['package']=true,
+	  ['private']=true, ['protected']=true, ['public']=true, ['return']=true,
+	  ['short']=true, ['static']=true, ['strictfp']=true, ['super']=true,
+	  ['switch']=true, ['synchronized']=true, ['this']=true, ['throw']=true,
+	  ['throws']=true, ['transient']=true, ['try']=true, ['void']=true,
+	  ['volatile']=true, ['while']=true, ['true']=true, ['false']=true,
+	  ['null']=true, ['record']=true, ['var']=true, ['yield']=true,
+	  ['getClass']=true, ['hashCode']=true, ['equals']=true, ['clone']=true,
+	  ['toString']=true, ['wait']=true, ['notify']=true, ['finalize']=true,
+   }
+
+   -- Map an arbitrary JSON tag to a valid, collision-free Java identifier.
+   -- Mirrors shared/schemaEx sanitizeIdent: illegal chars -> '_', leading
+   -- digit prefixed, then de-collided against `reserved` (which is mutated so
+   -- repeated calls within a class stay distinct).
+   local function sanitizeIdent(name, reserved)
+	  if '$' == name then name = 'value' end
+	  local ident = tostring(name):gsub('[^%w_]', '_')
+	  if ident:match('^%d') then ident = '_'..ident end
+	  if ident == '' then ident = '_' end
+	  local base, out, n = ident, ident, 0
+	  while reserved[out] do n = n + 1; out = base..'_'..n end
+	  reserved[out] = true
+	  return out
+   end
+
+   -- Stable per-class map from JSON tag -> Java member name. Built once in
+   -- sorted-tag order so de-collision suffixes are deterministic and every
+   -- emission loop sees the same identifier for a given field.
+   local function classMemberNames(fields)
+	  local reserved = {}
+	  for k in pairs(javaReserved) do reserved[k] = true end
+	  local tags = {}
+	  for tag in pairs(fields) do tags[#tags + 1] = tag end
+	  table.sort(tags)
+	  local names = {}
+	  for _, tag in ipairs(tags) do
+		 names[tag] = sanitizeIdent(tag, reserved)
 	  end
+	  return names
+   end
+
+   -- Escape a raw value for a Java double-quoted string literal (D2/#4/#9).
+   local function javaStrLit(raw)
+	  local s = tostring(raw):gsub('\\', '\\\\'):gsub('"', '\\"')
+		 :gsub('\n', '\\n'):gsub('\r', '\\r'):gsub('\t', '\\t')
+	  return '"'..s..'"'
    end
 
    local function outputGeterJavadoc(typename, memberName)
@@ -110,7 +163,10 @@
    -- Java literal for an attribute `default` (C). Strings quote; Long needs an
    -- L suffix so `Long x = 5` boxes; narrowed/int types emit the bare number.
    local function defaultLiteral(eff, raw)
-	  if eff.declrFmt == '"%s"' then return ('"%s"'):format(raw) end
+	  if eff.declrFmt == '"%s"' then return javaStrLit(raw) end
+	  if eff.typename == 'java.math.BigInteger' then
+		 return 'new java.math.BigInteger('..javaStrLit(raw)..')'
+	  end
 	  if eff.typename == 'Long' then return raw .. 'L' end
 	  return raw
    end
@@ -118,6 +174,7 @@
    -- Java numeric boxed types we can enum-compare without stringifying.
    local _numericJavaType = {
 	  Byte = true, Short = true, Integer = true, Long = true,
+	  ['java.math.BigInteger'] = true,
    }
 
    -- Render facet checks (D2) on member `_var` into a validate() body. Range,
@@ -133,12 +190,24 @@
 		 out:append(('\t\t\tthrow new IllegalArgumentException("%s: %s");\n')
 			:format(var, msg))
 	  end
+	  -- BigInteger has no relational operators; compare via compareTo/equals.
+	  local isBig = (jType == 'java.math.BigInteger')
+	  local function bigLit(v) return 'new java.math.BigInteger("'..v..'")' end
 	  table.map(facets_checks(facets), function(_, c)
 		 if c.kind == 'range' then
-			local cond = c.lo and c.hi and
-			   ('%s <= _%s && _%s <= %s'):format(c.lo, var, var, c.hi)
-			   or c.lo and ('%s <= _%s'):format(c.lo, var)
-			   or ('_%s <= %s'):format(var, c.hi)
+			local cond
+			if isBig then
+			   local lo = c.lo and ('_%s.compareTo(%s) >= 0')
+				  :format(var, bigLit(c.lo))
+			   local hi = c.hi and ('_%s.compareTo(%s) <= 0')
+				  :format(var, bigLit(c.hi))
+			   cond = (lo and hi and lo..' && '..hi) or lo or hi
+			else
+			   cond = c.lo and c.hi and
+				  ('%s <= _%s && _%s <= %s'):format(c.lo, var, var, c.hi)
+				  or c.lo and ('%s <= _%s'):format(c.lo, var)
+				  or ('_%s <= %s'):format(var, c.hi)
+			end
 			guard(cond, 'out of range')
 		 elseif c.kind == 'length' then
 			local n, parts = ('String.valueOf(_%s).length()'):format(var), {}
@@ -150,15 +219,18 @@
 			if _numericJavaType[jType] then
 			   local vals = {}
 			   table.map(c.values, function(_, v)
-				  vals[#vals + 1] = ('_%s == %s'):format(var, v)
+				  vals[#vals + 1] = isBig
+					 and ('_%s.equals(%s)'):format(var, bigLit(v))
+					 or ('_%s == %s'):format(var, v)
 			   end)
 			   guard('(' .. table.concat(vals, ' || ') .. ')', 'not permitted')
 			else
-			   -- string enum: membership in a once-built static Set
+			   -- string enum: membership in a once-built static Set. Values are
+			   -- Java-escaped so quotes/backslashes yield legal source (#4).
 			   local setName = '_ENUM_' .. var
 			   local quoted = {}
 			   table.map(c.values, function(_, v)
-				  quoted[#quoted + 1] = ('"%s"'):format(v)
+				  quoted[#quoted + 1] = javaStrLit(v)
 			   end)
 			   sets[setName] = table.concat(quoted, ', ')
 			   guard(('%s.contains(_%s)'):format(setName, var), 'not permitted')
@@ -171,6 +243,8 @@
    -- json output function
    local function objectOutput(typename, typedef)
 	  local str = stringBuffer:new()
+	  -- one stable, collision-free member name per JSON tag for this class
+	  local memberNames = classMemberNames(typedef.fields)
 	  -- generate file and import headers
 	  str:append(('/* FILE: %s.java */\n'):format(typename))
 	  str:append('/* This file was generated by xsdb */\n')
@@ -193,7 +267,7 @@
 	  )
 	  -- generate private members
 	  for JSONFieldName, fieldTypename, fieldTypedef in fieldIterator(typedef.fields) do
-		 local memberName  = makeJavaSafeName(JSONFieldName)
+		 local memberName  = memberNames[JSONFieldName]
 		 -- #4: emit the field annotation above its declaration
 		 str:append(docComment(fieldTypedef.documentation, 'c', '\t'))
 		 if isListType(fieldTypename) then
@@ -223,7 +297,7 @@
 	  local fmt = '\tpublic %s(JSONObjectAdapter jObj) throws JSONException, DecoderException {\n'
 	  str:append(fmt:format(typename))
 	  for fieldName, fieldType, fieldTypedef in fieldIterator(typedef.fields) do
-		 local memberName  = makeJavaSafeName(fieldName)
+		 local memberName  = memberNames[fieldName]
 		 if not isFieldRequired(fieldTypedef) then
 			str:append(('\t\tif (!jObj.has("%s"))\n'):format(fieldName))
 			-- a declared default (C) survives an absent field; else null
@@ -271,7 +345,7 @@
 			   jType = effectiveType(fieldType, fieldTypedef).typename
 			end
 			checksBody:append(javaChecks(
-			   makeJavaSafeName(fieldName), fieldTypedef.facets, jType, sets))
+			   memberNames[fieldName], fieldTypedef.facets, jType, sets))
 		 end
 	  end
 	  for setName, vals in pairs(sets) do
@@ -285,7 +359,7 @@
 	  str:append('\t}\n\n')
 	  -- generate 'set'ers
 	  for fieldName, fieldType, fieldTypedef in fieldIterator(typedef.fields) do
-		 local memberName  = makeJavaSafeName(fieldName)
+		 local memberName  = memberNames[fieldName]
 		 if isListType(fieldType) then
 			local lstType  = getListType(fieldType)
 			local javaType = types[lstType]
@@ -303,7 +377,7 @@
 	  end
 	  -- generate 'get'ers
 	  for fieldName, fieldType, fieldTypedef in fieldIterator(typedef.fields) do
-		 local memberName  = makeJavaSafeName(fieldName)
+		 local memberName  = memberNames[fieldName]
 		 if isListType(fieldType) then
 			local lstType  = getListType(fieldType)
 			local javaType = types[lstType]
@@ -325,7 +399,7 @@
 		 '\t\tJSONObjectAdapter retObj = new JSONObjectAdapter(new JSONObject());\n'
 	  )
 	  for fieldName, fieldType, fieldTypedef in fieldIterator(typedef.fields) do
-		 local memberName  = makeJavaSafeName(fieldName)
+		 local memberName  = memberNames[fieldName]
 		 if not isFieldRequired(fieldTypedef) then
             if types[fieldType].typename == "String" then
 			    str:append(

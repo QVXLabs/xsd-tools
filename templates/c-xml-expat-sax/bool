@@ -37,14 +37,18 @@
 				end,
 			},
 			unmarshal = {
-				definition = function() 
+				definition = function()
 					return table.concat({
 						'void\nunmarshal_bool_(xml_marshaller* pMarshaller, const char* pContent, xml_bool* pObj) {\n',
-						'\tif(isDigit(pContent[0]) {\n',
-						'\t\tpVal = (0 != *pContent[0]);\n',
-						'\t} else {',
-						'\t\tpVal = (0 == strcncmp(pContent, "true", 6));\n',
-						'\t}\n',
+						-- xs:boolean has a fixed whiteSpace="collapse" facet, so
+						-- trim surrounding XML whitespace before matching.
+						'\tconst char* s_ = pContent;\n',
+						'\tsize_t n_;\n',
+						'\twhile (\' \'==*s_||\'\\t\'==*s_||\'\\n\'==*s_||\'\\r\'==*s_) ++s_;\n',
+						'\tn_ = strlen(s_);\n',
+						'\twhile (n_ && (\' \'==s_[n_-1]||\'\\t\'==s_[n_-1]||\'\\n\'==s_[n_-1]||\'\\r\'==s_[n_-1])) --n_;\n',
+						'\t*pObj = ((4 == n_ && 0 == strncmp(s_, "true", 4)) || (1 == n_ && \'1\' == *s_)) ? 1 : 0;\n',
+						'\t(void)pMarshaller;\n',
 						'}\n',
 					})
 				end,
@@ -57,7 +61,9 @@
 		},
 		test = {
 			assign = function()
-				return tostring(math.random(0, 255))
+				-- marshal canonicalizes to "true"/"false", so unmarshal round-
+				-- trips only the boolean values 0 and 1.
+				return tostring(math.random(0, 1))
 			end,
 			assert = function(obj1, obj2)
 				return string.format("assert(%s == %s);\n", obj1, obj2)

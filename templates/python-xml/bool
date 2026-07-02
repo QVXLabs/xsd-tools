@@ -1,37 +1,45 @@
 [@lua --define python boolean type
+	-- XSD boolean lexicals are 1/true (True) and 0/false (False); marshal back
+	-- to the canonical 'true'/'false' so a round trip is a fixed point.
+	local function pyBoolLit(value)
+		return (value == 'true' or value == '1') and 'True' or 'False'
+	end
 	pythontype_bool = {
 		marshal = {
-			attribute = function(attribName)
+			attribute = function(wire, ident)
 				return table.concat({
-					"        stream.write(' ", attribName, "=\"' + str(self._", attribName, ") + '\"')\n",
+					"        if self._", ident, " is not None:\n",
+					"            stream.write(' ", wire, "=\"' + ('true' if self._", ident, " else 'false') + '\"')\n",
 				})
 			end,
 			content = function()
 				return table.concat({
-					"        stream.write(str(self._content[0]))\n"
+					"        if self._content:\n",
+					"            stream.write('true' if self._content[0] else 'false')\n"
 				})
 			end,
 		},
 		unmarshal = {
-			attribute = function(attribName)
+			attribute = function(wire, ident)
 				return table.concat({
-					"        if \"", attribName, "\" in attributes:\n",
-					"            self._", attribName, " = bool(\"\".join(attributes[\"", attribName, "\"].split()))\n",
+					"        if \"", wire, "\" in attributes:\n",
+					"            self._", ident, " = \"\".join(attributes[\"", wire, "\"].split()) in (\"1\", \"true\")\n",
 				})
 			end,
 			content = function()
 				return table.concat({
-					"        self._content = [bool(\"\".join(content[0].split()))]\n"
+					"        self._content = [\"\".join(content[0].split()) in (\"1\", \"true\")] if content else []\n"
 				})
 			end
 		},
-		default = function(attribName, value)
-			return table.concat({"        self._", attribName, " = ", value, "\n"})
+		default = function(ident, value)
+			return table.concat({"        self._", ident, " = ", pyBoolLit(value), "\n"})
 		end,
 		test = {
 			assign = function()
-				local tbl = { 'true', 'false', 'True', 'False', '0', '1', 'TRUE', 'FALSE'}
-				return tbl[tostring(math.random(0, #tbl))]
+				-- marshal normalizes to 'true'/'false', so only those round-trip
+				local tbl = { 'true', 'false' }
+				return tbl[math.random(1, #tbl)]
 			end,
 		},
 	}

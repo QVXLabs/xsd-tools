@@ -7,15 +7,25 @@
 	include 'shared/facets'
 	return include 'includes/c-json-jsonc/c_type_info'
 ][@lua --generate helper globals
-	schema = schema.c_safeNames()
+	schema = schema.c_safeNames(c_keywords)
+	rootIdent = schema.types[schema.root].ident
+	function isArrayNode(n)
+		local mx = n.maxOccurs
+		return mx == 'unbounded' or (type(mx) == 'number' and mx > 1)
+	end
+	-- collapse orphaned duplicate/ref dependents (shared/schemaEx)
+	schema.canonicalizeDeps(isArrayNode)
 	uniqueXSDTypes = schema.uniqueTypes()
 	uniqueCTypes = {}
 	table.map(uniqueXSDTypes, function(_, v)
+		-- skip non-builtin names (see main template)
 		local ctype = c_type_info[v]
-		uniqueCTypes[ctype] = ctype
-		if 'c_list' == ctype.type then
-			local baseType = ctype.baseType()
-			uniqueCTypes[baseType] = baseType
+		if ctype then
+			uniqueCTypes[ctype] = ctype
+			if 'c_list' == ctype.type then
+				local baseType = ctype.baseType()
+				uniqueCTypes[baseType] = baseType
+			end
 		end
 	end)
 	typeSansRoot = table.filter(schema.types, function(k,v) return v.name ~= schema.root and v or nil end)
@@ -48,11 +58,13 @@
 			and {'.eid_ = '..tostring(ID)} or {}
 		local prcssType = function(ncname, xsdType)
 			local c_type = c_narrowCType(xsdType.type, xsdType.facets)
+			-- attributes address their .ident member; content uses "Content"
+			local member = xsdType.ident or ncname
 			if "c_list" == c_type.type then
 				local cVarName = listTypeVarMap[c_type]
-				table.insert(valTbl, c_type.buildVar('.',ncname)..' = '..c_type.test.assign(cVarName))
+				table.insert(valTbl, c_type.buildVar('.',member)..' = '..c_type.test.assign(cVarName))
 			else
-				table.insert(valTbl, c_type.buildVar('.',ncname)..' = '..c_type.test.assign(xsdType.facets))
+				table.insert(valTbl, c_type.buildVar('.',member)..' = '..c_type.test.assign(xsdType.facets))
 			end
 		end
 		table.map(node.attributes, prcssType)
@@ -60,7 +72,7 @@
 			prcssType("Content", node.content)
 		end
 		outbuf:append(table.concat({
-			"static const json_", node.name, " ", node.name, "Tst = {", table.concat(valTbl, ','),"};\n",
+			"static const json_", node.ident, " ", node.ident, "Tst = {", table.concat(valTbl, ','),"};\n",
 		}));
 		ID = ID + 1
 	end)
@@ -77,14 +89,15 @@ static void* reallocCb(struct json_marshaller* pMarshaller, void* pMem, size_t s
 	local outbuf = stringBuffer:new()
 	table.map(typeSansRoot, function(_, node)
 		outbuf:append(table.concat({
-			"static void unmarshal_", node.name, "(struct json_marshaller* pMarshaller, const json_", node.name, "* pObj, uint32_t parent) {\n",
+			"static void unmarshal_", node.ident, "(struct json_marshaller* pMarshaller, const json_", node.ident, "* pObj, uint32_t parent) {\n",
 			"\t(void)pMarshaller;\n",
 			"\t(void)parent;\n",
 			"\t(void)pObj;\n",
 		}))
 		local prcssType = function(ncname, xsdtype)
 			local c_type = c_narrowCType(xsdtype.type, xsdtype.facets)
-			outbuf:append(c_type.test.assert(c_type.buildVar('pObj->', ncname), c_type.buildVar(node.name..'Tst'..'.', ncname)))
+			local member = xsdtype.ident or ncname
+			outbuf:append(c_type.test.assert(c_type.buildVar('pObj->', member), c_type.buildVar(node.ident..'Tst'..'.', member)))
 		end
 		table.map(node.attributes, prcssType)
 		if next(node.content) then
@@ -107,25 +120,25 @@ static int g_destroyCnt = 0;
 	local dft = 'json_'..schemaName..'_default_factories()'
 	table.map(typeSansRoot, function(_, node)
 		outbuf:append(table.concat({
-			'static json_', node.name, '* ovr_', node.name, 'Allocator(struct json_marshaller* pM) {\n',
+			'static json_', node.ident, '* ovr_', node.ident, 'Allocator(struct json_marshaller* pM) {\n',
 			'\t++g_allocCnt;\n',
-			'\treturn ', dft, '->', node.name, 'Allocator(pM);\n',
+			'\treturn ', dft, '->', node.ident, 'Allocator(pM);\n',
 			'}\n',
-			'static void ovr_', node.name, 'Constructor(struct json_marshaller* pM, json_', node.name, '* pObj) {\n',
+			'static void ovr_', node.ident, 'Constructor(struct json_marshaller* pM, json_', node.ident, '* pObj) {\n',
 			'\t(void)pM; (void)pObj; ++g_constructCnt;\n',
 			'}\n',
-			'static json_', node.name, '* ovr_', node.name, 'Destructor(struct json_marshaller* pM, json_', node.name, '* pObj) {\n',
+			'static json_', node.ident, '* ovr_', node.ident, 'Destructor(struct json_marshaller* pM, json_', node.ident, '* pObj) {\n',
 			'\t++g_destroyCnt;\n',
-			'\treturn ', dft, '->', node.name, 'Destructor(pM, pObj);\n',
+			'\treturn ', dft, '->', node.ident, 'Destructor(pM, pObj);\n',
 			'}\n',
 		}))
 	end)
 	outbuf:append('static const json_'..schemaName..'_factories g_overrideFactories = {\n')
 	local fnLst = table.filter(typeSansRoot, function(_, node)
 		return table.concat({
-			'\t.', node.name, 'Allocator = ovr_', node.name, 'Allocator,\n',
-			'\t.', node.name, 'Constructor = ovr_', node.name, 'Constructor,\n',
-			'\t.', node.name, 'Destructor = ovr_', node.name, 'Destructor',
+			'\t.', node.ident, 'Allocator = ovr_', node.ident, 'Allocator,\n',
+			'\t.', node.ident, 'Constructor = ovr_', node.ident, 'Constructor,\n',
+			'\t.', node.ident, 'Destructor = ovr_', node.ident, 'Destructor',
 		})
 	end)
 	outbuf:append(table.concat(fnLst, ',\n'))
@@ -140,7 +153,7 @@ int main(void) {
 [@lua --output unmarshal function assignments
 	local tbl = {}
 	table.map(typeSansRoot, function(_, node)
-		table.insert(tbl, "\t\t.unmarshal_"..node.name.." = unmarshal_"..node.name)
+		table.insert(tbl, "\t\t.unmarshal_"..node.ident.." = unmarshal_"..node.ident)
 	end)
 	return table.concat(tbl, ",\n")
 ]
@@ -151,7 +164,7 @@ int main(void) {
 	local rootHasDeps = next(schema.types[schema.root].dependents)
 	-- the entry returns the document's callback struct (by value)
 	if rootHasDeps then
-		outbuf:append('\tjson_marshal_'..schema.root
+		outbuf:append('\tjson_marshal_'..rootIdent
 			..' ret0 = json_marshal(&mrshllr);\n')
 	else
 		outbuf:append('\tjson_marshal(&mrshllr);\n')
@@ -164,18 +177,18 @@ int main(void) {
 	local function marshalChildren(parentVar, node)
 		table.map(node.dependents, function(_, child)
 			if next(child.dependents) then
-				if (onPath[child.name] or 0) >= 2 then return end
-				onPath[child.name] = (onPath[child.name] or 0) + 1
+				if (onPath[child.ident] or 0) >= 2 then return end
+				onPath[child.ident] = (onPath[child.ident] or 0) + 1
 				seqId = seqId + 1
 				local v = 'ret'..seqId
-				outbuf:append('\tjson_marshal_'..child.name..' '..v..' = '
-					..parentVar..'.marshal_'..child.name
-					..'(&mrshllr, &'..child.name..'Tst, '..parentVar..'.pSelf);\n')
+				outbuf:append('\tjson_marshal_'..child.ident..' '..v..' = '
+					..parentVar..'.marshal_'..child.ident
+					..'(&mrshllr, &'..child.ident..'Tst, '..parentVar..'.pSelf);\n')
 				marshalChildren(v, child)
-				onPath[child.name] = onPath[child.name] - 1
+				onPath[child.ident] = onPath[child.ident] - 1
 			else
-				outbuf:append('\t'..parentVar..'.marshal_'..child.name
-					..'(&mrshllr, &'..child.name..'Tst, '..parentVar..'.pSelf);\n')
+				outbuf:append('\t'..parentVar..'.marshal_'..child.ident
+					..'(&mrshllr, &'..child.ident..'Tst, '..parentVar..'.pSelf);\n')
 			end
 		end)
 	end

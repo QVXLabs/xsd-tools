@@ -1,4 +1,11 @@
 [@lua --Java/StAX type mapping objects
+	-- Escape a raw value for a Java double-quoted string literal (#9). Global so
+	-- the type includes' default/marshal helpers can reference it at emit time.
+	function javaStrLit(raw)
+		local s = tostring(raw):gsub('\\', '\\\\'):gsub('"', '\\"')
+			:gsub('\n', '\\n'):gsub('\r', '\\r'):gsub('\t', '\\t')
+		return '"'..s..'"'
+	end
 	include 'includes/java-xml-stax/string'
 	include 'includes/java-xml-stax/int'
 	include 'includes/java-xml-stax/long'
@@ -13,6 +20,7 @@
 	include 'includes/java-xml-stax/list_float'
 	include 'includes/java-xml-stax/list_base64'
 	include 'includes/java-xml-stax/list_hex'
+	include 'includes/java-xml-stax/ulong'
 	java_type_info = {
 		['anySimpleType']		= javatype_string,
 		['anyAtomicType']		= javatype_string,
@@ -52,8 +60,11 @@
 		['short'] 				= javatype_int,
 		['byte'] 				= javatype_int,
 		['positiveInteger']		= javatype_long,
-		['unsignedLong']		= javatype_long,
-		['unsignedInt']			= javatype_int,
+		-- Java has no unsigned: widen so the max value round-trips. unsignedInt
+		-- (2^32-1) fits a signed Long; unsignedLong (2^64-1) overflows Long, so
+		-- it parses/formats as unsigned into a 64-bit slot (javatype_ulong).
+		['unsignedLong']		= javatype_ulong,
+		['unsignedInt']			= javatype_long,
 		['unsignedShort'] 		= javatype_int,
 		['unsignedByte']		= javatype_int,
 		['negativeInteger']		= javatype_int,

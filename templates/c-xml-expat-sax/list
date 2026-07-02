@@ -78,8 +78,12 @@
 							'\t\tpToken;\n',
 							'\t\tpToken = strtok(NULL, " \\t\\n\\r"), pObj->nElements_++) {\n',
 							'\t\tif (maxSz == pObj->nElements_) {\n',
+							'\t\t\tconst unsigned oldSz = maxSz;\n',
 							'\t\t\tmaxSz = maxSz ? (maxSz << 1) : 8;\n',
 							'\t\t\t', base.buildVar('pObj->','pArray'), ' = pMarshaller->realloc(pMarshaller, ', base.buildVar('pObj->','pArray'), ', maxSz * sizeof(', base.c_type.name(), '));\n',
+							-- zero new slots so the base unmarshaller does not free
+							-- an uninitialized pointer from a fresh element slot.
+							'\t\t\tmemset(', base.buildVar('pObj->','pArray'), ' + oldSz, 0, (maxSz - oldSz) * sizeof(', base.c_type.name(), '));\n',
 							'\t\t}\n',
 							'\t\t', base.binding.unmarshal.statement('pToken', base.buildVar('pObj->', 'pArray')..'[pObj->nElements_]'),
 							'\t}\n',

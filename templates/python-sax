@@ -58,10 +58,31 @@
 	include 'shared/doc'
 	include 'shared/facets'
 	include 'python-xml/python_type_info'
-][@lua --rename any non-c-safe names to c-safe names & sort dependencies so that they are matched correctly
-	schema = schema.c_safeNames()
+][@lua --assign python-safe idents (wire names stay verbatim) & sort deps
+	-- keywords that would be SyntaxErrors as class/method/member names
+	pythonKeywords = {}
+	for _, k in ipairs({'False','None','True','and','as','assert','async',
+		'await','break','class','continue','def','del','elif','else',
+		'except','finally','for','from','global','if','import','in','is',
+		'lambda','nonlocal','not','or','pass','raise','return','try','while',
+		'with','yield'}) do pythonKeywords[k] = true end
+	schema = schema.python_safeNames(pythonKeywords)
+	-- collapse orphaned duplicate/ref dependents onto their ident-bearing
+	-- representative (shared/schemaEx) so every node below is canonical and
+	-- carries .ident directly.
+	schema.canonicalizeDeps()
 	depOrder = schema.sortDependencies()
 	depOrderSansRoot = table.filter(depOrder, function(k,v) return v.name ~= schema.root and v or nil end)
+	-- de-dup so a shared-structure element is not emitted as two identical
+	-- classes (a type reached under several parents recurs in the order).
+	local _seen, _uniqTypes = {}, {}
+	table.map(depOrderSansRoot, function(_, node)
+		if not _seen[node] then
+			_seen[node] = true
+			_uniqTypes[#_uniqTypes + 1] = node
+		end
+	end)
+	depOrderSansRoot = _uniqTypes
 	-- gate binary-codec imports on actual type usage
 	local usedTypes = schema.uniqueTypes()
 	usesBase64 = usedTypes['base64Binary'] or usedTypes['list(base64Binary)']
@@ -70,7 +91,7 @@
 	local imports = stringBuffer:new()
 	if usesBase64 then imports:append('import base64\n') end
 	if usesHex then imports:append('import binascii\n') end
-	imports:append('import xml.sax')
+	imports:append('import xml.sax\nimport xml.sax.saxutils')
 	return imports:str()
 ]
 
@@ -79,20 +100,16 @@ class _handler(xml.sax.ContentHandler):
     def __init__(self):
         xml.sax.ContentHandler.__init__(self)
         self._elemStk = []
-        self._elemTbl = {
-[@lua --output element creation functions: 'gooTest':lambda: xml_gooTest()
-	local outbuf = stringBuffer:new()
-	local methodFmtStr = '            \'%s\': lambda: xml_%s(),\n'
-	table.map(depOrderSansRoot, function(k,v) outbuf:append(methodFmtStr:format(v.name, v.name)) end)
-	return outbuf:str()
-]       }
 
     # methods inherited from xml.sax.ContentHandler
     def startDocument(self):
-        self._elemStk = [("testA021", {}, [])]
+        # bottom of stack is the document root itself; child classes are
+        # resolved per-parent (a wire name can map to different types in
+        # different scopes) via each element's _children table.
+        self._elemStk = [(self, {}, [])]
 
     def startElementNS(self, name, qname, SAXAttributes):
-        element = self._elemTbl[name[1]]()
+        element = self._elemStk[-1][0]._children[name[1]]()
         elementRecord = (element, self._convertToDictionary(SAXAttributes),  [])
         self._elemStk[-1][2].append(element)
         self._elemStk.append(elementRecord)
@@ -113,6 +130,10 @@ class _handler(xml.sax.ContentHandler):
 
 
 class _xmlelement:
+    # wire-name -> child element class; assigned per class below (empty for
+    # simple-content leaves).
+    _children = {}
+
     def __init__(self):
         self._content = []
 
@@ -154,7 +175,7 @@ class _xmlelement:
 				-- stay quoted. Membership via a module-level frozenset.
 				local vals = {}
 				table.map(c.values, function(_, v)
-					vals[#vals + 1] = isNumeric and v or ('"' .. v .. '"')
+					vals[#vals + 1] = isNumeric and v or pyQuote(v)
 				end)
 				enumSeq = enumSeq + 1
 				local name = '_enum' .. enumSeq
@@ -170,7 +191,7 @@ class _xmlelement:
 		-- emit the element/type annotation (#4) above its class
 		outbuf:append(docComment(node.documentation, 'hash', ''))
 		outbuf:append(table.concat({
-			'class xml_', node.name, '(_xmlelement):\n',
+			'class xml_', node.ident, '(_xmlelement):\n',
 			'    def __init__(self):\n',
 			'        _xmlelement.__init__(self)\n'
 		}))
@@ -179,11 +200,12 @@ class _xmlelement:
 			table.map(node.attributes, function(attributeName, attribute)
 				-- emit the attribute annotation (#4) above its field
 				outbuf:append(docComment(attribute.documentation, 'hash', '        '))
-				if attribute.default then
+				local preset = attribute.default or attribute.fixed
+				if preset then
 					local pyType = py_type_info[attribute.type]
-					outbuf:append(pyType.default(attributeName, attribute.default))
+					outbuf:append(pyType.default(attribute.ident, preset))
 				else
-					outbuf:append(table.concat({'        self._', attributeName, ' = None\n'}))
+					outbuf:append(table.concat({'        self._', attribute.ident, ' = None\n'}))
 				end
 			end)
 		end
@@ -197,7 +219,7 @@ class _xmlelement:
 		-- output marshal code for each element attribute
 		table.map(node.attributes, function(attributeName, attribute)
 			local pyType = py_type_info[attribute.type]
-			outbuf:append(pyType.marshal.attribute(attributeName))
+			outbuf:append(pyType.marshal.attribute(attributeName, attribute.ident))
 		end)
 		outbuf:append('        stream.write(\'>\')\n')
 		if next(node.content) then
@@ -216,7 +238,7 @@ class _xmlelement:
 		-- output unmarshal code for each element attribute (direct dict lookup)
 		table.map(node.attributes, function(attributeName, attribute)
 			local pyType = py_type_info[attribute.type]
-			outbuf:append(pyType.unmarshal.attribute(attributeName))
+			outbuf:append(pyType.unmarshal.attribute(attributeName, attribute.ident))
 		end)
 		if next(node.content) then
 			outbuf:append(py_type_info[node.content.type].unmarshal.content())
@@ -235,7 +257,7 @@ class _xmlelement:
 		end
 		table.map(node.attributes, function(an, attr)
 			if attr.facets then
-				checks:append('        _v = self._' .. an .. '\n')
+				checks:append('        _v = self._' .. attr.ident .. '\n')
 				checks:append(pyChecks(an, attr.facets,
 					numericPyTypes[py_type_info[attr.type]]))
 			end
@@ -249,16 +271,16 @@ class _xmlelement:
 		-- output 'getters' code for each attribute
 		table.map(node.attributes, function(attributeName, attribute)
 			outbuf:append(table.concat({
-				'    def ', attributeName, '(self):\n',
-				'        return self._', attributeName, '\n',
+				'    def ', attribute.ident, '(self):\n',
+				'        return self._', attribute.ident, '\n',
 				'\n'
 			}))
 		end)
 		-- output 'setters' code for each attribute
 		table.map(node.attributes, function(attributeName, attribute)
 			outbuf:append(table.concat({
-				'    def set_', attributeName, '(self, value):\n',
-				'        self._', attributeName, '= value\n',
+				'    def set_', attribute.ident, '(self, value):\n',
+				'        self._', attribute.ident, '= value\n',
 				'\n'
 			}))
 		end)
@@ -282,5 +304,25 @@ class xml_[@lua return schema.root](_handler, _xmlelement):
         parser.setContentHandler(self)
         parser.parse(stream)
         self._content = self._elemStk[-1][2]
+
+[@lua -- per-parent wire-name -> child class dispatch, assigned after all classes
+	-- so forward references resolve. A wire name maps to different types in
+	-- different scopes, so each element keeps its own child table.
+	local outbuf = stringBuffer:new()
+	local function childrenDict(node)
+		local parts = {}
+		table.map(node.dependents, function(wire, child)
+			parts[#parts + 1] = pyQuote(wire) .. ': xml_' .. child.ident
+		end)
+		return '{' .. table.concat(parts, ', ') .. '}'
+	end
+	table.map(depOrderSansRoot, function(_, node)
+		outbuf:append('xml_' .. node.ident .. '._children = '
+			.. childrenDict(node) .. '\n')
+	end)
+	outbuf:append('xml_' .. schema.root .. '._children = '
+		.. childrenDict(schema.types[schema.root]) .. '\n')
+	return outbuf:str()
+]
 
 

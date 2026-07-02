@@ -1,32 +1,34 @@
 [@lua --define python hex type
 	pythontype_hex = {
 		marshal = {
-			attribute = function(attributeName)
+			attribute = function(wire, ident)
 				return table.concat({
-					"        stream.write(' ", attributeName, "= \"' + binascii.hexlify(self._", attributeName, ").decode('utf-8') + '\"')\n",
+					"        if self._", ident, " is not None:\n",
+					"            stream.write(' ", wire, "=\"' + binascii.hexlify(self._", ident, ").decode('ascii') + '\"')\n",
 				})
 			end,
 			content = function()
 				return table.concat({
-					"        stream.write(binascii.hexlify(self.getContent()[0]).decode('utf-8'))\n",
+					"        if self.getContent():\n",
+					"            stream.write(binascii.hexlify(self.getContent()[0]).decode('ascii'))\n",
 				})
 			end,
 		},
 		unmarshal = {
-			attribute = function(attribName)
+			attribute = function(wire, ident)
 				return table.concat({
-					"        if \"", attribName, "\" in attributes:\n",
-					"            self._", attribName, " = bytes.fromhex(\"\".join(attributes[\"", attribName, "\"].split()))\n",
+					"        if \"", wire, "\" in attributes:\n",
+					"            self._", ident, " = bytes.fromhex(\"\".join(attributes[\"", wire, "\"].split()))\n",
 				})
 			end,
 			content = function()
 				return table.concat({
-					"        self._content = [bytes.fromhex(\"\".join(content[0].split()))]\n"
+					"        self._content = [bytes.fromhex(\"\".join(content[0].split()))] if content else []\n"
 				})
 			end
 		},
-		default = function(attribName, value)
-			return table.concat({"        self._", attribName, " = bytes.fromhex(\"\".join(\"", value, "\".split()))\n"})
+		default = function(ident, value)
+			return table.concat({"        self._", ident, " = bytes.fromhex(\"\".join(", pyQuote(value), ".split()))\n"})
 		end,
 		test = {
 			assign = function()

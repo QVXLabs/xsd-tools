@@ -50,7 +50,7 @@
 					return table.concat({
 						'{ const char* _s = ', src, '; char* _end; errno = 0;\n',
 						'\t\tlong _v = strtol(_s, &_end, 10);\n',
-						'\t\t', obj, ' = (errno || _end == _s) ? 0 : (int8_t)_v; }\n',
+						'\t\t', obj, ' = (errno || _end == _s || _v < INT8_MIN || _v > INT8_MAX) ? 0 : (int8_t)_v; }\n',
 					})
 				end,
 			},

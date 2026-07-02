@@ -6,6 +6,7 @@ include 'includes/java-json.org/double.lua'
 include 'includes/java-json.org/boolean.lua'
 include 'includes/java-json.org/base64Binary.lua'
 include 'includes/java-json.org/hexBinary.lua'
+include 'includes/java-json.org/biginteger.lua'
 
 local types_meta = {
    __index = function(table, key)
@@ -33,7 +34,7 @@ types = {
    gMonth            = type_string,
    gMonthDay         = type_string,
    gYear             = type_string,
-   gMonthYear        = type_string,
+   gYearMonth        = type_string,
    NOTATION          = type_string,
    QName             = type_string,   
    string            = type_string,
@@ -57,8 +58,11 @@ types = {
    short             = type_int32,
    byte              = type_int32,
    positiveInteger   = type_integer,
-   unsignedLong      = type_integer,
-   unsignedInt       = type_int32,
+   -- Java has no unsigned: widen so the max value round-trips instead of
+   -- wrapping. unsignedInt (max 2^32-1) fits in a signed Long; unsignedLong
+   -- (max 2^64-1) overflows Long, so it maps to BigInteger.
+   unsignedLong      = type_biginteger,
+   unsignedInt       = type_integer,
    unsignedShort     = type_int32,
    unsignedByte      = type_int32,
    negativeInteger   = type_int32,   

@@ -50,7 +50,7 @@
 					return table.concat({
 						'{ const char* _s = ', src, '; char* _end; errno = 0;\n',
 						'\t\tunsigned long _v = strtoul(_s, &_end, 10);\n',
-						'\t\t', obj, ' = (errno || _end == _s) ? 0 : (uint16_t)_v; }\n',
+						'\t\t', obj, ' = (errno || _end == _s || _v > UINT16_MAX) ? 0 : (uint16_t)_v; }\n',
 					})
 				end,
 			},

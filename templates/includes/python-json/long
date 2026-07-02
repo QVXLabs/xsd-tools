@@ -1,32 +1,33 @@
 [@lua --define python long type (JSON)
 	pyjsontype_long = {
 		marshal = {
-			attribute = function(attribName)
+			attribute = function(wire, ident)
 				return table.concat({
-					"        attrs[\"", attribName, "\"] = int(self._", attribName, ")\n",
+					"        if self._", ident, " is not None:\n",
+					"            attrs[\"", wire, "\"] = int(self._", ident, ")\n",
 				})
 			end,
 			content = function()
 				return table.concat({
-					"        content = self._content[0]\n"
+					"        content = self._content[0] if self._content else None\n"
 				})
 			end,
 		},
 		unmarshal = {
-			attribute = function(attribName)
+			attribute = function(wire, ident)
 				return table.concat({
-					"            if \"", attribName, "\" == attribute:\n",
-					"                self._", attribName, " = int(attributes[attribute])\n",
+					"            if \"", wire, "\" == attribute:\n",
+					"                self._", ident, " = int(attributes[attribute])\n",
 				})
 			end,
 			content = function()
 				return table.concat({
-					"        self._content = [int(content)]\n"
+					"        self._content = [int(content)] if content is not None else []\n"
 				})
 			end
 		},
-		default = function(attribName, value)
-			return table.concat({"        self._", attribName, " = ", value, "\n"})
+		default = function(ident, value)
+			return table.concat({"        self._", ident, " = ", value, "\n"})
 		end,
 		test = {
 			assign = function(facets)

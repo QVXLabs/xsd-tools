@@ -24,10 +24,33 @@
 ][@lua include 'shared/facets'
 ][@lua include 'shared/doc'
 ][@lua return include 'cpp-xml-expat-sax/cpp_type_info'
-][@lua schema = schema.c_safeNames()
+][@lua include 'includes/cpp-xml-expat/keywords'
+	-- code identifiers (.ident) are keyword- and collision-safe; wire names
+	-- (.name / map keys) stay verbatim for the XML tags and unmarshal dispatch.
+	schema = schema.c_safeNames(CPP_KEYWORDS)
+	-- collapse orphaned duplicate/ref dependents onto their ident-bearing
+	-- representative (shared/schemaEx) so every dependent is canonical below.
+	schema.canonicalizeDeps()
 	depOrder = schema.sortDependencies()
-	depOrderSansRoot = table.filter(depOrder,
-		function(k, v) return v.name ~= schema.root and v or nil end)
+	-- one entry per element class: a type reached under several parents recurs
+	-- in the topo order, so de-dup by ident.
+	local seenIdent = {}
+	depOrderSansRoot = {}
+	table.map(depOrder, function(_, node)
+		if node.name == schema.root then return end
+		if node.ident and not seenIdent[node.ident] then
+			seenIdent[node.ident] = true
+			depOrderSansRoot[#depOrderSansRoot + 1] = node
+		end
+	end)
+	-- unique nonzero id per element class (0 = document root / no parent). Keyed
+	-- on the canonical node so marshal (parent nesting) and unmarshal (parent-
+	-- scoped tag dispatch) agree. Shared by both passes.
+	elemId = {}
+	local nElem = 0
+	table.map(depOrderSansRoot, function(_, node)
+		nElem = nElem + 1; elemId[node] = nElem
+	end)
 ][@lua -- collect the C++ codec helpers actually needed (libb64 / hex). A
 	-- list(T) reuses its base codec, so strip the list wrapper before matching.
 	usesBase64, usesHex = false, false
@@ -41,16 +64,19 @@
 		table.map(node.attributes, function(_, a) scan(a.type) end)
 	end)
 ][@lua schemaName = schema.types[schema.root].name:gsub("_xsd$", "")
-	-- XML-escape a literal for embedding in a C++ string literal.
-	function cppStr(s)
-		return '"'..s:gsub('[\\"]', '\\%0')..'"'
-	end
+	-- cppStr (C++ source-literal escaper) is defined in the type_info include
 ][@lua -- namespace emission helpers (E3a); no-ops without a targetNamespace.
 	nsPrefix = 'tns'
-	docRootName = next(schema.types[schema.root].dependents)
+	-- every global element (a direct dependent of the schema root) is a document
+	-- root: each carries the xmlns declaration when emitted at top level, and
+	-- each marshals as its own single-root document (see marshalBegin comment).
+	docRoots = {}
+	table.map(schema.types[schema.root].dependents, function(wireName, _)
+		docRoots[wireName] = true
+	end)
 	local function isQualified(name)
 		if not docRootNS then return false end
-		if name == docRootName then return true end
+		if docRoots[name] then return true end
 		local info = nsInfo[name]
 		return info ~= nil and info.qualified == true
 	end
@@ -83,8 +109,10 @@
 		local out = {}
 		for i = 1, #names do
 			local name, a = names[i], node.attributes[names[i]]
-			out[#out + 1] = {name = name, ctype = cpp_narrowCType(a.type,
-				a.facets).cppType(), nullable = attrNullable(a), a = a}
+			-- name = wire (XML attribute name); ident = C++ member/param name
+			out[#out + 1] = {name = name, ident = a.ident,
+				ctype = cpp_narrowCType(a.type, a.facets).cppType(),
+				nullable = attrNullable(a), a = a}
 		end
 		return out
 	end
@@ -130,6 +158,58 @@
 #include <vector>
 #include <memory>
 #include <stdexcept>
+#include <sstream>
+#include <iomanip>
+#include <limits>
+
+namespace xml {
+
+/* Entity-escape a marshalled string so its value can't inject markup. Escaping
+   all five predefined entities is valid in both element-body and attribute
+   contexts, so a single routine serves every string emission site. */
+inline std::string xml_escape(const std::string& in) {
+	std::string out;
+	out.reserve(in.size());
+	for (char c : in) {
+		switch (c) {
+		case '&': out += "&amp;"; break;
+		case '<': out += "&lt;"; break;
+		case '>': out += "&gt;"; break;
+		case '"': out += "&quot;"; break;
+		case '\'': out += "&apos;"; break;
+		default: out += c;
+		}
+	}
+	return out;
+}
+
+/* Round-trip float/double/long double formatting: max_digits10 preserves the
+   exact value, unlike std::to_string's fixed 6 fractional digits. */
+template <typename T>
+inline std::string xml_ftoa(T v) {
+	std::ostringstream os;
+	os << std::setprecision(std::numeric_limits<T>::max_digits10) << v;
+	return os.str();
+}
+
+/* Narrow a parsed integer to a fixed-width type, rejecting out-of-range input
+   rather than silently wrapping. stoll/stoull already throw past 64 bits; these
+   catch the narrowing step. */
+template <typename T>
+inline T xml_narrowS(long long w) {
+	if (w < static_cast<long long>(std::numeric_limits<T>::min()) ||
+	    w > static_cast<long long>(std::numeric_limits<T>::max()))
+		throw std::runtime_error("integer value out of range");
+	return static_cast<T>(w);
+}
+template <typename T>
+inline T xml_narrowU(unsigned long long w) {
+	if (w > static_cast<unsigned long long>(std::numeric_limits<T>::max()))
+		throw std::runtime_error("integer value out of range");
+	return static_cast<T>(w);
+}
+
+} /* namespace xml */
 
 #endif
 
@@ -248,7 +328,7 @@ class Factory;
 	table.map(depOrderSansRoot, function(_, node)
 		-- emit the element/type annotation (#4) above its class
 		outbuf:append(docComment(node.documentation, 'c', ''))
-		outbuf:append('class '..node.name..' : public Element {\npublic:\n')
+		outbuf:append('class '..node.ident..' : public Element {\npublic:\n')
 		-- attributes are const, injected once by the ctor; an optional attr (no
 		-- default/fixed) is unique_ptr<T> (nullptr = absent). `attrs` is in
 		-- declaration order and drives the ctor params and copy ctor.
@@ -256,8 +336,8 @@ class Factory;
 		table.map(attrs, function(_, m)
 			outbuf:append(docComment(m.a.documentation, 'c', '\t'))
 			outbuf:append(m.nullable
-				and ('\tconst std::unique_ptr<'..m.ctype..'> '..m.name..'_;\n')
-				or ('\tconst '..m.ctype..' '..m.name..'_;\n'))
+				and ('\tconst std::unique_ptr<'..m.ctype..'> '..m.ident..'_;\n')
+				or ('\tconst '..m.ctype..' '..m.ident..'_;\n'))
 		end)
 		local hasContent = next(node.content) ~= nil
 		if hasContent then
@@ -273,10 +353,10 @@ class Factory;
 		if #attrs > 0 then
 			local params, inits = {}, {}
 			table.map(attrs, function(_, m)
-				params[#params + 1] = attrParamType(m)..' '..m.name
-				inits[#inits + 1] = m.name..'_(std::move('..m.name..'))'
+				params[#params + 1] = attrParamType(m)..' '..m.ident
+				inits[#inits + 1] = m.ident..'_(std::move('..m.ident..'))'
 			end)
-			outbuf:append('\t'..node.name..'('..table.concat(params, ', ')
+			outbuf:append('\t'..node.ident..'('..table.concat(params, ', ')
 				..')\n\t\t: '..table.concat(inits, ', ')..' {}\n')
 			-- const members delete the implicit copy ctor when a unique_ptr is
 			-- present; emit a deep-copying one (all members, declaration order).
@@ -284,17 +364,17 @@ class Factory;
 				local cinits = {}
 				table.map(attrs, function(_, m)
 					cinits[#cinits + 1] = m.nullable
-						and (m.name..'_(o.'..m.name..'_ ? new '..m.ctype..'(*o.'
-							..m.name..'_) : nullptr)')
-						or (m.name..'_(o.'..m.name..'_)')
+						and (m.ident..'_(o.'..m.ident..'_ ? new '..m.ctype..'(*o.'
+							..m.ident..'_) : nullptr)')
+						or (m.ident..'_(o.'..m.ident..'_)')
 				end)
 				if hasContent then cinits[#cinits + 1] = 'content_(o.content_)' end
-				outbuf:append('\t'..node.name..'(const '..node.name
+				outbuf:append('\t'..node.ident..'(const '..node.ident
 					..'& o)\n\t\t: '..table.concat(cinits, ', ')..' {}\n')
 			end
 		end
 		-- parse the raw expat attrs and build via the factory (subtype injection)
-		outbuf:append('\tstatic std::unique_ptr<'..node.name
+		outbuf:append('\tstatic std::unique_ptr<'..node.ident
 			..'> unmarshal(const Factory& f, const char* tagName,'
 			..' const XML_Char** attrs);\n')
 		-- setContent
@@ -325,12 +405,12 @@ public:
 		local attrs = nodeAttrs(node)
 		local params, args = {}, {}
 		table.map(attrs, function(_, m)
-			params[#params + 1] = attrParamType(m)..' '..m.name
-			args[#args + 1] = 'std::move('..m.name..')'
+			params[#params + 1] = attrParamType(m)..' '..m.ident
+			args[#args + 1] = 'std::move('..m.ident..')'
 		end)
-		outbuf:append('\tvirtual std::unique_ptr<'..node.name..'> create_'
-			..node.name..'('..table.concat(params, ', ')..') const {\n'
-			..'\t\treturn std::unique_ptr<'..node.name..'>(new '..node.name
+		outbuf:append('\tvirtual std::unique_ptr<'..node.ident..'> create_'
+			..node.ident..'('..table.concat(params, ', ')..') const {\n'
+			..'\t\treturn std::unique_ptr<'..node.ident..'>(new '..node.ident
 			..'('..table.concat(args, ', ')..'));\n\t}\n')
 	end)
 	return outbuf:str()
@@ -350,7 +430,7 @@ public:
 	-- document prologue
 	outbuf:append('\tvoid marshalBegin();\n')
 	table.map(depOrderSansRoot, function(_, node)
-		outbuf:append('\tvoid marshal_'..node.name..'(const '..node.name
+		outbuf:append('\tvoid marshal_'..node.ident..'(const '..node.ident
 			..'& obj);\n')
 	end)
 	return outbuf:str()
@@ -364,7 +444,7 @@ public:
 [@lua
 	local outbuf = stringBuffer:new()
 	table.map(depOrderSansRoot, function(_, node)
-		outbuf:append('\tvirtual void on_'..node.name..'(const '..node.name
+		outbuf:append('\tvirtual void on_'..node.ident..'(const '..node.ident
 			..'& obj) { (void)obj; }\n')
 	end)
 	return outbuf:str()
@@ -383,12 +463,15 @@ private:
 	void onChars(const char* s, int len);
 
 	/* one open element being parsed: object, text run, and notify hook.
-	   wantsContent is false for container elements, so char data is dropped. */
+	   wantsContent is false for container elements, so char data is dropped.
+	   typeId is this element's class id, read by a child's onStart to resolve
+	   the child tag within its parent's scope (distinct types can share a tag). */
 	struct ParseRec {
 		std::unique_ptr<Element> elem;
 		std::string content;
 		std::function<void(Element*)> notify;
 		bool wantsContent = false;
+		unsigned typeId = 0;
 	};
 	/* one open element being marshalled: its closing tag text */
 	/* id matches the parent with a plain int compare; closeTag is a compile-time
@@ -464,7 +547,7 @@ defaultFactory_() {
 							-- hash collision: confirm the exact literal
 							local ors = {}
 							table.map(vs, function(_, v)
-								ors[#ors + 1] = '('..expr..') == "'..v..'"'
+								ors[#ors + 1] = '('..expr..') == '..cppStr(v)
 							end)
 							out:append(('\tcase 0x%xU:\n'):format(h))
 							out:append('\t\tif ('..table.concat(ors, ' || ')
@@ -478,7 +561,7 @@ defaultFactory_() {
 					local ors = {}
 					table.map(c.values, function(_, v)
 						ors[#ors + 1] = ct.numeric and (expr..' == '..v)
-							or (expr..' == "'..v..'"')
+							or (expr..' == '..cppStr(v))
 					end)
 					guard(' || ', ors)
 				end
@@ -497,18 +580,19 @@ defaultFactory_() {
 		table.map(node.attributes, function(name, a)
 			if a.facets then
 				local ct = cpp_narrowCType(a.type, a.facets)
+				local mem = a.ident
 				if attrNullable(a) then
 					-- absent optional has no value to validate; guard on present
-					body:append('\tif ('..name..'_) {\n'
-						..cppChecks(ct, '(*'..name..'_)', a.facets,
-							'(int)'..name..'_->size()')..'\t}\n')
+					body:append('\tif ('..mem..'_) {\n'
+						..cppChecks(ct, '(*'..mem..'_)', a.facets,
+							'(int)'..mem..'_->size()')..'\t}\n')
 				else
-					body:append(cppChecks(ct, name..'_', a.facets,
-						'(int)'..name..'_.size()'))
+					body:append(cppChecks(ct, mem..'_', a.facets,
+						'(int)'..mem..'_.size()'))
 				end
 			end
 		end)
-		outbuf:append('void\n'..node.name..'::validate() const {\n'
+		outbuf:append('void\n'..node.ident..'::validate() const {\n'
 			..body:str()..'}\n')
 	end)
 	return outbuf:str()
@@ -534,6 +618,9 @@ Marshaller::closeToParents_(std::initializer_list<unsigned> ids) {
 
 void
 Marshaller::marshalBegin() {
+	/* Each global element is a document root: a well-formed XML document has a
+	   single root, so marshal one global per document -- call marshalBegin() /
+	   flush(true) around each -- rather than concatenating several into one. */
 	out_ += "<?xml version=\"1.0\" encoding=\"UTF-8\"?>";
 }
 
@@ -544,21 +631,20 @@ Marshaller::marshalBegin() {
 	-- node, which is its own ancestor -- has several candidate parents; close to
 	-- the nearest still-open one at runtime instead of a single statically
 	-- chosen parent, so self/mutual recursion nests right.
-	-- unique nonzero id per element so closeToParents_ matches a parent with a
-	-- plain int compare (no strcmp, no hash collisions); 0 is the root sentinel.
-	local elemId, nId = {}, 0
-	table.map(depOrderSansRoot, function(_, node)
-		nId = nId + 1; elemId[node.name] = nId
-	end)
+	-- closeToParents_ matches a parent with a plain int compare on elemId (no
+	-- strcmp, no hash collisions); 0 is the root sentinel. elemId is the shared
+	-- per-class id computed in the preamble (keyed on the canonical node).
 	-- parent-id set per element: every node listing it as a dependent, plus the
-	-- root sentinel. One level of dependents only -- no recursive walk, so a
-	-- cyclic schema doesn't blow the Lua stack.
+	-- root sentinel. Resolve alias dependents to their canonical node so a ref
+	-- and its definition share one id. One level of dependents only -- no
+	-- recursive walk, so a cyclic schema doesn't blow the Lua stack.
 	local parentIds = {}
 	table.map(depOrder, function(_, p)
-		local pid = (p.name == schema.root) and 0 or elemId[p.name]
-		table.map(p.dependents, function(childName, _)
-			local set = parentIds[childName]
-			if not set then set = {}; parentIds[childName] = set end
+		local pid = (p.name == schema.root) and 0 or elemId[p]
+		table.map(p.dependents, function(_, child)
+			local c = child
+			local set = parentIds[c]
+			if not set then set = {}; parentIds[c] = set end
 			local seen = false
 			table.map(set, function(_, v) if v == pid then seen = true end end)
 			if not seen then set[#set + 1] = pid end
@@ -566,31 +652,32 @@ Marshaller::marshalBegin() {
 	end)
 	local outbuf = stringBuffer:new()
 	table.map(depOrderSansRoot, function(_, node)
-		outbuf:append('void\nMarshaller::marshal_'..node.name..'(const '
-			..node.name..'& obj) {\n')
+		outbuf:append('void\nMarshaller::marshal_'..node.ident..'(const '
+			..node.ident..'& obj) {\n')
 		-- close down to the nearest open valid parent (0 = root sentinel)
-		local ids = parentIds[node.name] or {0}
+		local ids = parentIds[node] or {0}
 		table.sort(ids)
 		outbuf:append('\tcloseToParents_({'..table.concat(ids, ', ')..'});\n')
-		-- start tag (+ xmlns on the document root); with no attributes the ">"
-		-- folds into the literal so it's a single append.
+		-- start tag (+ xmlns on any global/document-root element); with no
+		-- attributes the ">" folds into the literal so it's a single append.
 		local hasAttrs = next(node.attributes) ~= nil
 		local openTag = '<'..nsQualify(node.name)
-			..((node.name == docRootName) and nsRootDecl() or '')
+			..(docRoots[node.name] and nsRootDecl() or '')
 		outbuf:append('\tout_ += '..cppStr(hasAttrs and openTag
 			or (openTag..'>'))..';\n')
 		table.map(node.attributes, function(name, a)
 			local ct = cpp_narrowCType(a.type, a.facets)
 			-- a unique_ptr<T> optional attribute is emitted only when present,
 			-- so an absent optional round-trips as absent (not fabricated).
+			-- XML attribute name stays the wire name; the member uses .ident.
 			local nullable = attrNullable(a)
-			local ref = nullable and ('(*obj.'..name..'_)')
-				or ('obj.'..name..'_')
+			local ref = nullable and ('(*obj.'..a.ident..'_)')
+				or ('obj.'..a.ident..'_')
 			-- single-char closer appends as a char (no strlen of a 1-char string)
 			local emit = '\tout_ += '..cppStr(' '..nsQualify(name)..'="')
 				..'; out_ += '..ct.marshal(ref)..'; out_ += \'"\';\n'
 			if nullable then
-				outbuf:append('\tif (obj.'..name..'_) {\n\t'..emit..'\t}\n')
+				outbuf:append('\tif (obj.'..a.ident..'_) {\n\t'..emit..'\t}\n')
 			else
 				outbuf:append(emit)
 			end
@@ -602,7 +689,7 @@ Marshaller::marshalBegin() {
 			local ct = cpp_narrowCType(node.content.type, node.content.facets)
 			outbuf:append('\tout_ += '..ct.marshal('obj.content_')..';\n')
 		end
-		outbuf:append('\tMarshalRec rec; rec.id = '..elemId[node.name]
+		outbuf:append('\tMarshalRec rec; rec.id = '..elemId[node]
 			..'; rec.closeTag = '..cppStr('</'..nsQualify(node.name)..'>')
 			..';\n')
 		outbuf:append('\tmarshalStk_.push_back(std::move(rec));\n')
@@ -656,7 +743,7 @@ Marshaller::charsThunk_(void* userData, const XML_Char* s,
 	local out = stringBuffer:new()
 	table.map(depOrderSansRoot, function(_, node)
 		local attrs = nodeAttrs(node)
-		out:append('std::unique_ptr<'..node.name..'>\n'..node.name
+		out:append('std::unique_ptr<'..node.ident..'>\n'..node.ident
 			..'::unmarshal(const Factory& f, const char* tagName,'
 			..' const XML_Char** attrs) {\n')
 		if #attrs > 0 then
@@ -664,16 +751,17 @@ Marshaller::charsThunk_(void* userData, const XML_Char* s,
 			table.map(attrs, function(_, m)
 				local ct = cpp_narrowCType(m.a.type, m.a.facets)
 				if m.nullable then
-					out:append('\tstd::unique_ptr<'..m.ctype..'> a_'..m.name
+					out:append('\tstd::unique_ptr<'..m.ctype..'> a_'..m.ident
 						..';\n')
 				else
 					local dv = m.a.default or m.a.fixed
-					out:append('\t'..m.ctype..' a_'..m.name..' = '
+					out:append('\t'..m.ctype..' a_'..m.ident..' = '
 						..(dv and ct.defaultExpr(dv) or '{}')..';\n')
 				end
 			end)
 			out:append('\tfor (const XML_Char** a = attrs; *a; a += 2) {\n')
 			out:append('\t\tconst char* an = localName_(a[0]);\n')
+			-- dispatch on the wire attribute name; write into the .ident member
 			out:append(indentLines(cppHashSwitch('an', attrs,
 				function(m) return m.name end,
 				function(m)
@@ -681,7 +769,7 @@ Marshaller::charsThunk_(void* userData, const XML_Char* s,
 					local src = ct.cstrSrc and 'a[1]' or 'av'
 					local pre = ct.cstrSrc and ''
 						or '\t\tconst std::string av(a[1]);\n'
-					local dst = 'a_'..m.name
+					local dst = 'a_'..m.ident
 					if ct.parseExpr then
 						local v = ct.parseExpr(src)
 						return pre..'\t\t'..(m.nullable
@@ -698,13 +786,13 @@ Marshaller::charsThunk_(void* userData, const XML_Char* s,
 			out:append('\t}\n')
 			local args = {}
 			table.map(attrs, function(_, m)
-				args[#args + 1] = 'std::move(a_'..m.name..')'
+				args[#args + 1] = 'std::move(a_'..m.ident..')'
 			end)
-			out:append('\treturn f.create_'..node.name..'('
+			out:append('\treturn f.create_'..node.ident..'('
 				..table.concat(args, ', ')..');\n')
 		else
 			out:append('\t(void)tagName; (void)attrs;\n')
-			out:append('\treturn f.create_'..node.name..'();\n')
+			out:append('\treturn f.create_'..node.ident..'();\n')
 		end
 		out:append('}\n')
 	end)
@@ -713,24 +801,54 @@ Marshaller::charsThunk_(void* userData, const XML_Char* s,
 void
 Marshaller::onStart(const char* tagName, const XML_Char** attrs) {
 	const char* local = localName_(tagName);
+	/* resolve the tag within its parent's scope (0 == document root): distinct
+	   types can share a wire tag, so a flat tag switch would misdispatch. */
+	const unsigned parentId =
+		parseStk_.empty() ? 0u : parseStk_.back().typeId;
 	ParseRec rec;
-	const Factory* f = factory_ ? factory_ : &defaultFactory_();
-[@lua -- dispatch the element name to its static unmarshal, which parses the
-	-- attrs and builds via the factory.
+	/* p-prefixed so the names can't collide with a generated element class used
+	   as a scope (e.g. an element literally named "f" -> `class f`). */
+	const Factory* pFactory = factory_ ? factory_ : &defaultFactory_();
+[@lua -- parent-scoped tag dispatch -> the child's static unmarshal (parses the
+	-- attrs and builds via the factory).
 	local function elemBody(node)
 		local b = stringBuffer:new()
-		b:append('\t\trec.elem = '..node.name
-			..'::unmarshal(*f, tagName, attrs);\n')
-		b:append('\t\trec.notify = [this](Element* e) { on_'..node.name
-			..'(static_cast<'..node.name..'&>(*e)); };\n')
+		b:append('\t\trec.typeId = '..elemId[node]..'U;\n')
+		b:append('\t\trec.elem = '..node.ident
+			..'::unmarshal(*pFactory, tagName, attrs);\n')
+		b:append('\t\trec.notify = [this](Element* pElem) { on_'..node.ident
+			..'(static_cast<'..node.ident..'&>(*pElem)); };\n')
 		-- buffer char data only when the element has text content
 		if next(node.content) then
 			b:append('\t\trec.wantsContent = true;\n')
 		end
 		return b:str()
 	end
-	return cppHashSwitch('local', depOrderSansRoot,
-		function(node) return node.name end, elemBody)
+	-- parents = the document root (id 0) plus every element that has children;
+	-- each dispatches its own dependents. Canonicalise alias dependents.
+	local parents = { { id = 0, node = schema.types[schema.root] } }
+	table.map(depOrderSansRoot, function(_, node)
+		if next(node.dependents) then
+			parents[#parents + 1] = { id = elemId[node], node = node }
+		end
+	end)
+	local out = stringBuffer:new()
+	out:append('\tswitch (parentId) {\n')
+	table.map(parents, function(_, p)
+		local kids, seen = {}, {}
+		table.map(p.node.dependents, function(_, child)
+			local c = child
+			if not seen[c.ident] then
+				seen[c.ident] = true; kids[#kids + 1] = c
+			end
+		end)
+		out:append('\tcase '..p.id..'U: {\n')
+		out:append(cppHashSwitch('local', kids,
+			function(node) return node.name end, elemBody))
+		out:append('\t} break;\n')
+	end)
+	out:append('\t}\n')
+	return out:str()
 ]	parseStk_.push_back(std::move(rec));
 }
 
@@ -761,7 +879,14 @@ Marshaller::unmarshal(const char* data, std::size_t len, bool isDocEnd) {
 		XML_SetElementHandler(parser_, startThunk_, endThunk_);
 		XML_SetCharacterDataHandler(parser_, charsThunk_);
 	}
-	XML_Parse(parser_, data, static_cast<int>(len), isDocEnd ? 1 : 0);
+	const XML_Status status =
+		XML_Parse(parser_, data, static_cast<int>(len), isDocEnd ? 1 : 0);
+	/* capture the error before freeing the parser it belongs to. A handler that
+	   stashed a C++ exception aborts the parse via XML_StopParser, which also
+	   reports XML_STATUS_ERROR; that case is surfaced by rethrowing pending_. */
+	const XML_Error errorCode =
+		(status == XML_STATUS_ERROR) ? XML_GetErrorCode(parser_)
+		                             : XML_ERROR_NONE;
 	if (isDocEnd) {
 		XML_ParserFree(parser_);
 		parser_ = nullptr;
@@ -771,6 +896,9 @@ Marshaller::unmarshal(const char* data, std::size_t len, bool isDocEnd) {
 		pending_ = nullptr;
 		std::rethrow_exception(e);
 	}
+	if (status == XML_STATUS_ERROR)
+		throw std::runtime_error(std::string("XML parse error: ")
+			+ XML_ErrorString(errorCode));
 }
 
 } /* namespace xml */

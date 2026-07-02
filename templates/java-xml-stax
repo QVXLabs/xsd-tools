@@ -45,10 +45,17 @@
 	end
 	javaPKGName = __CMD_ARGS__["-package"] or "com.mobitv.app"
 	include 'includes/java-xml-stax/java_safe_name'
-	schema = schema.c_safeNames()
+	-- contract migration: assign de-collided .ident to every type and attribute,
+	-- seeded with the Java reserved set; then fix framework-file case clashes.
+	schema = schema.c_safeNames(JAVA_KEYWORDS)
+	guardFrameworkNames(schema)
+	-- collapse orphaned duplicate/ref dependents onto their ident-bearing
+	-- representative (shared/schemaEx) so every dependent is canonical below.
+	schema.canonicalizeDeps()
 	depOrder = schema.sortDependencies()
-	depOrderSansRoot = table.filter(depOrder, function(k,v)
-		return v.name ~= schema.root and v or nil end)
+	-- drop the root and collapse duplicates so each class / Factory entry is
+	-- emitted once.
+	depOrderSansRoot = normalizeDepList(schema, depOrder)
 	-- Hex.java is only referenced by scalar hexBinary content/attributes.
 	needsHex = schema.uniqueTypes()["hexBinary"] ~= nil
 	-- E3d namespace helpers (no-ops when the schema has no targetNamespace).
@@ -171,7 +178,9 @@ public abstract class Element {
 	-- (native switch -> hashCode), then per type hash each attribute name
 	-- straight onto its field. Replaces the per-class readAttributes virtual.
 	local function attrCase(name, attribute)
-		local line = java_type_info[attribute.type].unmarshal.attribute(name)
+		local line =
+			java_type_info[attribute.type].unmarshal.attribute(
+				attribute.ident, name)
 		local nw = javaNumType(java_type_info[attribute.type], attribute.facets)
 		if nw then
 			line = line:gsub("Integer%.parseInt", nw.parse)
@@ -189,7 +198,7 @@ public abstract class Element {
 	local out = stringBuffer:new()
 	out:append('\t\tswitch (localName()) {\n')
 	table.map(attributed, function(_, node)
-		local jn = javaSafeName(node.name)
+		local jn = node.ident
 		out:append('\t\tcase "'..node.name..'": {\n')
 		out:append('\t\t\t'..jn..' o = ('..jn..') this;\n')
 		out:append('\t\t\tfor (int i = 0; i < r.getAttributeCount(); i++) {\n')
@@ -207,11 +216,22 @@ public abstract class Element {
 			int ev = r.next();
 			if (ev == XMLStreamConstants.START_ELEMENT) {
 				Element child = _factory.create(r.getLocalName());
-				if (_children == null) {
-					_children = new ArrayList<Element>();
+				if (child == null) {
+					/* Unknown/foreign element: skip its whole subtree so the
+					 * pull loop stays balanced instead of NPEing on it. */
+					int depth = 1;
+					while (depth > 0 && r.hasNext()) {
+						int sev = r.next();
+						if (sev == XMLStreamConstants.START_ELEMENT) depth++;
+						else if (sev == XMLStreamConstants.END_ELEMENT) depth--;
+					}
+				} else {
+					if (_children == null) {
+						_children = new ArrayList<Element>();
+					}
+					_children.add(child);
+					child.unmarshal(r);
 				}
-				_children.add(child);
-				child.unmarshal(r);
 			} else if (ev == XMLStreamConstants.CHARACTERS
 					|| ev == XMLStreamConstants.CDATA) {
 				_buf.append(r.getText());
@@ -234,7 +254,7 @@ public class Factory {
 [@lua
 	local outbuf = stringBuffer:new()
 	table.map(depOrderSansRoot, function(_, node)
-		local jn = javaSafeName(node.name)
+		local jn = node.ident
 		outbuf:append(table.concat({
 			"\tprotected ", jn, " create", jn, "() {\n",
 			"\t\treturn new ", jn, "();\n",
@@ -251,7 +271,7 @@ public class Factory {
 	table.map(depOrderSansRoot, function(_, node)
 		outbuf:append(table.concat({
 			"\t\tif (localName.equals(\"", node.name, "\")) e = create",
-			javaSafeName(node.name), "();\n\t\telse ",
+			node.ident, "();\n\t\telse ",
 		}))
 	end)
 	return outbuf:str()
@@ -344,7 +364,7 @@ public class Document {
 			elseif c.kind == 'enum' then
 				local vals = {}
 				table.map(c.values,
-					function(_, v) vals[#vals + 1] = '"' .. v .. '"' end)
+					function(_, v) vals[#vals + 1] = javaStrLit(v) end)
 				-- one immutable Set built once; reused across calls
 				local set = "_ENUM_" .. label
 				statics:append("\tprivate static final java.util.Set<String> "
@@ -361,7 +381,7 @@ public class Document {
 		local hasAttrs   = next(node.attributes) ~= nil
 		local contentInfo = hasContent
 			and java_type_info[node.content.type] or nil
-		local jn = javaSafeName(node.name)
+		local jn = node.ident
 		-- D2b: narrowed boxed type for numeric content, or nil
 		local contentNarrow = hasContent
 			and javaNumType(contentInfo, node.content.facets) or nil
@@ -390,11 +410,11 @@ public class Document {
 				attribute.facets)
 			if nw then
 				outbuf:append(table.concat({
-					"\t", nw.box, " _", attribName, ";\n",
+					"\t", nw.box, " _", attribute.ident, ";\n",
 				}))
 			else
 				outbuf:append((java_type_info[attribute.type]
-					.field(attribName):gsub("\tprivate ", "\t")))
+					.field(attribute.ident):gsub("\tprivate ", "\t")))
 			end
 		end)
 		-- text content field
@@ -412,7 +432,7 @@ public class Document {
 		table.map(node.attributes, function(attribName, attribute)
 			if attribute.default then
 				outbuf:append(java_type_info[attribute.type]
-					.default(attribName, attribute.default))
+					.default(attribute.ident, attribute.default))
 			end
 		end)
 		outbuf:append("\t}\n\n")
@@ -448,7 +468,7 @@ public class Document {
 				.. "XMLStreamWriter w) throws XMLStreamException {\n")
 			table.map(node.attributes, function(attribName, attribute)
 				outbuf:append(java_type_info[attribute.type]
-					.marshal.attribute(attribName))
+					.marshal.attribute(attribute.ident, attribName))
 			end)
 			outbuf:append("\t}\n\n")
 		end
@@ -479,10 +499,10 @@ public class Document {
 				attribute.facets)
 			local jt = nw and nw.box or java_type_info[attribute.type].jtype
 			outbuf:append(table.concat({
-				"\tpublic ", jt, " ", attribName, "() { return _",
-				attribName, "; }\n",
-				"\tpublic void set_", attribName, "(", jt, " v) { _",
-				attribName, " = v; }\n",
+				"\tpublic ", jt, " ", attribute.ident, "() { return _",
+				attribute.ident, "; }\n",
+				"\tpublic void set_", attribute.ident, "(", jt, " v) { _",
+				attribute.ident, " = v; }\n",
 			}))
 		end)
 		if hasContent then
@@ -515,7 +535,7 @@ public class Document {
 			if attr.facets then
 				local nw = javaNumType(java_type_info[attr.type], attr.facets)
 				local jt = nw and nw.box or java_type_info[attr.type].jtype
-				emitChecks(jt, "_" .. an, an, attr.facets)
+				emitChecks(jt, "_" .. attr.ident, attr.ident, attr.facets)
 			end
 		end)
 		if #checks:str() > 0 then
