@@ -1,9 +1,10 @@
 [@lua --define python list hex type (JSON)
 	pyjsontype_listHex = {
 		marshal = {
-			attribute = function(attribName)
+			attribute = function(wire, ident)
 				return table.concat({
-					"        attrs[\"", attribName, "\"] = [binascii.hexlify(x).decode('utf-8') for x in self._", attribName, "]\n",
+					"        if self._", ident, " is not None:\n",
+					"            attrs[\"", wire, "\"] = [binascii.hexlify(x).decode('utf-8') for x in self._", ident, "]\n",
 				})
 			end,
 			content = function()
@@ -13,20 +14,20 @@
 			end,
 		},
 		unmarshal = {
-			attribute = function(attribName)
+			attribute = function(wire, ident)
 				return table.concat({
-					"            if \"", attribName, "\" == attribute:\n",
-					"                self._", attribName, " = [bytes.fromhex(\"\".join(x.split())) for x in attributes[attribute]]\n"
+					"            if \"", wire, "\" == attribute:\n",
+					"                self._", ident, " = [bytes.fromhex(x) for x in attributes[attribute]]\n"
 				})
 			end,
 			content = function()
 				return table.concat({
-					"        self._content = [bytes.fromhex(\"\".join(x.split())) for x in content]\n",
+					"        self._content = [bytes.fromhex(x) for x in content]\n",
 				})
 			end
 		},
-		default = function(attribName, value)
-			return table.concat({"        self._", attribName, " = [bytes.fromhex(\"\".join(x.split())) for x in \"", value, "\".split(\" \")]\n"})
+		default = function(ident, value)
+			return table.concat({"        self._", ident, " = [bytes.fromhex(x) for x in ", pyQuote(value), ".split()]\n"})
 		end,
 		test = {
 			assign = function()

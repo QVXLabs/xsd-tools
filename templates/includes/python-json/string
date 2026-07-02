@@ -1,9 +1,12 @@
 [@lua --define python String type (JSON)
 	pyjsontype_string = {
 		marshal = {
-			attribute = function(attribName)
+			-- wire = JSON key (verbatim NCName); ident = python member. Omit the
+			-- key entirely when an optional attribute is absent (None).
+			attribute = function(wire, ident)
 				return table.concat({
-					"        attrs[\"", attribName, "\"] = self._", attribName, "\n",
+					"        if self._", ident, " is not None:\n",
+					"            attrs[\"", wire, "\"] = self._", ident, "\n",
 				})
 			end,
 			content = function()
@@ -19,10 +22,10 @@
 			end,
 		},
 		unmarshal = {
-			attribute = function(attribName)
+			attribute = function(wire, ident)
 				return table.concat({
-					"            if \"", attribName, "\" == attribute:\n",
-					"                self._", attribName, " = attributes[attribute]\n",
+					"            if \"", wire, "\" == attribute:\n",
+					"                self._", ident, " = attributes[attribute]\n",
 				})
 			end,
 			content = function()
@@ -31,8 +34,8 @@
 				})
 			end
 		},
-		default = function(attribName, value)
-			return table.concat({"        self._", attribName, " = \"", value, "\"\n"})
+		default = function(ident, value)
+			return table.concat({"        self._", ident, " = ", pyQuote(value), "\n"})
 		end,
 		test = {
 			assign = function(facets)

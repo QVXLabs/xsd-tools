@@ -59,18 +59,36 @@ test = [
 [@lua --output each test xml file
 	local outbuf = stringBuffer:new()
 	local onPath = {}
+	-- The generated XML is embedded in a Python "..." literal AND is decoded by
+	-- the SAX parser, so a sample value crosses two escaping layers. Mirror the
+	-- binding's marshalling exactly: XML-escape (& < > for text, plus " for
+	-- attributes) so unmarshal->marshal is a fixed point, then escape for the
+	-- Python string literal.
+	local function pyLitEsc(s)
+		return tostring(s):gsub('\\', '\\\\'):gsub('"', '\\"')
+			:gsub('\n', '\\n'):gsub('\r', '\\r'):gsub('\t', '\\t')
+	end
+	local function xmlText(s)
+		s = tostring(s):gsub('&', '&amp;'):gsub('<', '&lt;'):gsub('>', '&gt;')
+		return pyLitEsc(s)
+	end
+	local function xmlAttr(s)
+		s = tostring(s):gsub('&', '&amp;'):gsub('<', '&lt;'):gsub('>', '&gt;')
+			:gsub('"', '&quot;')
+		return pyLitEsc(s)
+	end
 	local function dpOutput(_, node)
 		-- E3c: match the binding's wire form (prefix when qualified, xmlns on
 		-- the document root).
 		outbuf:append(table.concat({'<', py_nsTag(node.name), py_nsDecl(node.name)}))
 		table.map(node.attributes, function(attribName, attrib)
 			outbuf:append(table.concat({
-				' ', attribName, '=\\"', py_type_info[attrib.type].test.assign(attrib.facets), '\\"',
+				' ', attribName, '=\\"', xmlAttr(py_type_info[attrib.type].test.assign(attrib.facets)), '\\"',
 			}))
 		end)
 		outbuf:append('>')
 		if next(node.content) then
-			outbuf:append(py_type_info[node.content.type].test.assign(node.content.facets))
+			outbuf:append(xmlText(py_type_info[node.content.type].test.assign(node.content.facets)))
 		end
 		-- A recursive type is its own descendant; cap re-entry at twice per
 		-- active path so the synthesised document stays finite while still

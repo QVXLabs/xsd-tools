@@ -1,32 +1,33 @@
-[@lua --define python hex type
+[@lua --define python list hex type
 	pythontype_listHex = {
 		marshal = {
-			attribute = function(attribName)
+			attribute = function(wire, ident)
 				return table.concat({
-					"        stream.write(' ", attribName, "=\"' + \" \".join([binascii.hexlify(x).decode('utf-8') for x in self._", attribName, "])\"')\n",
+					"        if self._", ident, " is not None:\n",
+					"            stream.write(' ", wire, "=\"' + \" \".join([binascii.hexlify(x).decode('ascii') for x in self._", ident, "]) + '\"')\n",
 				})
 			end,
 			content = function()
 				return table.concat({
-					"        stream.write(\" \".join([binascii.hexlify(x).decode('utf-8') for x in self.getContent()]))\n",
+					"        stream.write(\" \".join([binascii.hexlify(x).decode('ascii') for x in self.getContent()]))\n",
 				})
 			end,
 		},
 		unmarshal = {
-			attribute = function(attribName)
+			attribute = function(wire, ident)
 				return table.concat({
-					"        if \"", attribName, "\" in attributes:\n",
-					"            self._", attribName, " = [bytes.fromhex(\"\".join(x.split())) for x in attributes[\"", attribName, "\"].split(\" \")]\n"
+					"        if \"", wire, "\" in attributes:\n",
+					"            self._", ident, " = [bytes.fromhex(x) for x in attributes[\"", wire, "\"].split()]\n"
 				})
 			end,
 			content = function()
 				return table.concat({
-					"        self._content = [bytes.fromhex(\"\".join(x.split())) for x in content[0].split(\" \")]\n",
+					"        self._content = [bytes.fromhex(x) for x in content[0].split()] if content else []\n",
 				})
 			end
 		},
-		default = function(attribName, value)
-			return table.concat({"        self._", attribName, " = [bytes.fromhex(\"\".join(x.split())) for x in \"", value, "\".split(\" \")]\n"})
+		default = function(ident, value)
+			return table.concat({"        self._", ident, " = [bytes.fromhex(x) for x in ", pyQuote(value), ".split()]\n"})
 		end,
 		test = {
 			assign = function()

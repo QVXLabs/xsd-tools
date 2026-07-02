@@ -7,10 +7,33 @@
 	include 'shared/doc'
 	include 'shared/facets'
 	include 'includes/python-json/python_type_info'
-][@lua --rename any non-c-safe names to c-safe names & sort dependencies so that they are matched correctly
-	schema = schema.c_safeNames()
+][@lua --assign python-safe idents (wire names stay verbatim) & sort deps
+	pythonKeywords = {}
+	for _, k in ipairs({'False','None','True','and','as','assert','async',
+		'await','break','class','continue','def','del','elif','else',
+		'except','finally','for','from','global','if','import','in','is',
+		'lambda','nonlocal','not','or','pass','raise','return','try','while',
+		'with','yield'}) do pythonKeywords[k] = true end
+	schema = schema.python_safeNames(pythonKeywords)
+	-- code identifier for a node: idents live on the type-registry entry, so
+	-- resolve via regkey (structurally-identical elements share one).
+	function pyIdent(node)
+		local reg = schema.types[node.regkey]
+		return (reg and reg.ident) or node.ident
+	end
 	depOrder = schema.sortDependencies()
 	depOrderSansRoot = table.filter(depOrder, function(k,v) return v.name ~= schema.root and v or nil end)
+	-- de-dup to one registry node per type so a shared-structure element is not
+	-- emitted twice (and so idents are always present on the emitted node).
+	local _seenReg, _uniqTypes = {}, {}
+	table.map(depOrderSansRoot, function(_, node)
+		local reg = schema.types[node.regkey] or node
+		if not _seenReg[reg] then
+			_seenReg[reg] = true
+			_uniqTypes[#_uniqTypes + 1] = reg
+		end
+	end)
+	depOrderSansRoot = _uniqTypes
 ]# JSON representation: each element marshals to
 #   {"name": <element name>, "attrs": {<attr>: value, ...},
 #    "content": <content>}
@@ -34,6 +57,10 @@
 ]
 
 class _jsonelement:
+    # wire-name -> child code identifier (factories key); assigned per class
+    # below (empty for simple-content leaves).
+    _children = {}
+
     def __init__(self):
         self._content = []
 
@@ -83,7 +110,7 @@ class _jsonelement:
 				else
 					local vals = {}
 					table.map(c.values,
-						function(_, v) vals[#vals + 1] = '"' .. v .. '"' end)
+						function(_, v) vals[#vals + 1] = pyQuote(v) end)
 					guard('str(_v) in (' .. table.concat(vals, ', ') .. ',)',
 						'not permitted')
 				end
@@ -96,7 +123,7 @@ class _jsonelement:
 		-- emit the element/type annotation (#4) above its class
 		outbuf:append(docComment(node.documentation, 'hash', ''))
 		outbuf:append(table.concat({
-			'class json_', node.name, '(_jsonelement):\n',
+			'class json_', pyIdent(node), '(_jsonelement):\n',
 			'    def __init__(self):\n',
 			'        _jsonelement.__init__(self)\n'
 		}))
@@ -105,11 +132,12 @@ class _jsonelement:
 			table.map(node.attributes, function(attributeName, attribute)
 				-- emit the attribute annotation (#4) above its field
 				outbuf:append(docComment(attribute.documentation, 'hash', '        '))
-				if attribute.default then
+				local preset = attribute.default or attribute.fixed
+				if preset then
 					local pyType = pyjson_type_info[attribute.type]
-					outbuf:append(pyType.default(attributeName, attribute.default))
+					outbuf:append(pyType.default(attribute.ident, preset))
 				else
-					outbuf:append(table.concat({'        self._', attributeName, ' = None\n'}))
+					outbuf:append(table.concat({'        self._', attribute.ident, ' = None\n'}))
 				end
 			end)
 		end
@@ -121,7 +149,7 @@ class _jsonelement:
 		-- output marshal code for each element attribute
 		table.map(node.attributes, function(attributeName, attribute)
 			local pyType = pyjson_type_info[attribute.type]
-			outbuf:append(pyType.marshal.attribute(attributeName))
+			outbuf:append(pyType.marshal.attribute(attributeName, attribute.ident))
 		end)
 		if next(node.content) then
 			outbuf:append(pyjson_type_info[node.content.type].marshal.content())
@@ -144,7 +172,7 @@ class _jsonelement:
 			outbuf:append('        for attribute in attributes:\n')
 			table.map(node.attributes, function(attributeName, attribute)
 				local pyType = pyjson_type_info[attribute.type]
-				outbuf:append(pyType.unmarshal.attribute(attributeName))
+				outbuf:append(pyType.unmarshal.attribute(attributeName, attribute.ident))
 			end)
 		end
 		outbuf:append('        content = obj["content"]\n')
@@ -154,7 +182,7 @@ class _jsonelement:
 			outbuf:append(table.concat({
 				"        self._content = []\n",
 				"        for child in content:\n",
-				"            element = factories[child[\"name\"]]()\n",
+				"            element = factories[self._children[child[\"name\"]]]()\n",
 				"            element.unmarshal(child)\n",
 				"            self._content.append(element)\n"
 			}))
@@ -164,13 +192,14 @@ class _jsonelement:
 		local checks = stringBuffer:new()
 		if node.content.facets then
 			checks:append('        _v = self._content[0] if self._content else None\n')
-			checks:append(pyChecks(node.name, 'content', node.content.type,
+			checks:append(pyChecks(pyIdent(node), 'content', node.content.type,
 				node.content.facets))
 		end
 		table.map(node.attributes, function(an, attr)
 			if attr.facets then
-				checks:append('        _v = self._' .. an .. '\n')
-				checks:append(pyChecks(node.name, an, attr.type, attr.facets))
+				checks:append('        _v = self._' .. attr.ident .. '\n')
+				checks:append(pyChecks(pyIdent(node), attr.ident, attr.type,
+					attr.facets))
 			end
 		end)
 		if #checks:str() > 0 then
@@ -182,16 +211,16 @@ class _jsonelement:
 		-- output 'getters' code for each attribute
 		table.map(node.attributes, function(attributeName, attribute)
 			outbuf:append(table.concat({
-				'    def ', attributeName, '(self):\n',
-				'        return self._', attributeName, '\n',
+				'    def ', attribute.ident, '(self):\n',
+				'        return self._', attribute.ident, '\n',
 				'\n'
 			}))
 		end)
 		-- output 'setters' code for each attribute
 		table.map(node.attributes, function(attributeName, attribute)
 			outbuf:append(table.concat({
-				'    def set_', attributeName, '(self, value):\n',
-				'        self._', attributeName, '= value\n',
+				'    def set_', attribute.ident, '(self, value):\n',
+				'        self._', attribute.ident, '= value\n',
 				'\n'
 			}))
 		end)
@@ -199,15 +228,28 @@ class _jsonelement:
 	end)
 	return enumbuf:str() .. outbuf:str()
 ]
-[@lua -- module-level overridable factory registry: element name -> class
+[@lua -- overridable factory registry keyed by code identifier, plus per-parent
+	-- wire-name -> child identifier maps (a wire name can name different types
+	-- in different scopes); unmarshal resolves factories[parent._children[name]]
+	-- so a consumer can still override factories['<ident>'] to inject a subclass.
 	local outbuf = stringBuffer:new()
 	outbuf:append('factories = {\n')
 	table.map(depOrderSansRoot, function(_, node)
-		outbuf:append(table.concat({
-			"    '", node.name, "': json_", node.name, ",\n"
-		}))
+		outbuf:append("    '" .. pyIdent(node) .. "': json_" .. pyIdent(node)
+			.. ",\n")
 	end)
 	outbuf:append('}\n')
+	local function childrenDict(node)
+		local parts = {}
+		table.map(node.dependents, function(wire, child)
+			parts[#parts + 1] = pyQuote(wire) .. ': ' .. pyQuote(pyIdent(child))
+		end)
+		return '{' .. table.concat(parts, ', ') .. '}'
+	end
+	table.map(depOrderSansRoot, function(_, node)
+		outbuf:append('json_' .. pyIdent(node) .. '._children = '
+			.. childrenDict(node) .. '\n')
+	end)
 	return outbuf:str()
 ]
 
@@ -223,6 +265,15 @@ class json_[@lua return schema.root](_jsonelement):
     def unmarshal(self, obj):
         self._content = []
         for child in obj:
-            element = factories[child["name"]]()
+            element = factories[self._children[child["name"]]]()
             element.unmarshal(child)
             self._content.append(element)
+
+[@lua -- the document root's own child map, assigned after its class is defined
+	local parts = {}
+	table.map(schema.types[schema.root].dependents, function(wire, child)
+		parts[#parts + 1] = pyQuote(wire) .. ': ' .. pyQuote(pyIdent(child))
+	end)
+	return 'json_' .. schema.root .. '._children = {'
+		.. table.concat(parts, ', ') .. '}\n'
+]

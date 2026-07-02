@@ -1,4 +1,12 @@
 [@lua --python JSON type mapping objects
+	-- Emit a valid Python double-quoted string literal for an arbitrary value
+	-- (enum/default/fixed splices); escapes backslash, quote and control chars
+	-- so adversarial XSD values can't break the generated source.
+	function pyQuote(s)
+		s = tostring(s):gsub('\\', '\\\\'):gsub('"', '\\"')
+			:gsub('\n', '\\n'):gsub('\r', '\\r'):gsub('\t', '\\t')
+		return '"' .. s .. '"'
+	end
 	include 'includes/python-json/string'
 	include 'includes/python-json/int'
 	include 'includes/python-json/long'
