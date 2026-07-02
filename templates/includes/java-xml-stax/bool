@@ -12,10 +12,11 @@
 			})
 		end,
 		marshal = {
-			attribute = function(attribName)
+			attribute = function(attribName, wireName)
+				wireName = wireName or attribName
 				return table.concat({
 					"\t\tif (_", attribName,
-					" != null) w.writeAttribute(\"", attribName,
+					" != null) w.writeAttribute(\"", wireName,
 					"\", String.valueOf(_", attribName, "));\n",
 				})
 			end,
@@ -26,16 +27,22 @@
 				})
 			end,
 		},
+		-- XSD boolean permits 1/0 in addition to true/false; accept both on
+		-- unmarshal and marshal the canonical true/false form.
 		unmarshal = {
-			attribute = function(attribName)
+			attribute = function(attribName, wireName)
+				wireName = wireName or attribName
 				return table.concat({
-					"\t\t\tif (an.equals(\"", attribName, "\")) _",
-					attribName, " = Boolean.valueOf(av.trim());\n",
+					"\t\t\tif (an.equals(\"", wireName, "\")) _",
+					attribName,
+					" = (\"1\".equals(av.trim()) || Boolean.parseBoolean(",
+					"av.trim()));\n",
 				})
 			end,
 			content = function()
 				return table.concat({
-					"\t\t_text = Boolean.valueOf(_buf.toString().trim());\n",
+					"\t\t_text = (\"1\".equals(_buf.toString().trim()) || ",
+					"Boolean.parseBoolean(_buf.toString().trim()));\n",
 				})
 			end,
 		},

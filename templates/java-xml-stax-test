@@ -9,7 +9,8 @@
 ][@lua --c-safe names
 	javaPKGName = "com.mobitv.app"
 	include 'includes/java-xml-stax/java_safe_name'
-	schema = schema.c_safeNames()
+	schema = schema.c_safeNames(JAVA_KEYWORDS)
+	guardFrameworkNames(schema)
 ]package com.mobitv.app;
 
 /* Round-trip driver: build a sample tree, marshal it to XML via StAX, unmarshal
@@ -20,14 +21,14 @@ public class RunTest {
 [@lua -- emit a builder method per complex type
 	local outbuf = stringBuffer:new()
 	local depOrder = schema.sortDependencies()
-	local depOrderSansRoot = table.filter(depOrder, function(k,v)
-		return v.name ~= schema.root and v or nil end)
+	-- fill orphan idents + collapse duplicates (see binding template)
+	local depOrderSansRoot = normalizeDepList(schema, depOrder)
 	-- A recursive type's builder calls itself (directly or mutually); cap
 	-- re-entry at twice per active path with a per-type static counter so the
 	-- recursion edge is exercised while the synthesised tree stays finite.
 	table.map(depOrderSansRoot, function(_, node)
 		if next(node.dependents) then
-			outbuf:append("\tstatic int _"..node.name.."_d = 0;\n")
+			outbuf:append("\tstatic int _"..node.ident.."_d = 0;\n")
 		end
 	end)
 	outbuf:append("\n")
@@ -71,9 +72,9 @@ public class RunTest {
 	end
 	table.map(depOrderSansRoot, function(_, node)
 		local hasContent = next(node.content) ~= nil
-		local jn = javaSafeName(node.name)
+		local jn = node.ident
 		outbuf:append(table.concat({
-			"\tstatic ", jn, " build_", node.name, "() {\n",
+			"\tstatic ", jn, " build_", node.ident, "() {\n",
 			"\t\t", jn, " e = new ", jn, "();\n",
 		}))
 		table.map(node.attributes, function(attribName, attribute)
@@ -81,7 +82,7 @@ public class RunTest {
 			outbuf:append(table.concat({
 				"\t\t{\n",
 				assignTmp(ti, attribute.facets),
-				"\t\t\te.set_", attribName, "(tmp);\n",
+				"\t\t\te.set_", attribute.ident, "(tmp);\n",
 				"\t\t}\n",
 			}))
 		end)
@@ -98,15 +99,15 @@ public class RunTest {
 			if next(dep.dependents) then
 				-- recursion-capable child: guard with its re-entry counter
 				outbuf:append(table.concat({
-					"\t\tif (_", dep.name, "_d < 2) {\n",
-					"\t\t\t_", dep.name, "_d++;\n",
-					"\t\t\te.children().add(build_", dep.name, "());\n",
-					"\t\t\t_", dep.name, "_d--;\n",
+					"\t\tif (_", dep.ident, "_d < 2) {\n",
+					"\t\t\t_", dep.ident, "_d++;\n",
+					"\t\t\te.children().add(build_", dep.ident, "());\n",
+					"\t\t\t_", dep.ident, "_d--;\n",
 					"\t\t}\n",
 				}))
 			else
 				outbuf:append(table.concat({
-					"\t\te.children().add(build_", dep.name, "());\n",
+					"\t\te.children().add(build_", dep.ident, "());\n",
 				}))
 			end
 		end)
@@ -121,7 +122,7 @@ public class RunTest {
 	table.map(schema.types[schema.root].dependents, function(name, node)
 		outbuf:append(table.concat({
 			"\t\t{\n",
-			"\t\t\tElement root = build_", node.name, "();\n",
+			"\t\t\tElement root = build_", node.ident, "();\n",
 			"\t\t\tString s1 = doc.marshal(root);\n",
 			"\t\t\tElement back = doc.unmarshal(s1);\n",
 			"\t\t\tString s2 = doc.marshal(back);\n",
