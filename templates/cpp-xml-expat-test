@@ -2,7 +2,17 @@
 ][@lua return include 'shared/schemaEx'
 ][@lua include 'shared/facets'
 ][@lua return include 'cpp-xml-expat-sax/cpp_type_info'
-][@lua schema = schema.c_safeNames()
+][@lua include 'includes/cpp-xml-expat/keywords'
+	-- same keyword set as the binding template so idents (class/member names)
+	-- agree between the two translation units.
+	schema = schema.c_safeNames(CPP_KEYWORDS)
+	-- resolve alias dependents (ref/include duplicates with no .ident) to their
+	-- canonical, ident-bearing type via .regkey; mirrors the binding template.
+	function canonNode(node)
+		if node.ident then return node end
+		local reg = node.regkey and schema.types[node.regkey]
+		return reg or node
+	end
 	depOrder = schema.sortDependencies()
 	typeSansRoot = table.filter(schema.types,
 		function(k, v) return v.name ~= schema.root and v or nil end)
@@ -41,12 +51,12 @@ using namespace xml;
 					..'('..ct.test.assign(a.facets)..'))')
 				or ct.test.assign(a.facets)
 		end
-		outbuf:append('static '..node.name..'\nmake_'..node.name..'() {\n')
+		outbuf:append('static '..node.ident..'\nmake_'..node.ident..'() {\n')
 		if #args > 0 then
-			outbuf:append('\t'..node.name..' o('..table.concat(args, ', ')
+			outbuf:append('\t'..node.ident..' o('..table.concat(args, ', ')
 				..');\n')
 		else
-			outbuf:append('\t'..node.name..' o;\n')
+			outbuf:append('\t'..node.ident..' o;\n')
 		end
 		if next(node.content) then
 			local ct = cpp_narrowCType(node.content.type, node.content.facets)
@@ -64,18 +74,19 @@ public:
 [@lua
 	local outbuf = stringBuffer:new()
 	table.map(typeSansRoot, function(_, node)
-		outbuf:append('\tvoid on_'..node.name..'(const '..node.name
+		outbuf:append('\tvoid on_'..node.ident..'(const '..node.ident
 			..'& obj) override {\n')
-		outbuf:append('\t\t'..node.name..' exp = make_'..node.name..'();\n')
+		outbuf:append('\t\t'..node.ident..' exp = make_'..node.ident..'();\n')
 		table.map(node.attributes, function(name, a)
 			local ct = cpp_narrowCType(a.type, a.facets)
+			local mem = a.ident
 			-- make_ always populates the optional, so both sides deref safely
 			if attrNullable(a) then
-				outbuf:append(ct.test.assert('(*obj.'..name..'_)',
-					'(*exp.'..name..'_)'))
+				outbuf:append(ct.test.assert('(*obj.'..mem..'_)',
+					'(*exp.'..mem..'_)'))
 			else
-				outbuf:append(ct.test.assert('obj.'..name..'_',
-					'exp.'..name..'_'))
+				outbuf:append(ct.test.assert('obj.'..mem..'_',
+					'exp.'..mem..'_'))
 			end
 		end)
 		if next(node.content) then
@@ -88,34 +99,40 @@ public:
 ]};
 
 int main() try {
-	Checker m;
-	m.marshalBegin();
-[@lua -- marshal each element depth-first, parent before child. A recursive type
-	-- is its own ancestor; cap re-entry at twice per active path so the
-	-- self/mutual recursion edge is exercised while the document stays finite.
-	local outbuf = stringBuffer:new()
-	local onPath = {}
-	local function marshalRec(node)
-		outbuf:append('\tm.marshal_'..node.name..'(make_'..node.name..'());\n')
+[@lua -- Marshal each global element into its OWN single-root document (a
+	-- well-formed XML document has exactly one root), depth-first parent before
+	-- child. A recursive type is its own ancestor; cap re-entry at twice per
+	-- active path so the self/mutual recursion edge is exercised while the
+	-- document stays finite. Key the cap on node identity, not wire name, since
+	-- distinct types may share a wire name.
+	local function marshalRec(outbuf, node, onPath)
+		node = canonNode(node)
+		outbuf:append('\t\tm.marshal_'..node.ident..'(make_'..node.ident
+			..'());\n')
 		table.map(node.dependents, function(_, child)
+			child = canonNode(child)
 			if next(child.dependents) then
-				if (onPath[child.name] or 0) >= 2 then return end
-				onPath[child.name] = (onPath[child.name] or 0) + 1
-				marshalRec(child)
-				onPath[child.name] = onPath[child.name] - 1
+				if (onPath[child] or 0) >= 2 then return end
+				onPath[child] = (onPath[child] or 0) + 1
+				marshalRec(outbuf, child, onPath)
+				onPath[child] = onPath[child] - 1
 			else
-				marshalRec(child)
+				marshalRec(outbuf, child, onPath)
 			end
 		end)
 	end
-	table.map(schema.types[schema.root].dependents,
-		function(_, v) marshalRec(v) end)
+	local outbuf = stringBuffer:new()
+	table.map(schema.types[schema.root].dependents, function(_, g)
+		outbuf:append('\t{\n\t\tChecker m;\n\t\tm.marshalBegin();\n')
+		marshalRec(outbuf, g, {})
+		outbuf:append('\t\tstd::string doc = m.flush(true);\n')
+		outbuf:append('\t\tstd::printf("%s\\n", doc.c_str());\n')
+		-- round-trip: unmarshal and assert each element matches via the hooks
+		outbuf:append('\t\tm.unmarshal(doc.data(), doc.size(), true);\n')
+		outbuf:append('\t}\n')
+	end)
 	return outbuf:str()
-]	std::string doc = m.flush(true);
-	std::printf("%s\n", doc.c_str());
-	/* round-trip: unmarshal and assert each element matches via the hooks */
-	m.unmarshal(doc.data(), doc.size(), true);
-	return 0;
+]	return 0;
 } catch (const std::exception& e) {
 	std::fprintf(stderr, "round-trip failed: %s\n", e.what());
 	return 1;

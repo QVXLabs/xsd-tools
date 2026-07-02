@@ -14,6 +14,20 @@
 	--   test.assert(a, b)   throw-on-mismatch C++ statement
 	-- Lists also expose baseType().
 
+	-- Escape a codegen-known literal for embedding in a C++ source string
+	-- literal (backslash, quote, control chars). Used for enum/default/fixed
+	-- values and -test sample strings baked into generated source. Control
+	-- chars use octal (bounded to 3 digits) so a following digit can't extend
+	-- the escape, as \x would. Shared with the binding template via `cppStr`.
+	local function cppEsc_(s)
+		return (tostring(s):gsub('[%z\1-\31\\"]', function(c)
+			local m = {['\\'] = '\\\\', ['"'] = '\\"', ['\n'] = '\\n',
+				['\t'] = '\\t', ['\r'] = '\\r'}
+			return m[c] or string.format('\\%03o', string.byte(c))
+		end))
+	end
+	function cppStr(s) return '"'..cppEsc_(s)..'"' end
+
 	-- scalar string-like (xs:string, dates, URIs, ...)
 	local function makeStr()
 		return {
@@ -23,7 +37,9 @@
 			-- the value assigns straight from a const char*, so attribute
 			-- dispatch can use the raw expat string without a std::string copy.
 			cstrSrc = true,
-			marshal = function(obj) return obj end,
+			-- runtime XML entity-escape before the value lands in an element
+			-- body or attribute (blocks markup injection).
+			marshal = function(obj) return 'xml_escape('..obj..')' end,
 			-- value expression (no assignment); parse is the assigning form
 			parseExpr = function(src) return src end,
 			parse = function(src, obj)
@@ -34,7 +50,8 @@
 			test = {
 				assign = function(facets)
 					local s = facets_sampleString(facets)
-					if s then return '"'..s..'"' end
+					-- source-escape: an enum sample may contain quotes/backslashes
+					if s then return cppStr(s) end
 					local tbl = {'"arch"', '"Ancestor"', '"Interaction"',
 						'"Productivity"', '"Jelly"', '"Glue"', '"Way"'}
 					return tbl[math.random(1, #tbl)]
@@ -47,18 +64,32 @@
 		}
 	end
 
-	-- integer / floating scalar; `name` is the C++ type, `fmt` the strto* call
-	local function makeNum(name, parseFn, isFloat)
+	-- numeric scalar. kind: 's' signed int, 'u' unsigned int, 'f' float
+	-- (parseFn then names the strto* call). Integers parse through the widest
+	-- strto* then range-check on narrowing, so an unfaceted narrow type rejects
+	-- out-of-range input instead of silently wrapping. Floats round-trip via
+	-- xml_ftoa (max_digits10), not std::to_string's fixed 6 digits.
+	local function makeNum(name, kind, parseFn)
+		local isFloat = (kind == 'f')
+		local function valExpr(src)
+			if kind == 's' then
+				return 'xml_narrowS<'..name..'>(std::stoll('..src..'))'
+			elseif kind == 'u' then
+				return 'xml_narrowU<'..name..'>(std::stoull('..src..'))'
+			end
+			return '('..name..')'..parseFn..'('..src..')'
+		end
 		return {
 			type = 'cpp_type',
 			cppType = function() return name end,
 			numeric = true,
-			marshal = function(obj) return 'std::to_string('..obj..')' end,
-			parseExpr = function(src)
-				return '('..name..')'..parseFn..'('..src..')'
+			marshal = function(obj)
+				return isFloat and ('xml_ftoa('..obj..')')
+					or ('std::to_string('..obj..')')
 			end,
+			parseExpr = valExpr,
 			parse = function(src, obj)
-				return obj..' = ('..name..')'..parseFn..'('..src..');\n'
+				return obj..' = '..valExpr(src)..';\n'
 			end,
 			-- emit the value as a literal; strip an integer's leading zeros so
 			-- it isn't read as octal (floats keep their lexical form).
@@ -202,17 +233,17 @@
 	end
 
 	local cpp_str = makeStr()
-	local cpp_int8 = makeNum('int8_t', 'std::stol')
-	local cpp_int16 = makeNum('int16_t', 'std::stol')
-	local cpp_int32 = makeNum('int32_t', 'std::stol')
-	local cpp_int64 = makeNum('int64_t', 'std::stoll')
-	local cpp_uint8 = makeNum('uint8_t', 'std::stoul')
-	local cpp_uint16 = makeNum('uint16_t', 'std::stoul')
-	local cpp_uint32 = makeNum('uint32_t', 'std::stoul')
-	local cpp_uint64 = makeNum('uint64_t', 'std::stoull')
-	local cpp_float = makeNum('float', 'std::stof', true)
-	local cpp_double = makeNum('double', 'std::stod', true)
-	local cpp_ldouble = makeNum('long double', 'std::stold', true)
+	local cpp_int8 = makeNum('int8_t', 's')
+	local cpp_int16 = makeNum('int16_t', 's')
+	local cpp_int32 = makeNum('int32_t', 's')
+	local cpp_int64 = makeNum('int64_t', 's')
+	local cpp_uint8 = makeNum('uint8_t', 'u')
+	local cpp_uint16 = makeNum('uint16_t', 'u')
+	local cpp_uint32 = makeNum('uint32_t', 'u')
+	local cpp_uint64 = makeNum('uint64_t', 'u')
+	local cpp_float = makeNum('float', 'f', 'std::stof')
+	local cpp_double = makeNum('double', 'f', 'std::stod')
+	local cpp_ldouble = makeNum('long double', 'f', 'std::stold')
 
 	cpp_type_info = {
 		['anySimpleType']		= cpp_str,
