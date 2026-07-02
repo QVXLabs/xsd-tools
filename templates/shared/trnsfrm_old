@@ -21,15 +21,45 @@ function trnsfrm_oldFmt(tbl)
 		root = __SCHEMA_NAME__,
 		types = {}
 	}
-	-- structural signature of a normalized type: content type + sorted
-	-- attribute name=type pairs + sorted dependent name:sig. Order-independent
-	-- and memoized per node so structurally-equal types hash identically.
+	-- canonical, order-independent serialization of a facet sub-table: scalar
+	-- facets as key=value, list facets (enumeration/pattern) as a sorted set.
+	-- Folded into the type signature so two types that share structure but
+	-- differ only in facets stay distinct (D2).
+	local function facetSig_(f)
+		if not f then return '' end
+		local keys = {}
+		for k in pairs(f) do keys[#keys + 1] = k end
+		table.sort(keys)
+		local parts = {}
+		for _, k in ipairs(keys) do
+			local v = f[k]
+			if type(v) == 'table' then
+				local items = {}
+				for i = 1, #v do items[i] = tostring(v[i]) end
+				table.sort(items)
+				parts[#parts + 1] = k..'=['..table.concat(items, '|')..']'
+			else
+				parts[#parts + 1] = k..'='..tostring(v)
+			end
+		end
+		return table.concat(parts, ',')
+	end
+	-- structural signature of a normalized type: content type+facets + sorted
+	-- attribute name=type#facets pairs + sorted dependent name:sig. Order-
+	-- independent and memoized per node so structurally-equal types hash
+	-- identically, while facet-different types do not (D2).
 	local sigOf_ = {}
+	local inProgress_ = {}
 	local function typeSig_(node)
 		if sigOf_[node] then return sigOf_[node] end
+		-- back-edge on a recursive type: the eager typeref resolution can make
+		-- dependents point at an ancestor, so cap the walk with a stable marker.
+		if inProgress_[node] then return '@rec' end
+		inProgress_[node] = true
 		local attrs = {}
 		for an, av in pairs(node.attributes or {}) do
-			attrs[#attrs + 1] = an..'='..(av.type or '')
+			attrs[#attrs + 1] =
+				an..'='..(av.type or '')..'#'..facetSig_(av.facets)
 		end
 		table.sort(attrs)
 		local deps = {}
@@ -38,15 +68,18 @@ function trnsfrm_oldFmt(tbl)
 		end
 		table.sort(deps)
 		local sig = '{c='..((node.content and node.content.type) or '')
+			..'|cf='..facetSig_(node.content and node.content.facets)
 			..';a='..table.concat(attrs, ',')
 			..';d='..table.concat(deps, ',')..'}'
+		inProgress_[node] = nil
 		sigOf_[node] = sig
 		return sig
 	end
 	-- pick a flat-table key for a type: reuse the base name (or a prior
 	-- suffix) when the structure matches a type already under that key, else
 	-- allocate the next numeric suffix so distinct same-named types don't
-	-- collapse into one struct (#11).
+	-- collapse into one struct (#11). This key is the code-identifier basis;
+	-- the element's wire name is kept separately and never suffixed (A).
 	local typeSigByName_ = {}
 	local function uniqueTypeName_(base, node)
 		local sig = typeSig_(node)
@@ -62,16 +95,30 @@ function trnsfrm_oldFmt(tbl)
 			candidate = base..n
 		end
 	end
-	local function trnsfrm_r(tbl, state, outTbl)
+	-- normalized cardinality (C): min defaults to 1, max defaults to 1, the
+	-- raw -1 sentinel becomes the string 'unbounded'.
+	local function setOccurs_(outTbl, tbl)
+		outTbl.minOccurs = (tbl.minOccurs ~= nil) and tbl.minOccurs or 1
+		local mx = tbl.maxOccurs
+		if mx == nil then outTbl.maxOccurs = 1
+		elseif mx == -1 then outTbl.maxOccurs = 'unbounded'
+		else outTbl.maxOccurs = mx end
+	end
+	local function trnsfrm_r(tbl, state, outTbl, scope)
 		--dbgPrint(StateName[state])
+		scope = scope or {}
 		if state == State.Initialize then
-			outTbl.types[__SCHEMA_NAME__] = {
+			outTblRoot.types[__SCHEMA_NAME__] = {
 				dependents={},
 				content={},
 				attributes={},
 				name=__SCHEMA_NAME__
 			}
-			trnsfrm_r(tbl, State.Content, outTbl.types[__SCHEMA_NAME__])
+			local rootScope = setmetatable(
+				{ [__SCHEMA_NAME__] = outTblRoot.types[__SCHEMA_NAME__] },
+				{ __index = scope })
+			trnsfrm_r(tbl, State.Content, outTbl.types[__SCHEMA_NAME__],
+				rootScope)
 			return outTbl
 		elseif state == State.Element then
 			if nil == outTbl['dependents'] then
@@ -83,11 +130,13 @@ function trnsfrm_oldFmt(tbl)
 			if nil == outTbl['attributes'] then
 				outTbl['attributes'] = {}
 			end
+			-- carry cardinality onto the element/dependent node (C)
+			setOccurs_(outTbl, tbl)
 			for k, v in pairs(tbl) do
 				if k == 'content' then
-					trnsfrm_r(v, State.Content, outTbl)
+					trnsfrm_r(v, State.Content, outTbl, scope)
 				elseif k == 'attributes' then
-					trnsfrm_r(v, State.AttributeNames, outTbl)
+					trnsfrm_r(v, State.AttributeNames, outTbl, scope)
 				end
 			end
 			return outTbl
@@ -99,10 +148,17 @@ function trnsfrm_oldFmt(tbl)
 			local substate = Substate.ContentNotFound
 			for k, v in pairs(tbl) do
 				if v.typeref then
-					-- recursive reference: leave a placeholder keyed by the
-					-- element name, resolved in a second pass once every type
-					-- has a flat-registry key (avoids unbounded expansion).
-					outTbl.dependents[k] = { name = k, __typeref = v.typeref }
+					-- recursive reference: bind to the nearest lexical ancestor
+					-- of this name (A/C). Scope is collision-safe where the flat
+					-- registry is not; fall back to a deferred placeholder only
+					-- if no ancestor matches.
+					local target = scope[v.typeref]
+					if target then
+						outTbl.dependents[k] = target
+					else
+						outTbl.dependents[k] =
+							{ name = k, __typeref = v.typeref }
+					end
 				elseif isBaseType(v) and substate == Substate.ContentNotFound then
 					-- carry the leaf type's facets (D1) onto the normalized
 					-- content so targets can emit validation/narrowing.
@@ -115,22 +171,28 @@ function trnsfrm_oldFmt(tbl)
 					}
 					substate = Substate.ContentFound
 				elseif not isBaseType(v) then
-					-- normalize the child first, then give it a name that
-					-- doesn't collide with a structurally-different type (#11).
-					local child = trnsfrm_r(v, State.Element, { name = k })
+					-- wire name is the element's real NCName (k) and is kept
+					-- verbatim (A); the disambiguated registry key is the code-
+					-- identifier basis, resolved to `.ident` in schemaEx.
+					local child = { name = k }
+					-- register before descending so a deeper recursive ref to
+					-- this name resolves to this very node.
+					local childScope = setmetatable(
+						{ [k] = child }, { __index = scope })
+					trnsfrm_r(v, State.Element, child, childScope)
 					local key = uniqueTypeName_(k, child)
-					child.name = key
+					child.regkey = key
 					-- carry the element/type annotation (#4), nil when absent
 					child.documentation = v.documentation
-					outTbl.dependents[key] = child
+					outTbl.dependents[k] = child
 					outTblRoot.types[key] = child
 				end
 			end
 			return outTbl
 		elseif state == State.AttributeNames then
 			for k, v in pairs(tbl) do
-				outTbl.attributes[k] = {}
-				trnsfrm_r(v, State.AttributeType, outTbl.attributes[k])
+				outTbl.attributes[k] = { name = k }
+				trnsfrm_r(v, State.AttributeType, outTbl.attributes[k], scope)
 			end
 			return outTbl
 		elseif state == State.AttributeType then
@@ -158,12 +220,15 @@ function trnsfrm_oldFmt(tbl)
 		end
 	end
 	local result = trnsfrm_r(tbl, State.Initialize, outTblRoot)
-	-- second pass: resolve recursive-reference placeholders to the actual
-	-- (already-emitted) type node, producing a finite by-reference graph.
+	-- second pass: resolve any deferred recursive placeholder by wire name
+	-- against the type that carries it, kept only as a fallback for references
+	-- the lexical scope did not cover.
+	local byWire = {}
+	for _, t in pairs(result.types) do byWire[t.name] = t end
 	for _, t in pairs(result.types) do
 		for dn, dv in pairs(t.dependents) do
-			if dv.__typeref and result.types[dv.__typeref] then
-				t.dependents[dn] = result.types[dv.__typeref]
+			if dv.__typeref and byWire[dv.__typeref] then
+				t.dependents[dn] = byWire[dv.__typeref]
 			end
 		end
 	end

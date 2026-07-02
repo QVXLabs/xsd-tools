@@ -1,74 +1,87 @@
 [@lua -- add a dependency sort to the schema table
-	--sort dependencies so that they are matched correctly 
+	--sort dependencies so that they are matched correctly
 	local function topoSort(node)
-		depOrder = {}
-		visitLst = {}
+		local depOrder = {}
+		local visited = {}
 		local function visit(node)
-			if nil ~= visitLst[node.name] then return end
-			visitLst[node.name] = true
-			table.map(node.dependents, (function(k,v)visit(v)end))
+			-- key on node identity: distinct types may share a wire name, and
+			-- recursion resolves several dependents to one node.
+			if visited[node] then return end
+			visited[node] = true
+			-- deterministic child order so generated output is stable (E)
+			local names = {}
+			for k in pairs(node.dependents) do names[#names + 1] = k end
+			table.sort(names)
+			for _, k in ipairs(names) do visit(node.dependents[k]) end
 			depOrder[#depOrder + 1] = node
 		end
 		visit(node)
 		return depOrder
 	end
 	-- add function to schema table
-	schema.sortDependencies = function() 
+	schema.sortDependencies = function()
 		return topoSort(schema.types[schema.root])
 	end
-][@lua -- add a c-safe NCName filter to schema table
-	 --add a 'c-safe' method to the table 
-	local function renameNames()
-		local ret = {
-			types = { [schema.root]={} }, 
-			root  = schema.root,
-		}
-		local function renameNCName(name, tbl, retries)
-			retries = retries or 1
-			local rplcStr = string.rep('_', retries)
-			local newName = name:gsub('^[%d]', rplcStr):gsub('-',rplcStr)
-			if newName ~= name and tbl[newName] then
-				return renameNCName(name, tbl, retries + 1)
-			else
-				return newName
+][@lua -- code-identifier assignment (A/B): wire names stay verbatim; each type
+	-- and attribute gains a valid, de-collided `.ident`.
+
+	-- Map any NCName to a valid identifier: every char outside [A-Za-z0-9_]
+	-- becomes '_', a leading digit is prefixed (not dropped), empty maps to
+	-- '_'. De-collide deterministically against `reserved` (a set of taken
+	-- identifiers, seeded by callers with language keywords); the chosen
+	-- identifier is marked taken so repeated calls stay distinct.
+	local function sanitizeIdent(name, reserved)
+		reserved = reserved or {}
+		local ident = tostring(name):gsub('[^%w_]', '_')
+		if ident:match('^%d') then ident = '_'..ident end
+		if ident == '' then ident = '_' end
+		local base, out, n = ident, ident, 0
+		while reserved[out] do
+			n = n + 1
+			out = base..'_'..n
+		end
+		reserved[out] = true
+		return out
+	end
+	-- exposed so targets can name additional identifiers (e.g. child-element
+	-- struct fields) collision-free against their own reserved set.
+	schema.sanitizeIdent = sanitizeIdent
+
+	local function sortedKeys(tbl)
+		local keys = {}
+		for k in pairs(tbl or {}) do keys[#keys + 1] = k end
+		table.sort(keys)
+		return keys
+	end
+
+	-- Assign `.ident` across the model. `keywords` (optional) is a set of
+	-- reserved identifiers/language keywords the target wants kept clear.
+	-- Type identifiers are globally unique over schema.types; attribute
+	-- identifiers are unique within their owning type's field namespace.
+	local function assignIdents(keywords)
+		keywords = keywords or {}
+		local typeReserved = {}
+		for kw in pairs(keywords) do typeReserved[kw] = true end
+		local typeKeys = sortedKeys(schema.types)
+		for _, k in ipairs(typeKeys) do
+			schema.types[k].ident = sanitizeIdent(k, typeReserved)
+		end
+		for _, k in ipairs(typeKeys) do
+			local t = schema.types[k]
+			local fieldReserved = {}
+			for kw in pairs(keywords) do fieldReserved[kw] = true end
+			for _, an in ipairs(sortedKeys(t.attributes)) do
+				t.attributes[an].ident = sanitizeIdent(an, fieldReserved)
 			end
 		end
-		local seen = {}
-		local function recurse(nodeName, node, tbl)
-			tbl.name = renameNCName(nodeName, schema.types)
-			tbl.attributes = tbl.attributes or {}
-			tbl.content = tbl.content or {}
-			table.map(node.attributes, function(k,v)
-				tbl.attributes[renameNCName(k,node.attributes)] = v
-			end)
-			tbl.dependents = tbl.dependents or {}
-			table.map(node.dependents, function(k,v)
-				local CSafeName = renameNCName(k, schema.types)
-				tbl.dependents[CSafeName], ret.types[CSafeName] = v, v
-				-- guard the recursive graph: a type already visited keeps its
-				-- wired reference but is not re-descended (would not terminate).
-				if not seen[v] then
-					seen[v] = true
-					recurse(k, v, tbl.dependents[CSafeName])
-				end
-			end)
-		end
-		seen[schema.types[schema.root]] = true
-		recurse(schema.root, schema.types[schema.root],ret.types[schema.root])
-		return ret
+		return schema
 	end
 	-- add function to schema table
-	schema.c_safeNames = function()
-		local ret = renameNames()
-		table.map(schema, function(k, v) 
-			if "function" == type(v) then 
-				ret[k]=v 
-			end
-		end)
-		return ret
-	end	
-	schema.python_safeNames = function()
-		return schema.c_safeNames()
+	schema.c_safeNames = function(keywords)
+		return assignIdents(keywords)
+	end
+	schema.python_safeNames = function(keywords)
+		return assignIdents(keywords)
 	end
 ][@lua -- find all unique types used in xsd
 	schema.uniqueTypes = function()
