@@ -54,6 +54,17 @@ end
 -- selects the case; every case then strcmp-confirms the exact literal(s) before
 -- running the body, so an input whose hash collides with an enum member cannot
 -- be accepted in its place. `valExpr(literal)` renders the on-match body.
+-- Escape a value for embedding inside a C "..." literal: quotes and backslash,
+-- plus control bytes as 3-digit octal. Enum literals are schema-controlled, so
+-- an unescaped `"` or `\` would break compilation (and splice arbitrary source).
+local function cStrEsc(s)
+   return (tostring(s):gsub('[%c"\\]', function(ch)
+      if ch == '"' then return '\\"'
+      elseif ch == '\\' then return '\\\\'
+      else return ('\\%03o'):format(ch:byte()) end
+   end))
+end
+
 function c_sdbmStringSwitch(strExpr, values, valExpr)
    local byHash = sdbm_group(values)
    local out = stringBuffer:new()
@@ -62,7 +73,7 @@ function c_sdbmStringSwitch(strExpr, values, valExpr)
       out:append(("    case 0x%xU:\n"):format(h))
       local cmps = {}
       table.map(lits, function(_, v)
-         cmps[#cmps + 1] = ("!strcmp(%s, \"%s\")"):format(strExpr, v)
+         cmps[#cmps + 1] = ("!strcmp(%s, \"%s\")"):format(strExpr, cStrEsc(v))
       end)
       out:append(("      if (%s) {\n"):format(table.concat(cmps, " || ")))
       out:append(valExpr(lits[1]))

@@ -116,6 +116,17 @@
 		local esc = s:gsub('[\\"]', '\\%0')
 		return '"'..esc..'", '..#s
 	end
+	-- Escape a value for embedding inside a C "..." literal: quotes and
+	-- backslash, plus control bytes as 3-digit octal. Enum/default/fixed
+	-- values are schema-controlled, so an unescaped `"` or `\` would break
+	-- compilation (and splice arbitrary source) without this.
+	function cStrEsc(s)
+		return (tostring(s):gsub('[%c"\\]', function(ch)
+			if ch == '"' then return '\\"'
+			elseif ch == '\\' then return '\\\\'
+			else return ('\\%03o'):format(ch:byte()) end
+		end))
+	end
 	-- Codegen-time collision-safe sdbm switch body for `switch(SDBMHash_(0,
 	-- scrut))`. `keys` are the case literals in emit order; `ind` is the tab
 	-- prefix of a `case` label at this site. When every key has a distinct
@@ -765,8 +776,8 @@ prsElmRec_init_(xml_prsElmRec* pElmRec, xml_marshaller* pMarshaller, uint32_t pa
 			if attrib.default then
 				local at = c_narrowCType(attrib.type, attrib.facets)
 				body:append(reindent(at.binding.unmarshal.statement(
-					'"'..attrib.default..'"', at.buildVar(obj, attrib.ident)),
-					'\t\t\t\t'))
+					'"'..cStrEsc(attrib.default)..'"',
+					at.buildVar(obj, attrib.ident)), '\t\t\t\t'))
 			end
 		end)
 		if next(node.attributes) then
@@ -933,7 +944,7 @@ prsElmRec_destory_(xml_prsElmRec* pElmRec, xml_marshaller* pMarshaller) {
 						out:append('\tcase '..h..'u:\n')
 						local ors = {}
 						table.map(groups[h], function(_, v)
-							ors[#ors+1] = '0 == strcmp('..expr..', "'..v..'")'
+							ors[#ors+1] = '0 == strcmp('..expr..', "'..cStrEsc(v)..'")'
 						end)
 						out:append('\t\tif ('..table.concat(ors, ' || ')
 							..') break;\n')
